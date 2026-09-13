@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 30 · Vitest 181 · Playwright 102 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 44 · Vitest 195 · Playwright 108 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -408,6 +408,34 @@ findings: 4,457 agencies have fewer than five documents and many are the same ag
 truncated at a line break (8,207 documents with an issuer link that goes nowhere), and one
 impossible date (`1946-02-29`) is blocking the Hugging Face viewer, search and filter for the
 whole dataset, for everybody.
+
+### Two bugs that only existed in production, and the tests that now stand where they were
+
+**The Content-Security-Policy blocked the full text on the live site while every test passed.**
+`connect-src` named four Hugging Face hosts by hand; `resolve/` redirected to
+`us.aws.cdn.hf.co` — a Xet bridge host on no published list — and the browser blocked it. Nothing
+caught it because **a preview server sends no policy at all**: the one environment where the rule
+applies was the one environment nobody could test in.
+- The policy now names the publisher's domains (`https://*.hf.co`, `https://*.huggingface.co`)
+  rather than individual hosts, because the set changes with region and storage backend.
+- `vite preview` now serves `infra/_headers` (`web/scripts/headers.ts`), so **the e2e runs under
+  the real policy**, and a test walks every route listening for violations. Verified that test can
+  fail by breaking `font-src` and watching it report the blocked Google Fonts.
+- `infra/verify-live.sh` follows the redirect the way a browser does and asks `infra/csp-allows.py`
+  whether the *deployed* header allows wherever it landed. A policy that stops matching reality now
+  fails the deploy instead of silently costing one feature. `csp-allows.py` has its own tests,
+  including the exact policy and the exact host that broke this.
+
+**A 320-pixel phone scrolled sideways**, found by sweeping the live site rather than by a test,
+because the fixture documents happen to have short issuers. Two causes of the same shape: a
+sixty-character agency name under `white-space: nowrap`, and a path like
+`feeds/topic|province|agency/<name>.xml` — one token with nothing to break on — setting the
+min-content width of a whole page column. Pills clip with an ellipsis and keep the full name in
+`title`; `code` may break anywhere. The e2e now walks every route at 320px and names the widest
+offending element when it fails.
+
+The lesson both share: **test in the shape the thing is actually served in.** Neither bug was
+subtle; both were invisible from where the tests were standing.
 
 ### The fixture foot-gun, fixed at last
 `npm run e2e` rebuilds `dist` from fixtures *and* leaves fixture static pages in `public/` for the
