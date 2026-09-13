@@ -126,8 +126,15 @@ export function Latest({ q }: { q: URLSearchParams }) {
 
       {hits.length === 0 && (
         <Empty>
-          ไม่พบฉบับที่มีคำว่า "{text}" ใน {latest.days} วันล่าสุด
+          ไม่พบฉบับที่มีคำว่า "{text}" ใน {latest.days} วันล่าสุด —{' '}
+          <a href={href.explore({ scope: 'month', q: needle })}>ค้นย้อนหลังทั้งเดือนในหน้าสำรวจ →</a>
         </Empty>
+      )}
+      {needle !== '' && hits.length > 0 && (
+        <p class="muted" style="font-size:.85rem;margin:-4px 0 14px">
+          หน้านี้ดูเฉพาะ {latest.days} วันล่าสุด · ต้องการย้อนหลังกว่านี้{' '}
+          <a href={href.explore({ scope: 'month', q: needle })}>ค้นคำเดิมในหน้าสำรวจ →</a>
+        </p>
       )}
 
       <div data-testid="latest">

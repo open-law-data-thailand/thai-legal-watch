@@ -202,6 +202,35 @@ test.describe('header search', () => {
   })
 })
 
+test.describe('arriving with a subject rather than a date', () => {
+  test('the front page offers subjects, and each one opens filtered', async ({ page }) => {
+    // Most people arrive knowing what they care about, not what came out today. The doorways are
+    // read from the taxonomy, so this checks the wiring rather than a list somebody typed.
+    await page.goto('/#/')
+    const doors = page.locator('.door')
+    await expect(doors.first()).toBeVisible()
+    expect(await doors.count()).toBeGreaterThan(3)
+    const first = doors.first()
+    const name = (await first.locator('.nm').textContent())?.trim() ?? ''
+    await first.click()
+    await expect(page).toHaveURL(/explore\?.*topic=/)
+    await expect(page.getByRole('button', { name: new RegExp(`^${name} \\(`) })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await sane(page)
+  })
+
+  test('a filter that is one subject can be followed; a crossed one says why not', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/explore?scope=all&topic=bankruptcy')
+    const feed = page.locator('.feedrow')
+    await expect(feed.getByRole('link', { name: /RSS/ })).toHaveAttribute('href', /feeds\/topic\//)
+    await page.getByLabel('ระดับผู้ออก').selectOption({ index: 1 })
+    await expect(feed.getByRole('link', { name: /RSS/ })).toHaveCount(0)
+    await expect(feed).toContainText('ยังติดตามด้วย RSS ไม่ได้')
+  })
+})
+
 test.describe('explore', () => {
   test('filters by topic chip and title search; results and CSV button react', async ({ page }) => {
     await page.goto('/#/ratchakitcha/explore')

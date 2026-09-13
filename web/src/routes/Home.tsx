@@ -1,4 +1,5 @@
 import { useLoad } from '../data/context'
+import type { Taxonomy } from '../data/types'
 import { beRange, beYear, percent, thaiDate } from '../lib/thai'
 import { useHref } from '../data/context'
 import {
@@ -18,6 +19,16 @@ import { CiteLookup } from '../ui/CiteLookup'
 import { Provenance } from '../ui/Provenance'
 import { QuickSearch } from '../ui/QuickSearch'
 import { STAGE } from './Doc'
+
+/** The biggest subjects, as doorways. Read from the taxonomy rather than written down, so a
+ *  change upstream moves the front page instead of leaving it lying. */
+export function doorways(tax: Taxonomy, limit = 10): { slug: string; thai: string; n: number }[] {
+  return Object.entries(tax.topics)
+    .filter(([, t]) => !t.parent && t.n > 0 && t.thai)
+    .map(([slug, t]) => ({ slug, thai: t.thai ?? slug, n: t.n }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, limit)
+}
 
 export function Home() {
   const href = useHref()
@@ -103,6 +114,42 @@ export function Home() {
           <Sparkline points={home.sparkline} />
         </div>
       </section>
+      {/* The rest of this page answers "what came out today", which assumes the reader already
+          follows the gazette. Most people arrive with a subject, not a date — a builder wanting
+          zoning rules, a shop owner checking a counterparty, somebody who heard a law changed. So
+          the subjects come first, in their own words, before any of the daily numbers. */}
+      <section aria-labelledby="h-start" style="margin-top:34px">
+        <h2 id="h-start" class="sec">
+          เริ่มจากเรื่องที่คุณสนใจ
+        </h2>
+        <p class="muted" style="margin:8px 0 14px;max-width:74ch">
+          ไม่ต้องรู้ศัพท์กฎหมายก็เริ่มได้ — เลือกเรื่องแล้วค่อยแคบลงตามจังหวัด ปี หรือหน่วยงาน
+        </p>
+        <div class="doors">
+          {doorways(tax).map((d) => (
+            <a key={d.slug} class="door" href={href.explore({ scope: 'all', topic: d.slug })}>
+              <span class="nm">{d.thai}</span>
+              <span class="muted">{d.n.toLocaleString('th-TH')} ฉบับ</span>
+            </a>
+          ))}
+          <a
+            class="door special"
+            href={href.explore({
+              scope: 'year',
+              year: meta.years[meta.years.length - 1] ?? '',
+              topic: 'bankruptcy',
+            })}
+          >
+            <span class="nm">ตรวจชื่อในประกาศล้มละลาย</span>
+            <span class="muted">ค้นชื่อบุคคลหรือบริษัทในชื่อเรื่อง ทีละปี</span>
+          </a>
+          <a class="door special" href={href.provinces()}>
+            <span class="nm">ดูเฉพาะจังหวัดของคุณ</span>
+            <span class="muted">ผังเมือง ป่าสงวน เขตเลือกตั้ง และประกาศของผู้ว่าฯ</span>
+          </a>
+        </div>
+      </section>
+
       <div class="two" style="margin-top:36px">
         <section aria-labelledby="h-topics">
           <h2 id="h-topics" class="sec">

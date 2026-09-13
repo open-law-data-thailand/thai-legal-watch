@@ -67,6 +67,7 @@ interface Kept {
 export function FullText({ base, id, month }: { base: string; id: string; month: string }) {
   const [st, setSt] = useState<State>({ s: 'idle' })
   const [all, setAll] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // A copy fetched before is free, so it is shown without being asked for. A copy that is not
   // there costs a dozen range requests against somebody else's server, which is not something to
@@ -154,11 +155,31 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
 
   const { doc } = st
   const paras = paragraphs(doc.text)
+  const copyAll = () => {
+    navigator.clipboard?.writeText(doc.text).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => {
+          setCopied(false)
+        }, 2000)
+      },
+      () => {
+        setCopied(false)
+      },
+    )
+  }
   const { shown, hidden } = all ? { shown: paras, hidden: 0 } : clamp(paras)
   const ocr = doc.method !== null && doc.method !== 'direct'
   return (
     <section class="fulltext" data-testid="fulltext">
-      <h2 class="sec">เนื้อหาเต็ม</h2>
+      <div class="fulltext-head">
+        <h2 class="sec" style="margin:0">
+          เนื้อหาเต็ม
+        </h2>
+        <button class="btn" onClick={copyAll} data-testid="copy-text">
+          {copied ? 'คัดลอกแล้ว ✓' : 'คัดลอกข้อความทั้งหมด'}
+        </button>
+      </div>
       <p class="muted fulltext-note">
         {ocr ? 'อ่านจากภาพสแกนด้วย OCR' : 'ข้อความจากไฟล์ PDF โดยตรง'}
         {doc.pages ? ` · ${doc.pages.toLocaleString('th-TH')} หน้า` : ''}

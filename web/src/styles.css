@@ -1532,6 +1532,13 @@ body {
 .fulltext {
   margin-top: 30px;
 }
+.fulltext-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .fulltext-note {
   font-size: 0.85rem;
   margin: 8px 0 14px;
@@ -1572,4 +1579,53 @@ body {
   .docfacts dd {
     margin-bottom: 8px;
   }
+}
+
+/* Doorways by subject. Big enough to read at a glance and to hit with a thumb, arranged so the
+   list reads as a set of choices rather than a ranking. */
+.doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 10px;
+}
+.door {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  text-decoration: none;
+  color: inherit;
+  min-height: 62px;
+  justify-content: center;
+}
+.door:hover {
+  background: var(--paper-2);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.door .nm {
+  font-weight: 600;
+  line-height: 1.5;
+}
+.door .muted {
+  font-size: 0.82rem;
+}
+.door.special {
+  background: var(--accent-bg);
+  border-color: transparent;
+}
+.door.special:hover {
+  border-color: var(--accent);
+}
+
+.feedrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -4px 0 14px;
+  font-size: 0.85rem;
 }

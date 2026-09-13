@@ -7,7 +7,18 @@ import { beMonth, beYear, thaiDate } from '../lib/thai'
 import { rememberExplore } from '../lib/title'
 import { useHref } from '../data/context'
 import { DEFAULT_SOURCE, hrefFor } from '../router'
-import { Bars, DocRow, Empty, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
+import {
+  Bars,
+  DocRow,
+  Empty,
+  ErrorBox,
+  FeedLink,
+  Kicker,
+  Loading,
+  actionName,
+  govName,
+  topicName,
+} from '../ui/bits'
 
 const PAGE = 50
 /** How many matching rows the whole-archive scan keeps. Beyond this nobody is browsing any more,
@@ -265,6 +276,19 @@ export function Explore({ q }: { q: URLSearchParams }) {
       ? { label: `เดือน ${beMonth(key)}`, n, patch: { month: key } }
       : { label: `ปี ${beYear(key)}`, n, patch: { year: key } }
   })()
+  // exactly one facet chosen, and nothing else narrowing it: that is a feed the build produced
+  const follow = (() => {
+    const facets = [
+      f.topic && { path: `topic/${f.topic}`, label: `หมวด${topicName(tax, f.topic)}` },
+      f.province && { path: `province/${f.province}`, label: `จังหวัด${f.province}` },
+      f.agency && {
+        path: `agency/${f.agency}`,
+        label: base.state === 'ok' ? (base.data.agencies.get(f.agency) ?? 'หน่วยงานนี้') : 'หน่วยงานนี้',
+      },
+    ].filter(Boolean) as { path: string; label: string }[]
+    const extra = Boolean(f.action || f.govlevel || f.dtype || f.q || f.day)
+    return facets.length === 1 && !extra ? facets[0] : null
+  })()
   const list = scope === 'all' ? cubeDocs : hits
   // only a genuinely empty list waits: once something is on screen, a further batch loads under it
   const listing =
@@ -445,6 +469,22 @@ export function Explore({ q }: { q: URLSearchParams }) {
           />
         </label>
       </div>
+      {/* Somebody who has built a filter they care about wants to be told when it changes. The
+          feeds are per facet, so a filter that *is* one facet can be followed today; a crossed
+          one cannot, and saying which is which beats leaving them to guess. */}
+      <p class="feedrow">
+        {follow ? (
+          <>
+            <FeedLink path={follow.path} />
+            <span class="muted">ติดตาม {follow.label} ด้วย RSS — ไม่ต้องสมัครสมาชิก</span>
+          </>
+        ) : (
+          <span class="muted">
+            ตัวกรองที่ไขว้กันหลายด้านยังติดตามด้วย RSS ไม่ได้ — เหลือตัวกรองเดียว (หมวด จังหวัด หรือหน่วยงาน)
+            แล้วปุ่ม RSS จะขึ้นมา · ลิงก์ของหน้านี้เก็บตัวกรองไว้ครบ ส่งต่อหรือบุ๊กมาร์กได้เลย
+          </span>
+        )}
+      </p>
       <p class="muted" style="font-size:.85rem;margin:-6px 0 16px">
         ตัวเลขในวงเล็บคือจำนวนฉบับที่จะได้ <b>ถ้าเลือกตัวเลือกนั้น</b> โดยยังคงตัวกรองอื่นไว้ —
         เลือกจังหวัดแล้ว รายการเดือนและปีก็จะนับเฉพาะจังหวัดนั้น
