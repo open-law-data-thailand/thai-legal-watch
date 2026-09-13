@@ -451,12 +451,6 @@ page. It has fooled three sessions. `link:data` and `prebuild` now clear all of 
 - **A custom domain needs `VITE_SITE_URL` and `--site` set to it**, or canonical, og: and the feeds
   will point at pages.dev.
 - Document full text: blocked upstream, see above.
-- **Pills that cannot be filtered.** In `LabelPills` only หมวด and หน่วยงาน are links, because only
-  they have a pre-built facet page — the grey is not a hierarchy (หน่วยงาน is the same grey and
-  *is* a link), and `.pill:hover` lifts all five, so three advertise themselves as clickable and
-  are not. The archive index removed the reason: a pill can point at สำรวจ now. **Decided:
-  replace, never add** — one filter, `scope=all`, same meaning wherever it is clicked. The full
-  TODO, including why a "คาดว่า" pill must stay unlinked, is at the top of `LabelPills`.
 - **The text layer costs 17 requests and 7 seconds per document.** Opt-in and cached, so it is
   usable, but `docs/DATA-WISHLIST.md` item 1 (a byte-offset index) would make it one request and
   30 KB, and would let it load with the page.
