@@ -26,10 +26,44 @@ export function Metric({ label, value, hint }: { label: string; value: string | 
 
 export function ErrorBox({ error }: { error: unknown }) {
   const msg = error instanceof Error ? error.message : String(error)
+  // A failed fetch is usually the network, not the site, and a dead end with no way forward is the
+  // worst thing to leave someone with. Reloading re-runs the request with a cold client cache.
   return (
     <div class="error" role="alert">
-      โหลดข้อมูลไม่สำเร็จ — {msg}
+      <p style="margin:0 0 8px">โหลดข้อมูลไม่สำเร็จ — {msg}</p>
+      <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap">
+        <button
+          onClick={() => {
+            location.reload()
+          }}
+        >
+          ลองใหม่
+        </button>
+        <a class="btn" href={href.home()}>
+          กลับหน้าแรก
+        </a>
+      </p>
     </div>
+  )
+}
+
+/** How old the data is allowed to get before the site says so. The pipeline runs nightly; three
+ *  days means a weekend of failures is visible to a reader rather than only in a log nobody
+ *  reads. Serving stale data silently is the failure this project can least afford. */
+const STALE_DAYS = 3
+
+export function StaleNotice({ generatedAt }: { generatedAt: string | undefined }) {
+  if (!generatedAt) return null
+  const built = Date.parse(generatedAt)
+  if (Number.isNaN(built)) return null
+  const days = Math.floor((Date.now() - built) / 86_400_000)
+  if (days < STALE_DAYS) return null
+  return (
+    <p class="stale" role="status">
+      <b>ข้อมูลยังไม่อัปเดต</b> ชุดข้อมูลบนเว็บนี้สร้างเมื่อ {thaiDate(generatedAt.slice(0, 10))} ({days}{' '}
+      วันก่อน) ปกติจะสร้างใหม่ทุกคืน — ระหว่างนี้โปรดตรวจกับ{' '}
+      <a href="https://ratchakitcha.soc.go.th/">ราชกิจจานุเบกษา</a> โดยตรง
+    </p>
   )
 }
 
@@ -145,7 +179,10 @@ export function Bars({
   nameOf: (k: string) => string
   hrefOf?: (k: string) => string
 }) {
-  const max = rows[0]?.[1] ?? 1
+  // the largest value, not the first one: `rows` is sorted for most callers but the month-of-year
+  // profile is in calendar order, and normalising against January clipped seven bars to 100% and
+  // hid the very ranking the chart exists to show
+  const max = Math.max(1, ...rows.map(([, n]) => n))
   return (
     <div class="grid" style="gap:8px">
       {rows.map(([k, n]) => (

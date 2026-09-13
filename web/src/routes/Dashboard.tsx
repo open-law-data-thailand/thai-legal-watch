@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { Taxonomy, Trends } from '../data/types'
 import { completeYears, monthProfile, movers, sumAt, yearToDate, type Move } from '../lib/trends'
-import { beYear, thaiDate } from '../lib/thai'
+import { beYear, percent, thaiDate } from '../lib/thai'
 import { href } from '../router'
 import { Bars, ErrorBox, Kicker, Loading, Metric, actionName, govName, topicName } from '../ui/bits'
 import { STAGE } from './Doc'
@@ -39,14 +39,25 @@ export function Dashboard() {
   const [year, setYear] = useState<string | null>(null)
   const yearsRef = useRef<HTMLDivElement>(null)
 
+  // The chart is created once and then only re-styled. Re-running echarts.init on the same
+  // element — which is what happens if the effect depends on `year` — leaves the previous
+  // instance undisposed and its listeners attached, and the second instance renders unreliably.
+  const chartRef = useRef<{
+    setOption: (o: unknown) => void
+    resize: () => void
+    dispose: () => void
+  } | null>(null)
+  const ok = st.state === 'ok'
+  const byYear = ok ? st.data.years.by_year : null
   useEffect(() => {
-    if (st.state !== 'ok') return
+    if (!byYear) return
     let disposed = false
-    const { years } = st.data
+    const el = yearsRef.current
     void import('echarts').then((echarts) => {
-      if (disposed || !yearsRef.current) return
-      const ys = Object.keys(years.by_year).sort()
-      const chart = echarts.init(yearsRef.current, undefined, { renderer: 'svg' })
+      if (disposed || !el) return
+      const ys = Object.keys(byYear).sort()
+      const chart = echarts.init(el, undefined, { renderer: 'svg' })
+      chartRef.current = chart
       chart.setOption({
         backgroundColor: 'transparent',
         textStyle: { fontFamily: 'Anuphan, sans-serif' },
@@ -54,35 +65,42 @@ export function Dashboard() {
         xAxis: { type: 'category', data: ys.map((k) => beYear(k)) },
         yAxis: { type: 'value' },
         tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toLocaleString('th-TH')} ฉบับ` },
-        series: [
-          {
-            type: 'bar',
-            data: ys.map((k) => ({
-              value: years.by_year[k],
-              itemStyle: { color: k === year ? '#c9502a' : '#6b4fd8', borderRadius: [3, 3, 0, 0] },
-            })),
-            animationDelay: (i: number) => i * 25,
-          },
-        ],
+        series: [{ type: 'bar', data: ys.map((k) => byYear[k]), animationDelay: (i: number) => i * 25 }],
       })
       chart.on('click', (p: { dataIndex: number }) => {
         const clicked = ys[p.dataIndex] ?? null
         setYear((cur) => (cur === clicked ? null : clicked))
       })
-      const resize = () => {
-        chart.resize()
-      }
-      addEventListener('resize', resize)
-      yearsRef.current.dataset.ready = '1'
-      return () => {
-        removeEventListener('resize', resize)
-        chart.dispose()
-      }
+      el.dataset.ready = '1'
     })
+    const resize = () => {
+      chartRef.current?.resize()
+    }
+    addEventListener('resize', resize)
     return () => {
       disposed = true
+      removeEventListener('resize', resize)
+      chartRef.current?.dispose()
+      chartRef.current = null
+      if (el) delete el.dataset.ready
     }
-  }, [st.state, year])
+  }, [byYear])
+
+  // highlight the selected year without rebuilding the chart
+  useEffect(() => {
+    if (!byYear) return
+    const ys = Object.keys(byYear).sort()
+    chartRef.current?.setOption({
+      series: [
+        {
+          data: ys.map((k) => ({
+            value: byYear[k],
+            itemStyle: { color: k === year ? '#c9502a' : '#6b4fd8', borderRadius: [3, 3, 0, 0] },
+          })),
+        },
+      ],
+    })
+  }, [year, byYear])
 
   if (st.state === 'loading') return <Loading what="แดชบอร์ด" />
   if (st.state === 'error') return <ErrorBox error={st.error} />
@@ -131,7 +149,7 @@ export function Dashboard() {
         />
         <Metric
           label="ยืนยันหมวดได้"
-          value={share(meta.corroborated_any, meta.docs)}
+          value={percent(meta.corroborated_any, meta.docs)}
           hint={`${meta.corroborated_any.toLocaleString('th-TH')} ฉบับมีหลักฐานรองรับ`}
         />
         <Metric
@@ -222,12 +240,6 @@ export function Dashboard() {
       </div>
     </>
   )
-}
-
-/** 99.6% must not round to 100% — the gap is the whole point of the number. */
-export const share = (part: number, whole: number) => {
-  const p = (100 * part) / whole
-  return `${p > 99 && p < 100 ? p.toFixed(1) : Math.round(p)}%`
 }
 
 const pct = (now: number, then: number) => {

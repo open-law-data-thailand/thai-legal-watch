@@ -1275,3 +1275,18 @@ body {
     white-space: nowrap;
   }
 }
+
+/* Stale data is the one failure a reader must never have to guess at. */
+.stale {
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  margin: 0 0 18px;
+}
+.stale a {
+  color: inherit;
+  text-decoration: underline;
+}

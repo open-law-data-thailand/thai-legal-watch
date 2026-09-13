@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'preact/hooks'
+import { useCallback, useMemo, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
 import { beMonth, beYear, thaiDate } from '../lib/thai'
@@ -6,6 +6,8 @@ import { href } from '../router'
 import { Bars, DocRow, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 
 const PAGE = 50
+/** a stable empty array, so a memo keyed on `loaded` is not invalidated every render */
+const EMPTY: SlimDoc[] = []
 
 export type Scope = 'month' | 'year' | 'all'
 export interface Filters {
@@ -59,7 +61,8 @@ export function matches(d: SlimDoc, f: Filters, tax: Taxonomy | undefined, excep
 }
 
 export function Explore({ q }: { q: URLSearchParams }) {
-  const f = filtersFrom(q)
+  // one object per navigation, not per render: every memo below keys off it
+  const f = useMemo(() => filtersFrom(q), [q])
   const base = useLoad(async (c) => {
     const [tax, years, agencies, provinces] = await Promise.all([
       c.taxonomy(),
@@ -90,21 +93,23 @@ export function Explore({ q }: { q: URLSearchParams }) {
   const agg = useLoad(async (c) => (scope === 'all' && f.topic ? c.topic(f.topic) : null), [scope, f.topic])
   const [page, setPage] = useState(0)
   const tax = base.state === 'ok' ? base.data.tax : undefined
-  const loaded = docs.state === 'ok' ? docs.data : []
-  const hits = useMemo(
-    () => loaded.filter((d) => matches(d, f, tax)).reverse(),
-    [loaded, f.topic, f.action, f.govlevel, f.province, f.agency, f.q, tax],
-  )
+  const loaded = useMemo(() => (docs.state === 'ok' ? docs.data : EMPTY), [docs])
+  // `f` rather than a hand-written list of its fields: the list forgot `f.day`, so choosing a day
+  // changed the heading and the count while the list below kept showing the whole month.
+  const hits = useMemo(() => loaded.filter((d) => matches(d, f, tax)).reverse(), [loaded, f, tax])
   // option counts with that one dimension left open, so the UI can say "(n)" per choice
-  const countsFor = (key: keyof Filters, pick: (d: SlimDoc) => string | null) => {
-    const m = new Map<string, number>()
-    for (const d of loaded)
-      if (matches(d, f, tax, key)) {
-        const k = pick(d)
-        if (k) m.set(k, (m.get(k) ?? 0) + 1)
-      }
-    return m
-  }
+  const countsFor = useCallback(
+    (key: keyof Filters, pick: (d: SlimDoc) => string | null) => {
+      const m = new Map<string, number>()
+      for (const d of loaded)
+        if (matches(d, f, tax, key)) {
+          const k = pick(d)
+          if (k) m.set(k, (m.get(k) ?? 0) + 1)
+        }
+      return m
+    },
+    [loaded, f, tax],
+  )
   const topicCounts = useMemo(() => {
     const m = new Map<string, number>()
     if (scope === 'all') {
@@ -122,16 +127,16 @@ export function Explore({ q }: { q: URLSearchParams }) {
       scope === 'all'
         ? new Map(Object.entries(tax?.action_counts ?? {}))
         : countsFor('action', (d) => (d.ac ? d.action : null)),
-    [loaded, f, tax, scope],
+    [countsFor, tax, scope],
   )
   const govCounts = useMemo(
     () =>
       scope === 'all'
         ? new Map(Object.entries(tax?.govlevel_counts ?? {}))
         : countsFor('govlevel', (d) => (d.gc ? d.govlevel : null)),
-    [loaded, f, tax, scope],
+    [countsFor, tax, scope],
   )
-  const provinceCounts = useMemo(() => countsFor('province', (d) => d.pr), [loaded, f, tax, scope])
+  const provinceCounts = useMemo(() => countsFor('province', (d) => d.pr), [countsFor])
   // the days of the loaded month, counted here rather than shipped: the shard already has them
   const dayCounts = useMemo(() => {
     const m = new Map<string, number>()
@@ -404,7 +409,9 @@ export function Explore({ q }: { q: URLSearchParams }) {
           {scope !== 'all' && (
             <p style="margin-top:16px">
               <button
-                onClick={() => downloadCsv(hits, scope === 'month' ? month : year)}
+                onClick={() => {
+                  downloadCsv(hits, scope === 'month' ? month : year, tax)
+                }}
                 disabled={!hits.length}
               >
                 ดาวน์โหลด CSV ({hits.length.toLocaleString('th-TH')})
@@ -460,10 +467,15 @@ function count(docs: SlimDoc[], key: (d: SlimDoc) => string | null): [string, nu
   return [...m.entries()].sort((a, b) => b[1] - a[1])
 }
 
-export function toCsv(docs: SlimDoc[]): string {
-  const esc = (v: string | number | boolean | null) => `"${(v ?? '').toString().replace(/"/g, '""')}"`
+/** The BOM is not decoration: without it Excel on Windows reads the Thai as mojibake.
+ *  Slugs stay for anyone processing the file; the Thai names and the link are for the far more
+ *  common case of somebody reading it in a spreadsheet. */
+export function toCsv(docs: SlimDoc[], tax?: Taxonomy, origin = ''): string {
+  const esc = (v: string | number | boolean | null | undefined) =>
+    `"${(v ?? '').toString().replace(/"/g, '""')}"`
   const head = [
     'id',
+    'url',
     'title',
     'date',
     'volume',
@@ -471,25 +483,54 @@ export function toCsv(docs: SlimDoc[]): string {
     'page',
     'doc_type',
     'topic',
+    'topic_thai',
     'topic_corroborated',
     'action',
+    'action_thai',
     'action_corroborated',
     'govlevel',
+    'govlevel_thai',
     'province',
   ]
   const rows = docs.map((d) =>
-    [d.id, d.t, d.d, d.v, d.p, d.pg, d.dt, d.topic, d.tc, d.action, d.ac, d.govlevel, d.pr]
+    [
+      d.id,
+      `${origin}${href.doc(d.id, d.d?.slice(0, 7))}`,
+      d.t,
+      d.d,
+      d.v,
+      d.p,
+      d.pg,
+      d.dt,
+      d.topic,
+      topicName(tax, d.topic),
+      d.tc,
+      d.action,
+      actionName(tax, d.action),
+      d.ac,
+      d.govlevel,
+      govName(tax, d.govlevel),
+      d.pr,
+    ]
       .map(esc)
       .join(','),
   )
   return `\uFEFF${head.join(',')}\n${rows.join('\n')}\n`
 }
 
-function downloadCsv(docs: SlimDoc[], label: string | undefined) {
-  const blob = new Blob([toCsv(docs)], { type: 'text/csv;charset=utf-8' })
+function downloadCsv(docs: SlimDoc[], label: string | undefined, tax?: Taxonomy) {
+  const origin = typeof location === 'undefined' ? '' : `${location.origin}${location.pathname}`
+  const blob = new Blob([toCsv(docs, tax, origin)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
+  a.href = url
   a.download = `thai-legal-watch-${label ?? 'export'}.csv`
+  // Firefox will not follow a click on an anchor that is not in the document, and revoking the
+  // object URL in the same tick can cancel the download before it starts.
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(a.href)
+  a.remove()
+  setTimeout(() => {
+    URL.revokeObjectURL(url)
+  }, 10_000)
 }

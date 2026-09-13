@@ -60,8 +60,43 @@ it('matches can leave one dimension open for option counts', () => {
 })
 
 it('toCsv escapes quotes and starts with a BOM for Excel', () => {
-  const csv = toCsv([doc({ t: 'เรื่อง "ก"' })])
-  expect(csv.startsWith('\uFEFFid,title')).toBe(true)
-  expect(csv).toContain('"เรื่อง ""ก"""')
-  expect(csv.trim().split('\n')).toHaveLength(2)
+  const csv = toCsv([doc({ t: 'title with "quotes"' })])
+  expect(csv.startsWith('\uFEFF')).toBe(true)
+  expect(csv).toContain('"title with ""quotes"""')
+})
+
+it('toCsv gives a spreadsheet reader the Thai names and a link, not just slugs', () => {
+  const tax = {
+    topics: { pollution_waste: { thai: 'ขยะ', parent: null, n: 1, children: [] } },
+    actions: { rulemaking: 'ออกกฎ' },
+    govlevels: { local: 'ท้องถิ่น' },
+    action_counts: {},
+    govlevel_counts: {},
+  }
+  const csv = toCsv(
+    [
+      doc({
+        id: '2024-000128',
+        d: '2024-02-03',
+        topic: 'pollution_waste',
+        action: 'rulemaking',
+        govlevel: 'local',
+      }),
+    ],
+    tax,
+    'https://example.org/',
+  )
+  const [head, row] = csv.replace('\uFEFF', '').split('\n')
+  expect(head?.split(',')).toContain('topic_thai')
+  expect(row).toContain('"ขยะ"')
+  expect(row).toContain('"ออกกฎ"')
+  expect(row).toContain('"ท้องถิ่น"')
+  expect(row).toContain('https://example.org/#/ratchakitcha/doc/2024-000128?m=2024-02')
+})
+
+it('toCsv survives a document with nothing filled in', () => {
+  const csv = toCsv([doc({ d: null, v: null, p: null, pg: null, topic: null, action: null, govlevel: null })])
+  expect(csv.split('\n')).toHaveLength(3) // header, one row, trailing newline
+  expect(csv).not.toContain('undefined')
+  expect(csv).not.toContain('null')
 })

@@ -34,8 +34,26 @@ npm ci --silent
 npm run build
 
 rm -rf dist/data
-cp -R "$DATA" dist/data
+# Hardlinks, not copies: the build and the deploy directory are on one filesystem, so this is
+# instant and costs no disk, where `cp -R` spent minutes duplicating 800 MB every single night.
+# Falls back to a real copy if they ever end up on different filesystems.
+cp -al "$DATA" dist/data 2>/dev/null || cp -R "$DATA" dist/data
+
+# _headers is generated rather than copied: Cloudflare Pages ignores a wildcard in the middle of a
+# path (measured — the deploy that shipped /data/*/feeds/* served application/xml), so each source
+# needs its own literal rule, and the source ids are in the data itself.
+sources=$(python3 -c "import json;print(' '.join(s['id'] for s in json.load(open('dist/data/sources.json'))['sources']))")
 cp "$HERE/_headers" dist/_headers
+for src in $sources; do
+  cat >> dist/_headers <<HDR
+
+/data/$src/feeds/*
+  Content-Type: application/atom+xml; charset=utf-8
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
+HDR
+done
+echo "deploy: feed headers for $sources"
 
 files=$(find -L dist -type f | wc -l | tr -d ' ')
 big=$(find -L dist -type f -size +${MAX_FILE_MB}M -print -quit)

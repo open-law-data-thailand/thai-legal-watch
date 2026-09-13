@@ -6,16 +6,10 @@
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
   Access-Control-Allow-Origin: *
 
-# Feeds are source-scoped: /data/<source>/feeds/<kind>/<name>.xml
-# The first deploy served these as application/xml, so either Pages ignores a wildcard in the
-# middle of a path or it will not let _headers override a Content-Type it derived from .xml.
-# Both spellings are listed; X-TLW-Feed-Rule says which one (if either) took effect.
-/data/*/feeds/*
-  Content-Type: application/atom+xml; charset=utf-8
-  X-TLW-Feed-Rule: wildcard
-/data/ratchakitcha/feeds/*
-  Content-Type: application/atom+xml; charset=utf-8
-  X-TLW-Feed-Rule: literal
+# Feeds are source-scoped: /data/<source>/feeds/<kind>/<name>.xml — and Cloudflare Pages ignores a
+# wildcard in the middle of a path, which we measured: the deploy carrying both /data/*/feeds/* and
+# a literal rule reported the literal one. infra/deploy.sh therefore appends one literal block per
+# source id found in sources.json. Do not add a /data/*/feeds/* rule here; it does nothing.
 
 # Province outlines change only when the map is rebuilt, and the filename never changes, so keep
 # the window short enough that a rebuild is picked up the next day.

@@ -1,4 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+
+/** Only the handful of ECharts methods this page uses; keeps the instance out of the render tree
+ *  without pulling the library's types into a module that must not import it eagerly. */
+interface EChart {
+  setOption: (option: unknown) => void
+  resize: () => void
+  dispose: () => void
+  on: (event: string, handler: (raw: unknown) => void) => void
+}
 import { useLoad } from '../data/context'
 import type { Graph as GraphData } from '../data/types'
 import { FAMILY_PALETTE, rootOf } from '../lib/family'
@@ -139,14 +148,52 @@ export function Graph() {
         : null,
     [base, yg, minEdge, agencies, year],
   )
+  // One chart for the life of the page. The old code re-ran echarts.init on every change of
+  // `families` or `q` — that is once per keystroke in the focus box — without disposing the
+  // previous instance, because the cleanup it returned went to the promise rather than to Preact.
+  // Each abandoned instance kept its force layout running and its resize listener attached.
+  const chartRef = useRef<EChart | null>(null)
+  // keyed on whether the container is on the page at all: while the data is loading this route
+  // renders a spinner instead of the div, so an effect with no dependencies would run once,
+  // find no element, and never try again
+  const mounted = base.state === 'ok'
   useEffect(() => {
-    if (!model || !ref.current) return
-    let disposed = false
     const el = ref.current
-    const focus = { families, q }
+    if (!el) return
+    let disposed = false
     void import('echarts').then((echarts) => {
       if (disposed) return
-      const chart = echarts.init(el, undefined, { renderer: 'canvas' })
+      const chart = echarts.init(el, undefined, { renderer: 'canvas' }) as unknown as EChart
+      chartRef.current = chart
+      chart.on('click', (raw: unknown) => {
+        const p = raw as { dataType?: string; data?: { id?: string } }
+        const id = p.data?.id
+        if (p.dataType !== 'node' || !id) return
+        location.hash = id.startsWith('t:') ? href.topic(id.slice(2)) : href.agency(id.slice(2))
+      })
+    })
+    const onResize = () => {
+      chartRef.current?.resize()
+    }
+    addEventListener('resize', onResize)
+    return () => {
+      disposed = true
+      removeEventListener('resize', onResize)
+      chartRef.current?.dispose()
+      chartRef.current = null
+      delete el.dataset['ready']
+    }
+  }, [mounted])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!model || !el) return
+    let cancelled = false
+    const focus = { families, q }
+    // the instance may still be mid-import on the first pass; retry once it exists
+    const paint = () => {
+      const chart = chartRef.current
+      if (cancelled || !chart) return false
       const data = model.nodes.map((n) => {
         const on = focusOf(n, focus)
         return {
@@ -194,26 +241,23 @@ export function Graph() {
           },
         ],
       })
-      chart.on('click', (raw) => {
-        const p = raw as unknown as { dataType?: string; data?: { id?: string } }
-        const id = p.data?.id
-        if (p.dataType !== 'node' || !id) return
-        location.hash = id.startsWith('t:') ? href.topic(id.slice(2)) : href.agency(id.slice(2))
-      })
-      const onResize = () => {
-        chart.resize()
-      }
-      addEventListener('resize', onResize)
       el.dataset['ready'] = '1'
+      return true
+    }
+    if (!paint()) {
+      const t = setInterval(() => {
+        if (paint()) clearInterval(t)
+      }, 50)
       return () => {
-        removeEventListener('resize', onResize)
-        chart.dispose()
+        cancelled = true
+        clearInterval(t)
       }
-    })
+    }
     return () => {
-      disposed = true
+      cancelled = true
     }
   }, [model, families, q])
+
   if (base.state === 'loading') return <Loading what="ความสัมพันธ์ของหมวด" />
   if (base.state === 'error') return <ErrorBox error={base.error} />
   const g = base.data.g

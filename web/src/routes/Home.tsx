@@ -1,5 +1,5 @@
 import { useLoad } from '../data/context'
-import { thaiDate } from '../lib/thai'
+import { beRange, beYear, percent, thaiDate } from '../lib/thai'
 import { href } from '../router'
 import {
   Bars,
@@ -9,6 +9,7 @@ import {
   Loading,
   Metric,
   Sparkline,
+  StaleNotice,
   actionName,
   govName,
   topicName,
@@ -34,6 +35,7 @@ export function Home() {
   const list = home.highlights.length ? home.highlights : (home.latest ?? [])
   return (
     <>
+      <StaleNotice generatedAt={meta.generated_at} />
       <section class="hero" aria-labelledby="hero-h">
         <div class="hero-text">
           <div class="kicker light">สำหรับนักกฎหมายและคนทำงานที่ต้องตามราชกิจจานุเบกษาทุกวัน</div>
@@ -45,7 +47,7 @@ export function Home() {
           <p>
             ทุกฉบับที่ประกาศ จะถูกจำแนกให้อัตโนมัติว่า <em>เรื่องอะไร</em> · <em>ทำอะไร</em> · <em>ใครออก</em>{' '}
             พร้อมเล่ม ตอน หน้า ที่หยิบไปอ้างอิงได้ทันที ค้นย้อนหลังได้ถึง พ.ศ.{' '}
-            {meta.years[0] ? Number(meta.years[0]) + 543 : ''} รวม {meta.docs.toLocaleString('th-TH')} ฉบับ
+            {meta.years[0] ? beYear(meta.years[0]) : '—'} รวม {meta.docs.toLocaleString('th-TH')} ฉบับ
             และติดตามหมวด จังหวัด หรือหน่วยงานที่คุณรับผิดชอบผ่าน RSS ได้โดยไม่ต้องสมัครสมาชิก
           </p>
           <div class="hero-search">
@@ -148,10 +150,9 @@ export function Home() {
         </section>
       </div>
       <p class="muted" style="margin-top:40px;font-size:.85rem">
-        ทั้งเว็บมี {meta.docs.toLocaleString('th-TH')} ฉบับ (พ.ศ. {Number(meta.years[0]) + 543}–
-        {Number(meta.years[meta.years.length - 1]) + 543}) · จำแนกหมวดได้{' '}
-        {Math.round((100 * meta.labelled) / meta.docs)}% · ปรับปรุงข้อมูลล่าสุด{' '}
-        {meta.generated_at.slice(0, 16).replace('T', ' ')} น.
+        ทั้งเว็บมี {meta.docs.toLocaleString('th-TH')} ฉบับ (พ.ศ. {beRange(meta.years)}) · จำแนกหมวดได้{' '}
+        {percent(meta.labelled, meta.docs)} · ปรับปรุงข้อมูลล่าสุด{' '}
+        {(meta.generated_at || '').slice(0, 16).replace('T', ' ') || '—'} น.
       </p>
     </>
   )

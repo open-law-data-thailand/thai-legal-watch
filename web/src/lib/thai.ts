@@ -52,6 +52,22 @@ export function beYear(gregorian: number | string): number {
   return Number(gregorian) + 543
 }
 
+/** A share, or a dash. Rendering "NaN%" because a denominator was briefly zero is worse than
+ *  admitting there is nothing to divide yet. */
+export function percent(part: number, whole: number, digits = 0): string {
+  if (!whole || !Number.isFinite(part / whole)) return '—'
+  const p = (100 * part) / whole
+  return `${p > 99 && p < 100 ? p.toFixed(Math.max(1, digits)) : p.toFixed(digits)}%`
+}
+
+/** The Buddhist span of a year list, or a dash when the list is empty. */
+export function beRange(years: readonly string[] | undefined): string {
+  const first = years?.[0]
+  const last = years?.[years.length - 1]
+  if (!first || !last) return '—'
+  return first === last ? `${beYear(first)}` : `${beYear(first)}–${beYear(last)}`
+}
+
 /** "2026-09" → "2569-09" — the same shard name, in the year Thai readers actually use. */
 export function beMonth(month: string): string {
   const m = /^(\d{4})-(\d{2})$/.exec(month)

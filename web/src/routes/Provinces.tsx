@@ -4,6 +4,7 @@ import { useLoad } from '../data/context'
 import type { ProvinceIndexItem } from '../data/types'
 import { PROVINCES, REGIONS, type Region } from '../lib/provinces'
 import { binOf, loadProvinceMap, quantileBins } from '../lib/thaimap'
+import { percent } from '../lib/thai'
 import { href } from '../router'
 import { Crumbs } from '../ui/Crumbs'
 import { ErrorBox, Kicker, Loading, Metric } from '../ui/bits'
@@ -22,6 +23,8 @@ export function Provinces() {
   const { list, meta, map } = st.data
   const byName = new Map(list.map((p) => [p.name, p]))
   const withProvince = list.reduce((s, p) => s + p.n, 0)
+  // the index happens to arrive sorted; taking a max does not depend on that staying true
+  const biggest = list.reduce<ProvinceIndexItem | null>((a, b) => (!a || b.n > a.n ? b : a), null)
   const needle = filter.replace(/\s+/g, '')
   const match = (name: string) => !needle || name.includes(needle)
   return (
@@ -43,12 +46,12 @@ export function Provinces() {
         <Metric
           label="ฉบับที่ระบุจังหวัดได้"
           value={withProvince}
-          hint={`${((100 * withProvince) / meta.docs).toFixed(1)}% ของคลัง`}
+          hint={`${percent(withProvince, meta.docs, 1)} ของคลัง`}
         />
         <Metric
           label="จังหวัดที่มากที่สุด"
-          value={list[0]?.name ?? '—'}
-          hint={list[0] ? `${list[0].n.toLocaleString('th-TH')} ฉบับ` : undefined}
+          value={biggest?.name ?? '—'}
+          hint={biggest ? `${biggest.n.toLocaleString('th-TH')} ฉบับ` : undefined}
         />
       </div>
       <div class="provlayout">

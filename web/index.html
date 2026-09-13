@@ -8,17 +8,55 @@
       content="Thai Legal Watch — ราชกิจจานุเบกษาวันนี้ จัดหมวดอัตโนมัติ ติดตามได้ ข้อมูลจาก OpenLawData"
     />
     <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#1d1b3a" />
+    <link rel="canonical" href="https://thai-legal-watch.pages.dev/" />
+
+    <!-- What LINE, Slack, Facebook and X show when somebody shares the site. Without these a
+         shared link is a bare URL, which for a public legal resource is most of the first
+         impression. No og:image: an SVG is not reliably rendered by these scrapers, and a
+         wrong-sized PNG looks worse than none. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Thai Legal Watch" />
+    <meta property="og:locale" content="th_TH" />
+    <meta property="og:url" content="https://thai-legal-watch.pages.dev/" />
+    <meta property="og:title" content="Thai Legal Watch — ราชกิจจานุเบกษา อ่านเป็นหมวด ติดตามเป็นเรื่อง" />
+    <meta
+      property="og:description"
+      content="ทุกฉบับที่ประกาศถูกจำแนกว่าเรื่องอะไร ทำอะไร ใครออก พร้อมเล่ม ตอน หน้า สำหรับอ้างอิง ค้นย้อนหลังตั้งแต่ พ.ศ. 2548 และติดตามหมวด จังหวัด หรือหน่วยงานผ่าน RSS"
+    />
+    <meta name="twitter:card" content="summary" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=Noto+Serif+Thai:wght@500;600&display=swap"
       rel="stylesheet"
     />
+    <!-- Feed readers offer whatever is declared here; one topic out of 76 was an odd choice, so
+         the handful people are most likely to want are listed. Every topic, province and large
+         agency has a feed — the RSS button on each page gives the rest. -->
     <link
       rel="alternate"
       type="application/atom+xml"
-      title="Thai Legal Watch — กฎใหม่"
+      title="Thai Legal Watch — บริหารราชการ"
       href="/data/ratchakitcha/feeds/topic/public_admin.xml"
+    />
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="Thai Legal Watch — ล้มละลายและบังคับคดี"
+      href="/data/ratchakitcha/feeds/topic/bankruptcy.xml"
+    />
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="Thai Legal Watch — สิ่งแวดล้อม"
+      href="/data/ratchakitcha/feeds/topic/environment.xml"
+    />
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="Thai Legal Watch — สาธารณสุข"
+      href="/data/ratchakitcha/feeds/topic/health.xml"
     />
     <title>Thai Legal Watch</title>
   </head>

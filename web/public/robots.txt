@@ -1,0 +1,13 @@
+# Thai Legal Watch — a reader for the OpenLawData gazette dataset.
+# The data under /data/ is open and CORS-enabled; take it from there rather than crawling
+# hundreds of thousands of pages, and take the dataset itself from
+# https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha
+User-agent: *
+Allow: /
+
+# Document, topic and province pages are hash routes, which crawlers do not follow. The aggregate
+# JSON below is the machine-readable equivalent and is a great deal cheaper to read.
+# Index: /data/ratchakitcha/index/{topics,provinces,agencies}.json
+# Feeds: /data/ratchakitcha/feeds/{topic,province,agency}/<name>.xml
+
+Sitemap: https://thai-legal-watch.pages.dev/sitemap.xml

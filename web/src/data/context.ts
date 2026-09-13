@@ -25,6 +25,10 @@ export function useLoad<T>(load: (c: DataClient) => Promise<T>, deps: unknown[])
     return () => {
       live = false
     }
+    // This is the hook the rule is configured to check *callers* of; inside its own body the
+    // dependency array is a parameter, so it cannot be verified here. `load` is deliberately not
+    // a dependency: callers pass an inline closure, and including it would refetch every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
   return st
 }

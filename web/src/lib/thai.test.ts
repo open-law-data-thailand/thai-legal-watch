@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   beYear,
   beMonth,
+  beRange,
   citation,
+  percent,
   coordinates,
   parseISODate,
   partLabel,
@@ -54,4 +56,23 @@ it('thaiDigits, beYear, formatNumber', () => {
   expect(thaiDigits(2567)).toBe('๒๕๖๗')
   expect(beYear('2024')).toBe(2567)
   expect(formatNumber(1234567)).toBe('1,234,567')
+})
+
+describe('percent and year ranges', () => {
+  it('never rounds an imperfect share up to a perfect one', () => {
+    expect(percent(729_566, 732_143)).toBe('99.6%')
+    expect(percent(732_143, 732_143)).toBe('100%')
+    expect(percent(1, 2)).toBe('50%')
+    expect(percent(0, 10)).toBe('0%')
+  })
+  it('says nothing rather than NaN when there is nothing to divide', () => {
+    expect(percent(0, 0)).toBe('—')
+    expect(percent(5, 0)).toBe('—')
+  })
+  it('turns a year list into a Buddhist span, or a dash', () => {
+    expect(beRange(['2005', '2026'])).toBe('2548–2569')
+    expect(beRange(['2026'])).toBe('2569')
+    expect(beRange([])).toBe('—')
+    expect(beRange(undefined)).toBe('—')
+  })
 })

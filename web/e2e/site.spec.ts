@@ -383,6 +383,34 @@ test('feeds are served as Atom', async ({ request }) => {
   expect(await r.text()).toContain('<feed xmlns="http://www.w3.org/2005/Atom">')
 })
 
+test('the site tells a crawler and a link preview what it is', async ({ page, request }) => {
+  await page.goto('/#/')
+  for (const [selector, attr] of [
+    ['meta[property="og:title"]', 'content'],
+    ['meta[property="og:description"]', 'content'],
+    ['meta[property="og:url"]', 'content'],
+    ['meta[name="description"]', 'content'],
+    ['link[rel="canonical"]', 'href'],
+  ] as const) {
+    const v = await page.locator(selector).first().getAttribute(attr)
+    expect(v, selector).toBeTruthy()
+    expect((v ?? '').length, selector).toBeGreaterThan(10)
+  }
+  // more than one feed is offered, and each one actually resolves
+  const feeds = await page
+    .locator('link[type="application/atom+xml"]')
+    .evaluateAll((els) => els.map((e) => (e as HTMLLinkElement).getAttribute('href') ?? ''))
+  expect(feeds.length).toBeGreaterThan(1)
+  for (const f of feeds) expect((await request.get(f)).ok(), f).toBeTruthy()
+
+  const robots = await request.get('/robots.txt')
+  expect(robots.ok()).toBeTruthy()
+  expect(await robots.text()).toContain('Sitemap:')
+  const sitemap = await request.get('/sitemap.xml')
+  expect(sitemap.ok()).toBeTruthy()
+  expect(await sitemap.text()).toContain('sitemaps.org/schemas/sitemap/0.9')
+})
+
 test('the province map ships with the site and covers all 77 provinces', async ({ request }) => {
   const r = await request.get('/map/thailand-provinces.json')
   expect(r.ok()).toBeTruthy()

@@ -1,6 +1,7 @@
 /** Topic, agency and province pages share one shape: a Facet with counts, agencies, provinces and recent docs. */
 import { useLoad } from '../data/context'
 import type { AgencyPage, Facet, ProvincePage, Taxonomy } from '../data/types'
+import { beRange, percent } from '../lib/thai'
 import { href } from '../router'
 import { Crumbs } from '../ui/Crumbs'
 import {
@@ -17,13 +18,17 @@ import {
 } from '../ui/bits'
 
 export function mainAction(f: Facet, t: Taxonomy | undefined): string {
-  const [slug, n] = Object.entries(f.by_action)[0] ?? []
+  // the largest, not the first: JSON key order is not a promise the pipeline makes
+  const [slug, n] = Object.entries(f.by_action).reduce<[string, number]>(
+    (best, cur) => (cur[1] > best[1] ? cur : best),
+    ['', 0],
+  )
   if (!slug || !n || n < f.total * 0.2) return 'ยืนยันได้ไม่พอจะสรุป'
   return actionName(t, slug)
 }
 export function mainActionHint(f: Facet): string | undefined {
   const n = Object.values(f.by_action).reduce((s, x) => s + x, 0)
-  return f.total ? `ยืนยันแล้ว ${Math.round((100 * n) / f.total)}% ของฉบับทั้งหมด` : undefined
+  return f.total ? `ยืนยันแล้ว ${percent(n, f.total)} ของฉบับทั้งหมด` : undefined
 }
 
 function YearBars({ f }: { f: Facet }) {
@@ -63,9 +68,7 @@ function FacetBody({
         <Metric
           label="ฉบับทั้งหมด"
           value={f.total}
-          hint={
-            years.length ? `${Number(years[0]) + 543}–${Number(years[years.length - 1]) + 543}` : undefined
-          }
+          hint={years.length ? `พ.ศ. ${beRange([...years].sort())}` : undefined}
         />
         {kind === 'agency' ? (
           <Metric label="ประเภท" value={(f as { type?: string | null }).type ?? '—'} />
