@@ -202,6 +202,37 @@ test.describe('header search', () => {
   })
 })
 
+test('no page trips the Content-Security-Policy it is served with', async ({ page, request }) => {
+  // The preview sends the same `_headers` Cloudflare will. That is deliberate: the policy named
+  // four Hugging Face hosts by hand, the redirect went to a fifth, and the document text was
+  // blocked in production while every test passed — because a preview server sends no policy.
+  const csp = (await request.get('/')).headers()['content-security-policy']
+  expect(csp, 'the preview must serve the production policy or this test proves nothing').toContain(
+    "default-src 'self'",
+  )
+
+  const violations: string[] = []
+  page.on('console', (m) => {
+    if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) violations.push(m.text())
+  })
+  page.on('pageerror', (e) => violations.push(String(e)))
+
+  for (const hash of [
+    '#/',
+    '#/ratchakitcha/latest',
+    '#/ratchakitcha/explore',
+    '#/ratchakitcha/explore?scope=all',
+    '#/ratchakitcha/provinces',
+    '#/ratchakitcha/dashboard',
+    '#/ratchakitcha/graph',
+    '#/about',
+  ]) {
+    await page.goto(`/${hash}`)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  }
+  expect(violations.join('\n')).toBe('')
+})
+
 test.describe('arriving with a subject rather than a date', () => {
   test('the front page offers subjects, and each one opens filtered', async ({ page }) => {
     // Most people arrive knowing what they care about, not what came out today. The doorways are

@@ -1,9 +1,12 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import preact from '@preact/preset-vite'
+import { productionHeaders } from './scripts/headers.js'
 
 export default defineConfig({
-  plugins: [preact()],
+  // the preview server sends what Cloudflare will send, so the e2e runs under the real
+  // Content-Security-Policy rather than under no policy at all
+  plugins: [preact(), productionHeaders()],
   build: {
     target: 'es2022',
     rollupOptions: {
@@ -17,7 +20,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.ts'],
     setupFiles: ['src/test/setup.ts'],
     coverage: { provider: 'v8', include: ['src/lib/**', 'src/data/**'], thresholds: { lines: 85 } },
   },
