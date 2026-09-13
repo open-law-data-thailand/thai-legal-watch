@@ -16,9 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: for f in infra/*.sh; do bash -n "$f"; done
-      - uses: ludeeus/action-shellcheck@master
-        with: { scandir: ./infra, severity: warning }
+      # No third-party action: the org allows only GitHub-owned and verified ones, and a
+      # `@master` reference to someone else's repository is a supply-chain risk in any case.
+      # ShellCheck ships on the runner image; installing it is only a fallback.
+      - name: Check the deploy scripts
+        run: |
+          if ! command -v shellcheck >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          fi
+          shellcheck --version | head -2
+          for f in infra/*.sh; do bash -n "$f"; done
+          shellcheck -S warning infra/*.sh
 
   pipeline:
     runs-on: ubuntu-latest
