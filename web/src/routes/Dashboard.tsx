@@ -1,52 +1,56 @@
+/** The numbers a reader of the gazette actually asks for: is this year busier, what subject is
+ *  growing, when in the year does the work land, and who is issuing the rules. */
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
-import { beYear } from '../lib/thai'
+import type { Taxonomy, Trends } from '../data/types'
+import { completeYears, monthProfile, movers, sumAt, yearToDate, type Move } from '../lib/trends'
+import { beYear, thaiDate } from '../lib/thai'
 import { href } from '../router'
-import { ErrorBox, Kicker, Loading, topicName } from '../ui/bits'
+import { Bars, ErrorBox, Kicker, Loading, Metric, actionName, govName, topicName } from '../ui/bits'
 import { STAGE } from './Doc'
 
-const TOP = 8
+const RULE_ACTIONS = ['rulemaking', 'amendment', 'repeal']
+const TH_MONTH_SHORT = [
+  'ม.ค.',
+  'ก.พ.',
+  'มี.ค.',
+  'เม.ย.',
+  'พ.ค.',
+  'มิ.ย.',
+  'ก.ค.',
+  'ส.ค.',
+  'ก.ย.',
+  'ต.ค.',
+  'พ.ย.',
+  'ธ.ค.',
+]
 
 export function Dashboard() {
   const st = useLoad(async (c) => {
-    const [years, tax, bk, provinces] = await Promise.all([
+    const [years, tax, bk, trends, meta] = await Promise.all([
       c.years(),
       c.taxonomy(),
       c.get_bankruptcy(),
-      c.provinces(),
+      c.trends(),
+      c.meta(),
     ])
-    const top = Object.entries(tax.topics)
-      .filter(([, t]) => !t.parent && t.n)
-      .sort((a, b) => b[1].n - a[1].n)
-      .slice(0, TOP)
-      .map(([s]) => s)
-    const pages = await Promise.all(top.map((s) => c.topic(s)))
-    return {
-      years,
-      tax,
-      bk,
-      provinces,
-      top,
-      byYear: Object.fromEntries(pages.map((p) => [p.slug, p.by_year])),
-    }
+    return { years, tax, bk, trends, meta }
   }, [])
   const [year, setYear] = useState<string | null>(null)
   const yearsRef = useRef<HTMLDivElement>(null)
-  const topicsRef = useRef<HTMLDivElement>(null)
-  const funnelRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (st.state !== 'ok') return
     let disposed = false
-    const { years, tax, bk, top, byYear } = st.data
+    const { years } = st.data
     void import('echarts').then((echarts) => {
-      if (disposed || !yearsRef.current || !funnelRef.current || !topicsRef.current) return
-      const font = { fontFamily: 'Anuphan, sans-serif' }
+      if (disposed || !yearsRef.current) return
       const ys = Object.keys(years.by_year).sort()
-      const y = echarts.init(yearsRef.current, undefined, { renderer: 'svg' })
-      y.setOption({
+      const chart = echarts.init(yearsRef.current, undefined, { renderer: 'svg' })
+      chart.setOption({
         backgroundColor: 'transparent',
-        textStyle: font,
-        grid: { left: 56, right: 12, top: 12, bottom: 28 },
+        textStyle: { fontFamily: 'Anuphan, sans-serif' },
+        grid: { left: 58, right: 12, top: 14, bottom: 30 },
         xAxis: { type: 'category', data: ys.map((k) => beYear(k)) },
         yAxis: { type: 'value' },
         tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toLocaleString('th-TH')} ฉบับ` },
@@ -55,178 +59,271 @@ export function Dashboard() {
             type: 'bar',
             data: ys.map((k) => ({
               value: years.by_year[k],
-              itemStyle: { color: k === year ? '#d85a30' : '#6b4fd8', borderRadius: [3, 3, 0, 0] },
+              itemStyle: { color: k === year ? '#c9502a' : '#6b4fd8', borderRadius: [3, 3, 0, 0] },
             })),
-            animationDelay: (i: number) => i * 30,
+            animationDelay: (i: number) => i * 25,
           },
         ],
       })
-      y.on('click', (p: { dataIndex?: number }) => {
-        const k = ys[p.dataIndex ?? -1]
-        if (k) setYear((cur) => (cur === k ? null : k))
+      chart.on('click', (p: { dataIndex: number }) => {
+        const clicked = ys[p.dataIndex] ?? null
+        setYear((cur) => (cur === clicked ? null : clicked))
       })
-      const t = echarts.init(topicsRef.current, undefined, { renderer: 'svg' })
-      t.setOption({
-        backgroundColor: 'transparent',
-        textStyle: font,
-        grid: { left: 56, right: 12, top: 40, bottom: 28 },
-        legend: { top: 0, type: 'scroll', textStyle: font },
-        tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: ys.map((k) => beYear(k)) },
-        yAxis: { type: 'value' },
-        series: top.map((s) => ({
-          name: topicName(tax, s),
-          type: 'line',
-          stack: 'all',
-          areaStyle: { opacity: 0.35 },
-          smooth: true,
-          showSymbol: false,
-          emphasis: { focus: 'series' },
-          data: ys.map((k) => byYear[s]?.[k] ?? 0),
-        })),
-      })
-      t.on('click', (p: { seriesIndex?: number }) => {
-        const s = top[p.seriesIndex ?? -1]
-        if (s) location.hash = href.topic(s)
-      })
-      const f = echarts.init(funnelRef.current, undefined, { renderer: 'svg' })
-      const byStage = new Map<string, number>()
-      for (const r of bk.by_court_stage) byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + r.n)
-      f.setOption({
-        backgroundColor: 'transparent',
-        textStyle: font,
-        tooltip: { valueFormatter: (v: number) => `${v.toLocaleString('th-TH')} ฉบับ` },
-        series: [
-          {
-            type: 'funnel',
-            sort: 'descending',
-            gap: 3,
-            left: '2%',
-            width: '96%',
-            minSize: '12%',
-            label: {
-              position: 'inside',
-              color: '#fff',
-              fontSize: 12,
-              formatter: (p: { name: string; value: number }) =>
-                `${STAGE[p.name] ?? p.name}  ${p.value.toLocaleString('th-TH')}`,
-              ...font,
-            },
-            data: [...byStage.entries()].map(([name, value]) => ({ name, value })),
-          },
-        ],
-      })
-      f.on('click', () => {
-        location.hash = href.explore({ topic: 'bankruptcy', scope: 'all' })
-      })
-      const onResize = () => {
-        y.resize()
-        t.resize()
-        f.resize()
+      const resize = () => {
+        chart.resize()
       }
-      addEventListener('resize', onResize)
+      addEventListener('resize', resize)
+      yearsRef.current.dataset.ready = '1'
       return () => {
-        removeEventListener('resize', onResize)
-        y.dispose()
-        t.dispose()
-        f.dispose()
+        removeEventListener('resize', resize)
+        chart.dispose()
       }
     })
     return () => {
       disposed = true
     }
-  }, [st, year])
+  }, [st.state, year])
+
   if (st.state === 'loading') return <Loading what="แดชบอร์ด" />
   if (st.state === 'error') return <ErrorBox error={st.error} />
-  const { years, tax, bk, provinces, top, byYear } = st.data
-  const totalAll = Object.values(years.by_year).reduce((s, n) => s + n, 0)
-  const topicRows = year
-    ? top.map((s) => [s, byYear[s]?.[year] ?? 0] as [string, number]).sort((a, b) => b[1] - a[1])
-    : top.map((s) => [s, tax.topics[s]?.n ?? 0] as [string, number])
+  const { years, tax, bk, trends, meta } = st.data
+
+  const complete = completeYears(trends.years, meta.latest_date)
+  const lastComplete = complete[complete.length - 1] ?? trends.years[trends.years.length - 1] ?? ''
+  const focus = year ?? lastComplete
+  const ytd = yearToDate(years, meta.latest_date)
+  const topicMoves = movers(trends.topics, trends.years, complete)
+  const rising = topicMoves.filter((m) => m.change > 0).slice(0, 6)
+  const falling = topicMoves.filter((m) => m.change < 0).slice(0, 6)
+  const months = monthProfile(years)
+  const busiest = months.reduce((a, b) => (b.n > a.n ? b : a), months[0] ?? { month: 1, n: 0 })
+  const rules = sumAt(trends, 'actions', RULE_ACTIONS, focus)
+  const window = complete.slice(-3)
+
   return (
     <>
       <Kicker>
-        แดชบอร์ด · {totalAll.toLocaleString('th-TH')} ฉบับ{year ? ` · เลือกปี ${beYear(year)}` : ''}
+        แดชบอร์ด · {meta.docs.toLocaleString('th-TH')} ฉบับ · พ.ศ. {beYear(trends.years[0] ?? '')}–
+        {beYear(trends.years[trends.years.length - 1] ?? '')}
       </Kicker>
       <h1 style="margin:6px 0 6px">ราชกิจจานุเบกษาในตัวเลข</h1>
-      <p class="muted" style="margin:0 0 20px">
-        คลิกแท่งปีเพื่อดูเฉพาะปีนั้นในตารางด้านขวา · คลิกชื่อหมวดในกราฟเพื่อเปิดหน้าหมวด ·
-        คลิกแถบคดีล้มละลายเพื่อไปสำรวจต่อ
+      <p class="muted" style="margin-bottom:18px">
+        ตัวเลขทั้งหมดนับเฉพาะหมวดที่ยืนยันแล้ว · ปี {beYear(trends.years[trends.years.length - 1] ?? '')}{' '}
+        ยังไม่จบปี จึงไม่ถูกนำไปเทียบแนวโน้ม
       </p>
+
+      <div class="grid metrics" style="margin-bottom:26px">
+        {ytd && (
+          <Metric
+            label={`ปี ${beYear(ytd.year)} ถึงวันนี้`}
+            value={ytd.now}
+            hint={
+              ytd.then
+                ? `${pct(ytd.now, ytd.then)} เทียบ ${ytd.months} เดือนแรกของปี ${beYear(String(Number(ytd.year) - 1))}`
+                : undefined
+            }
+          />
+        )}
+        <Metric
+          label={`กฎ ระเบียบ ข้อบังคับ ปี ${beYear(focus)}`}
+          value={rules}
+          hint="ออกกฎ แก้ไข หรือยกเลิก"
+        />
+        <Metric
+          label="ยืนยันหมวดได้"
+          value={share(meta.corroborated_any, meta.docs)}
+          hint={`${meta.corroborated_any.toLocaleString('th-TH')} ฉบับมีหลักฐานรองรับ`}
+        />
+        <Metric
+          label="เดือนที่ออกมากที่สุด"
+          value={TH_MONTH_SHORT[busiest.month - 1] ?? '—'}
+          hint={`${busiest.n.toLocaleString('th-TH')} ฉบับ รวมทุกปี`}
+        />
+      </div>
+
       <div class="two">
         <section>
-          <h2 style="font-size:1.05rem;margin-bottom:8px">
-            ฉบับต่อปี{' '}
+          <h2 class="sec">ฉบับต่อปี</h2>
+          <p class="muted" style="font-size:.85rem;margin-bottom:8px">
+            คลิกแท่งเพื่อเจาะดูปีนั้นในตารางด้านขวา
             {year && (
-              <button
-                style="font-size:.8rem;padding:2px 10px;margin-left:8px"
-                onClick={() => {
-                  setYear(null)
-                }}
-              >
-                ล้างการเลือก
-              </button>
+              <>
+                {' · '}
+                <button
+                  class="chip"
+                  onClick={() => {
+                    setYear(null)
+                  }}
+                >
+                  ล้างการเลือก ({beYear(year)}) ×
+                </button>
+              </>
             )}
-          </h2>
-          <div ref={yearsRef} style="height:240px" data-testid="chart-years" />
-          <h2 style="font-size:1.05rem;margin:22px 0 8px">หมวดหลัก {TOP} หมวดตามปี</h2>
-          <div ref={topicsRef} style="height:300px" data-testid="chart-topics" />
-        </section>
-        <section>
-          <h2 style="font-size:1.05rem;margin-bottom:8px">
-            หมวดหลัก (ยืนยันแล้ว){year ? ` · ${beYear(year)}` : ''}
-          </h2>
-          <table data-testid="topic-table">
-            <thead>
-              <tr>
-                <th>หมวด</th>
-                <th style="text-align:right">ฉบับ</th>
-                <th style="text-align:right">สำรวจ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topicRows.map(([s, n]) => (
-                <tr key={s}>
-                  <td>
-                    <a href={href.topic(s)}>{topicName(tax, s)}</a>
-                  </td>
-                  <td style="text-align:right">{n.toLocaleString('th-TH')}</td>
-                  <td style="text-align:right">
-                    <a
-                      class="muted"
-                      href={
-                        year
-                          ? href.explore({ topic: s, scope: 'year', year })
-                          : href.explore({ topic: s, scope: 'all' })
-                      }
-                    >
-                      →
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h2 style="font-size:1.05rem;margin:22px 0 8px">คดีล้มละลายตามขั้น</h2>
-          <div ref={funnelRef} style="height:260px" data-testid="chart-funnel" />
-          <p class="muted" style="font-size:.85rem">
-            {bk.by_court_stage.length} คู่ของศาลกับขั้นตอนคดี จากข้อมูลที่สกัดได้ในตัวประกาศ
           </p>
-          <h2 style="font-size:1.05rem;margin:22px 0 8px">จังหวัดที่มีเอกสารมากที่สุด</h2>
-          <table>
-            <tbody>
-              {provinces.slice(0, 12).map((p) => (
-                <tr key={p.name}>
-                  <td>
-                    <a href={href.province(p.file)}>{p.name}</a>
-                  </td>
-                  <td style="text-align:right">{p.n.toLocaleString('th-TH')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div ref={yearsRef} style="height:260px" data-testid="chart-years" />
+
+          <h2 class="sec" style="margin-top:28px">
+            ช่วงเวลาในรอบปี
+          </h2>
+          <p class="muted" style="font-size:.85rem;margin-bottom:10px">
+            รวมทุกปีเข้าด้วยกัน เห็นจังหวะของงานราชการ — สิ้นปีงบประมาณและปลายปีปฏิทินหนาแน่นที่สุด
+          </p>
+          <Bars
+            rows={months.map((m) => [String(m.month), m.n] as [string, number])}
+            nameOf={(k) => TH_MONTH_SHORT[Number(k) - 1] ?? k}
+          />
+
+          <h2 class="sec" style="margin-top:28px">
+            คดีล้มละลายตามขั้นตอน
+          </h2>
+          <StageBars bk={bk} />
+        </section>
+
+        <section>
+          <h2 class="sec">
+            หมวดที่มาแรง
+            <span class="muted" style="font-weight:400;font-size:.85rem">
+              {' '}
+              · {beYear(window[0] ?? '')}–{beYear(window[window.length - 1] ?? '')} เทียบสามปีก่อนหน้า
+              เรียงตามจำนวนฉบับที่เปลี่ยนไป
+            </span>
+          </h2>
+          <MoveTable moves={rising} tax={tax} />
+          <h2 class="sec" style="margin-top:26px">
+            หมวดที่เงียบลง
+          </h2>
+          <MoveTable moves={falling} tax={tax} />
+
+          <h2 class="sec" style="margin-top:26px">
+            หมวดหลักของปี {beYear(focus)}
+          </h2>
+          <TopicsOfYear trends={trends} tax={tax} year={focus} />
+
+          <h2 class="sec" style="margin-top:26px">
+            สิ่งที่เอกสารทำ · ปี {beYear(focus)}
+          </h2>
+          <Series trends={trends} group="actions" tax={tax} year={focus} nameOf={actionName} />
+
+          <h2 class="sec" style="margin-top:26px">
+            ระดับผู้ออก · ปี {beYear(focus)}
+          </h2>
+          <Series trends={trends} group="govlevels" tax={tax} year={focus} nameOf={govName} />
+
+          <p class="muted" style="margin-top:22px;font-size:.9rem">
+            อยากดูรายจังหวัด? <a href={href.provinces()}>ท้องถิ่นฉัน →</a> · อยากดูว่าหมวดไหนมาคู่กัน?{' '}
+            <a href={href.graph()}>ความสัมพันธ์ของหมวด →</a>
+          </p>
+          {meta.latest_date && (
+            <p class="muted" style="font-size:.8rem">
+              ข้อมูลถึงวันที่ {thaiDate(meta.latest_date)}
+            </p>
+          )}
         </section>
       </div>
+    </>
+  )
+}
+
+/** 99.6% must not round to 100% — the gap is the whole point of the number. */
+export const share = (part: number, whole: number) => {
+  const p = (100 * part) / whole
+  return `${p > 99 && p < 100 ? p.toFixed(1) : Math.round(p)}%`
+}
+
+const pct = (now: number, then: number) => {
+  const d = Math.round((100 * (now - then)) / then)
+  return d >= 0 ? `มากขึ้น ${d}%` : `น้อยลง ${Math.abs(d)}%`
+}
+
+function MoveTable({ moves, tax }: { moves: Move[]; tax: Taxonomy }) {
+  if (!moves.length) return <p class="muted">ยังเทียบไม่ได้ — ต้องมีอย่างน้อยหกปีที่จบแล้ว</p>
+  const widest = Math.max(...moves.map((m) => Math.abs(m.change)))
+  return (
+    <table class="movers">
+      <tbody>
+        {moves.map((m) => (
+          <tr key={m.key}>
+            <td>
+              <a href={href.topic(m.key)}>{topicName(tax, m.key)}</a>
+            </td>
+            <td class="num muted">
+              {m.before.toLocaleString('th-TH')} → {m.after.toLocaleString('th-TH')}
+            </td>
+            <td class="num">
+              <span class={m.change > 0 ? 'up' : 'down'}>
+                {m.ratio === null
+                  ? m.change > 0
+                    ? 'เกือบไม่เคยมี'
+                    : 'แทบหมดไป'
+                  : `${m.change > 0 ? '+' : '−'}${Math.abs(Math.round(m.ratio * 100))}%`}
+              </span>
+            </td>
+            <td class="trend">
+              <i
+                class={m.change > 0 ? 'up' : 'down'}
+                style={`width:${Math.max(4, Math.round((100 * Math.abs(m.change)) / widest))}%`}
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function TopicsOfYear({ trends, tax, year }: { trends: Trends; tax: Taxonomy; year: string }) {
+  const i = trends.years.indexOf(year)
+  const rows = Object.entries(trends.topics)
+    .filter(([slug]) => !tax.topics[slug]?.parent)
+    .map(([slug, xs]) => [slug, xs[i] ?? 0] as [string, number])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+  if (!rows.length) return <p class="muted">ยังไม่มีข้อมูลของปีนี้</p>
+  return <Bars rows={rows} nameOf={(k) => topicName(tax, k)} hrefOf={(k) => href.topic(k)} />
+}
+
+function Series({
+  trends,
+  group,
+  tax,
+  year,
+  nameOf,
+}: {
+  trends: Trends
+  group: 'actions' | 'govlevels'
+  tax: Taxonomy
+  year: string
+  nameOf: (t: Taxonomy | undefined, slug: string | null) => string
+}) {
+  const i = trends.years.indexOf(year)
+  const rows = Object.entries(trends[group])
+    .map(([slug, xs]) => [slug, xs[i] ?? 0] as [string, number])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+  const total = rows.reduce((s, [, n]) => s + n, 0)
+  if (!rows.length) return <p class="muted">ยังไม่มีข้อมูลของปีนี้</p>
+  return <Bars rows={rows} total={total} nameOf={(k) => nameOf(tax, k)} />
+}
+
+function StageBars({ bk }: { bk: { by_court_stage: { court: string; stage: string; n: number }[] } }) {
+  const byStage = new Map<string, number>()
+  for (const r of bk.by_court_stage) byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + r.n)
+  const rows = [...byStage.entries()].sort((a, b) => b[1] - a[1])
+  const total = rows.reduce((s, [, n]) => s + n, 0)
+  if (!rows.length) return <p class="muted">ยังไม่มีคดีที่สกัดขั้นตอนได้</p>
+  return (
+    <>
+      <Bars
+        rows={rows}
+        total={total}
+        nameOf={(k) => STAGE[k] ?? k}
+        hrefOf={() => href.explore({ topic: 'bankruptcy', scope: 'all' })}
+      />
+      <p class="muted" style="font-size:.85rem;margin-top:10px">
+        นับจากข้อมูลที่สกัดได้ในตัวประกาศ {bk.by_court_stage.length.toLocaleString('th-TH')}{' '}
+        คู่ของศาลกับขั้นตอน · ประกาศหนึ่งฉบับคือหนึ่งเหตุการณ์ ไม่ใช่หนึ่งคดี
+      </p>
     </>
   )
 }

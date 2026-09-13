@@ -19,14 +19,19 @@ export function completeYears(years: string[], latestDate: string | null): strin
   return done
 }
 
-/** Compare the last `window` complete years against the `window` before them. `floor` keeps a
- *  topic with four documents from topping the chart with a 300% rise. */
+/** How small a base still deserves a percentage. Below it, "1 → 384" is not a 38,300% rise, it is
+ *  a category that did not exist, and printing the number would be worse than printing nothing. */
+export const RATIO_FLOOR = 50
+
+/** Compare the last `window` complete years against the `window` before them, ranked by how many
+ *  documents actually moved. Ranking by percentage instead puts every brand-new category on top
+ *  and buries the subject that went from two thousand documents to six thousand. */
 export function movers(
   series: Record<string, number[]>,
   years: string[],
   complete: string[],
   window = 3,
-  floor = 150,
+  floor = 200,
 ): Move[] {
   const idx = (y: string) => years.indexOf(y)
   const recent = complete
@@ -43,9 +48,15 @@ export function movers(
     const after = recent.reduce((s, i) => s + (xs[i] ?? 0), 0)
     const before = prior.reduce((s, i) => s + (xs[i] ?? 0), 0)
     if (before < floor && after < floor) continue
-    out.push({ key, before, after, change: after - before, ratio: before ? (after - before) / before : null })
+    out.push({
+      key,
+      before,
+      after,
+      change: after - before,
+      ratio: before >= RATIO_FLOOR ? (after - before) / before : null,
+    })
   }
-  return out.sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0))
+  return out.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
 }
 
 /** Documents per calendar month across every year: the gazette has a September. */

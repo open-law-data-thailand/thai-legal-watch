@@ -342,13 +342,34 @@ test.describe('dashboard, graph and about', () => {
     await a11y(page)
   })
 
-  test('charts mount, a year click focuses the table, and the about page states the accuracy', async ({
-    page,
-  }) => {
+  test('the dashboard answers a question and a year click narrows it', async ({ page }) => {
     await page.goto('/#/ratchakitcha/dashboard')
+    await expect(page.getByTestId('chart-years')).toHaveAttribute('data-ready', '1')
     await expect(page.getByTestId('chart-years').locator('svg')).toBeVisible()
-    await expect(page.getByTestId('chart-topics').locator('svg')).toBeVisible()
-    await expect(page.getByTestId('chart-funnel').locator('svg')).toBeVisible()
+    // the headline numbers, the month-of-year profile and the per-year sections all render
+    await expect(page.locator('.grid.metrics .metric')).not.toHaveCount(0)
+    await expect(page.getByRole('heading', { name: /ช่วงเวลาในรอบปี/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /หมวดที่มาแรง/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /คดีล้มละลายตามขั้นตอน/ })).toBeVisible()
+    const heading = page.getByRole('heading', { name: /^หมวดหลักของปี/ })
+    // click inside the first bar: bars rise from the axis, so three quarters down is inside one
+    const chart = page.getByTestId('chart-years')
+    const box = await chart.boundingBox()
+    if (!box) throw new Error('the year chart has no box')
+    await chart.click({ position: { x: box.width * 0.35, y: box.height * 0.78 } })
+    // the chip names the year that was picked, and the per-year sections follow it
+    const chip = page.locator('.chip', { hasText: 'ล้างการเลือก' })
+    await expect(chip).toBeVisible()
+    const picked = /\((\d{4})\)/.exec((await chip.textContent()) ?? '')?.[1]
+    expect(picked, 'the chip should name the selected year').toBeTruthy()
+    await expect(heading).toHaveText(new RegExp(`${picked as string}$`))
+    await chip.click()
+    await expect(chip).toHaveCount(0)
+    await sane(page)
+    await a11y(page)
+  })
+
+  test('the about page states the accuracy', async ({ page }) => {
     await page.goto('/#/about')
     await expect(page.getByText('100% (ช่วงเชื่อมั่น 98.6–100)')).toBeVisible()
     await expect(page.getByText('สุ่มทั่วคลัง 300 ฉบับ')).toBeVisible()
