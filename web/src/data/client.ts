@@ -47,6 +47,9 @@ export class DataClient {
     const p = this.f(`${this.base}/${path}`)
       .then(async (r) => {
         if (!r.ok) throw new DataError(`${r.status} for ${path}`, path, r.status)
+        // a static host answers an unknown path with the SPA's index.html (200, text/html)
+        if (!(r.headers.get('content-type') ?? '').includes('json'))
+          throw new DataError(`no data at ${path}`, path, 404)
         return (await r.json()) as T
       })
       .catch((e: unknown) => {

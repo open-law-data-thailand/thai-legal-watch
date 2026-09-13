@@ -56,6 +56,15 @@ describe('DataClient', () => {
     await expect(c.topic('nope')).rejects.toBeInstanceOf(DataError)
   })
 
+  it('treats an SPA fallback page as not found', async () => {
+    const html = (() =>
+      Promise.resolve(
+        new Response('<!doctype html>', { status: 200, headers: { 'content-type': 'text/html' } }),
+      )) as typeof fetch
+    const c = new DataClient({ fetchImpl: html })
+    await expect(c.topic('x')).rejects.toMatchObject({ status: 404 })
+  })
+
   it('validates document ids', () => {
     expect(docIdOk('2024-001232')).toBe(true)
     expect(docIdOk('2026-09-10-00125805')).toBe(true)
