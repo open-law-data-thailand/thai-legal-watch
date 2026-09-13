@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 44 · Vitest 195 · Playwright 108 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 52 · Vitest 195 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -434,8 +434,29 @@ min-content width of a whole page column. Pills clip with an ellipsis and keep t
 `title`; `code` may break anywhere. The e2e now walks every route at 320px and names the widest
 offending element when it fails.
 
-The lesson both share: **test in the shape the thing is actually served in.** Neither bug was
-subtle; both were invisible from where the tests were standing.
+**The feeds were unfetchable from any other site.** Cloudflare *appends* when two matching
+`_headers` rules set the same header, and `deploy.sh` was repeating `Cache-Control` and
+`Access-Control-Allow-Origin` in its per-source feed block on top of `/data/*`. So the feeds
+answered `Access-Control-Allow-Origin: *, *`, which no browser accepts. Measured from
+`https://example.com`: `agg/meta.json` and `agg/cube.json` came back, the feed did not — nothing
+same-origin ever exercises CORS, which is why this sat there. The feed block sets only its content
+type now, `infra/check-headers.py` refuses any `_headers` where one path can receive a header from
+two rules (run on the generated file, in the deploy), and `verify-live.sh` reads the header back
+off the edge.
+
+**`canonical` and `og:url` shipped as the literal `%VITE_SITE_URL%`.** The variable was never set
+at build time. `deploy.sh` now reads the site URL out of the data the pipeline built — the same
+value its static pages use for their canonicals — and fails if the placeholder survives the build.
+
+**Every unmatched path answered 200 with the application.** A soft 404. There is a `web/public/
+404.html` now, deliberately self-contained (no stylesheet, script or font), and `vite preview`
+resolves paths the way Pages does — asset, `<path>.html`, `<path>/index.html`, then the 404 page —
+so the e2e can see it. That change immediately caught an e2e that had been passing on the soft
+404: it asserted four advertised feeds resolve and would have passed on anything at all.
+
+The lesson they all share: **test in the shape the thing is actually served in.** None of these
+was subtle. Every one was invisible from where the tests were standing, and each one took a
+change to the test environment — not to the test — before it could be seen at all.
 
 ### The fixture foot-gun, fixed at last
 `npm run e2e` rebuilds `dist` from fixtures *and* leaves fixture static pages in `public/` for the
