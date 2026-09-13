@@ -23,3 +23,8 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  # The site is static and takes no input, but it renders names extracted by OCR from scanned
+  # pages, so a policy that forbids inline and third-party script costs nothing and closes that
+  # class outright. 'unsafe-inline' is needed for style only: the app uses style attributes, and
+  # the Google Fonts stylesheet is remote. There is no inline <script> in the built page.
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'

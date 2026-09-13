@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
+/** ECharts renders a tooltip formatter's return value as HTML, and these names come from OCR of
+ *  scanned gazette pages — not a source that can be assumed free of angle brackets. Everywhere
+ *  else on the site names go through JSX, which escapes them. */
+const escapeHtml = (s: string) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  )
+
 /** Only the handful of ECharts methods this page uses; keeps the instance out of the render tree
  *  without pulling the library's types into a module that must not import it eagerly. */
 interface EChart {
@@ -221,7 +230,7 @@ export function Graph() {
           }) =>
             p.dataType === 'edge'
               ? `ปรากฏร่วมกัน ${(p.value ?? 0).toLocaleString('th-TH')} ฉบับ`
-              : `${p.data?.name ?? ''}<br/>${(p.data?.value ?? 0).toLocaleString('th-TH')} ฉบับ · ${p.data?.kind === 'agency' ? 'คลิกเพื่อดูหน่วยงาน' : 'คลิกเพื่อดูหมวด'}`,
+              : `${escapeHtml(p.data?.name ?? '')}<br/>${(p.data?.value ?? 0).toLocaleString('th-TH')} ฉบับ · ${p.data?.kind === 'agency' ? 'คลิกเพื่อดูหน่วยงาน' : 'คลิกเพื่อดูหมวด'}`,
         },
         series: [
           {
