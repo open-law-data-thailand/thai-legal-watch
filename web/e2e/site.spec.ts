@@ -510,6 +510,9 @@ test.describe('document', () => {
     await expect(steps.first()).toContainText(/\d[\d,]* ฉบับ/)
     const href = await steps.first().getAttribute('href')
     expect(href).toMatch(/#\/ratchakitcha\//)
+    // the day a document was published always exists, so the block is never empty — a document
+    // with no issuer and no confirmed subject used to render nothing at all
+    await expect(steps.last()).toContainText('ประกาศวันเดียวกัน')
     await steps.first().click()
     await sane(page)
   })

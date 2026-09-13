@@ -393,6 +393,15 @@ function Next({
       n: provN,
       why: 'จังหวัดนี้ จากหน่วยงานนี้',
     })
+  // A royal command carries no agency and often no confirmed subject, so every step above can be
+  // absent and the block would simply vanish. The day it was published always exists, and "what
+  // else came out that day" is a real place to go — so it is the floor, not a filler.
+  if (d.d)
+    steps.push({
+      to: href.explore({ scope: 'month', month: d.d.slice(0, 7), day: d.d }),
+      label: thaiDate(d.d),
+      why: 'ฉบับอื่นที่ประกาศวันเดียวกัน',
+    })
   if (!steps.length) return null
   return (
     <section class="nextsteps">
