@@ -13,7 +13,7 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | Path | Purpose | Budget |
 |---|---|---|
 | `sources.json` | (root) every source in this build: `{id,title,credit,url,docs,latest_date}` — the site boots from it | <5 KB |
-| `<source>/agg/meta.json` | build stamp, source credit, year list, totals | <10 KB |
+| `<source>/agg/meta.json` | build stamp, source credit, year list, totals, and `text` — where the full text of a document can be range-read from | <10 KB |
 | `agg/taxonomy.json` | topic tree / actions / govlevels with counts | <100 KB |
 | `agg/home.json` | latest publication day: counts per axis, highlights, 30-day sparkline | <100 KB |
 | `agg/years.json` | docs per month per year | <50 KB |
@@ -75,6 +75,27 @@ first two bytes, so a client can tell what it got rather than having to be told.
 
 Measured on the real corpus (732,143 documents, 261 months): 504 KB over the wire, 7.3 MB of typed
 arrays in memory, 11 ms to decompress, and 0.8 ms for one filtered count with a group-by.
+
+## The text layer (not built, read live)
+
+`agg/meta.json.text.base` points at the dataset's own text layer:
+`ocr/openlawdata-ocr/<year>/<year-month>.jsonl`, one JSON object per line, **sorted by `doc_id`**.
+It is about 40 MB a month and 12 GB for the archive, so it is not part of a build. The document
+page reads one record out of it with HTTP range requests — Hugging Face answers `206` with CORS
+open, which makes the file a sorted array we are allowed to seek in.
+
+Per record the site uses `text`, `method` (`direct` is the PDF's own text layer, anything else is
+OCR), `score`, `n_pages`, `signatories`, `announcement_date` (the date the document carries, not
+the date it was published) and `reference_numbers`.
+
+Two facts decide the design. A request costs about a second, because `resolve/` redirects to a
+CDN — so the search minimises *rounds*, not bytes, by probing five places at once. And extraction
+does not succeed for every document, so "no text for this one" is a normal answer, not an error.
+
+**What would make this much better:** a per-month index of `doc_id → (byte offset, length)`
+published beside the layer. It would be about 30 KB a month, and it would turn a dozen range
+requests and seven seconds into one request and 10 KB — and answer "this document has no text"
+instantly instead of after a full search. See `docs/HANDOFF.md`.
 
 ## Source credit
 

@@ -442,6 +442,29 @@ test.describe('document', () => {
       expect(href, 'no direct archive download anywhere on the page').not.toMatch(/\/resolve\/.*\.zip$/)
   })
 
+  test('the full text is offered but not fetched until it is asked for', async ({ page, request }) => {
+    // The text layer lives on somebody else's server and a lookup is a dozen range requests, so
+    // it must never happen as a side effect of opening a page. This also proves the page does not
+    // reach outside the site on load, which is what the CSP is there to enforce.
+    const outside: string[] = []
+    await page.route('**/*', (route) => {
+      const u = route.request().url()
+      if (!u.startsWith('http://127.0.0.1:4173')) outside.push(u)
+      return route.continue()
+    })
+    const months = await data.months(request)
+    const last = months[months.length - 1] as string
+    const docs = await data.docs(request, last)
+    await page.goto(`/#/ratchakitcha/doc/${docs[0]?.id ?? ''}?m=${last}`)
+    await expect(page.getByTestId('doc-title')).toBeVisible()
+
+    const section = page.locator('.fulltext')
+    await expect(section).toBeVisible()
+    await expect(section.getByTestId('load-fulltext')).toBeVisible()
+    await expect(section).toContainText('เก็บไว้ในเครื่อง')
+    expect(outside.filter((u) => u.includes('huggingface'))).toEqual([])
+  })
+
   test('unknown id is an error, not a blank page', async ({ page }) => {
     await page.goto('/#/ratchakitcha/doc/2024-999999')
     await expect(page.getByRole('alert')).toContainText('ไม่พบเอกสาร')

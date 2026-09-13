@@ -7,6 +7,7 @@ import { lastExplore, useTitle } from '../lib/title'
 import { useClient, useHref } from '../data/context'
 import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 import { Crumbs } from '../ui/Crumbs'
+import { FullText } from '../ui/FullText'
 
 const XKEY: Record<string, string> = {
   stage: 'ขั้นตอนคดี',
@@ -80,11 +81,12 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   const st = useLoad(
     async (c) => {
       if (!docIdOk(id)) throw new Error(`รหัสเอกสารไม่ถูกต้อง: ${id}`)
-      const [hit, tax, agencies, provinces] = await Promise.all([
+      const [hit, tax, agencies, provinces, meta] = await Promise.all([
         c.doc(id, month),
         c.taxonomy(),
         c.agencies(),
         c.provinces(),
+        c.meta(),
       ])
       if (!hit) throw new Error(`ไม่พบเอกสาร ${id}`)
       const siblings = (await c.month(id.slice(0, 4), hit.month))
@@ -94,6 +96,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
         ...hit,
         tax,
         provinces,
+        meta,
         agency: agencies.find((a) => a.id === hit.doc.a) ?? null,
         siblings,
       }
@@ -331,6 +334,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
           )}
         </section>
       </div>
+      {st.data.meta.text?.base && <FullText base={st.data.meta.text.base} id={d.id} month={st.data.month} />}
     </article>
   )
 }

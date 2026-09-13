@@ -1526,3 +1526,50 @@ body {
 .doclist.tight .doc .title {
   font-size: 0.92rem;
 }
+
+/* The document itself. Serif and a generous measure, because this is the part somebody reads
+   rather than scans — and Thai needs the extra leading for stacked vowels and tone marks. */
+.fulltext {
+  margin-top: 30px;
+}
+.fulltext-note {
+  font-size: 0.85rem;
+  margin: 8px 0 14px;
+}
+.doctext {
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  line-height: 2;
+  max-width: 68ch;
+}
+.doctext p {
+  margin: 0 0 1em;
+  white-space: pre-wrap;
+}
+.docfacts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 0.92rem;
+}
+.docfacts dt {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.docfacts dd {
+  margin: 0;
+  min-width: 0;
+}
+@media (max-width: 560px) {
+  .docfacts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .docfacts dd {
+    margin-bottom: 8px;
+  }
+}

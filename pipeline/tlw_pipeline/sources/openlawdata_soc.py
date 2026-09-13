@@ -25,6 +25,16 @@ CREDIT = {
     "layers": ["meta", "taxonomy/openlawdata-taxonomy"],
     "license": "see dataset card",
 }
+
+# The text layer is not built into the site: it is 40 MB a month and 12 GB for the archive. The
+# site reads one record out of it at a time with HTTP range requests, so all it needs is where the
+# files are. Declared here because the source module is the only thing that knows its own dataset;
+# a build from a different dataset simply declares a different one, or none.
+TEXT = {
+    "base": "https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha/resolve/main/ocr/openlawdata-ocr",
+    "layer": "ocr/openlawdata-ocr",
+    "credit": "OpenLawData — soc-ratchakitcha (ชั้น ocr)",
+}
 _WS = re.compile(r"\s+")
 
 
@@ -43,6 +53,7 @@ class OpenLawDataSoc:
     name = "openlawdata-soc"
     id = SOURCE_ID
     credit = CREDIT
+    text = TEXT
 
     def __init__(self, root: str):
         self.root = root

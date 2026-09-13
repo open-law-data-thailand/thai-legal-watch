@@ -27,4 +27,10 @@
   # pages, so a policy that forbids inline and third-party script costs nothing and closes that
   # class outright. 'unsafe-inline' is needed for style only: the app uses style attributes, and
   # the Google Fonts stylesheet is remote. There is no inline <script> in the built page.
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+  #
+  # connect-src names Hugging Face because the document page reads the full text of one document
+  # straight out of the dataset with range requests — the layer is 12 GB and cannot be built into
+  # the site. `resolve/` redirects to whichever CDN host is serving the file, and a redirect is
+  # checked against connect-src too, so the redirect targets are listed as well. What comes back
+  # is rendered as text, never as markup.
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.hf.co https://transfer.xethub.hf.co; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'

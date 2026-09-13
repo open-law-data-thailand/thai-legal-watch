@@ -17,6 +17,29 @@ const STORE = 'blobs'
 /** one entry per source, replaced in place, so the store cannot grow with the number of builds */
 const key = (source: string) => `cube:${source}`
 
+/** The same store, used for anything small enough to be worth keeping and cheap to re-fetch if
+ *  it is not. Document text is the other user: several seconds and a dozen range requests to
+ *  fetch, a few kilobytes to keep. */
+export async function readKept<T>(k: string): Promise<T | null> {
+  const db = await openDb()
+  if (!db) return null
+  try {
+    return await run<T>(db, 'readonly', (s) => s.get(k))
+  } finally {
+    db.close()
+  }
+}
+
+export async function keep(k: string, value: unknown): Promise<boolean> {
+  const db = await openDb()
+  if (!db) return false
+  try {
+    return (await run<IDBValidKey>(db, 'readwrite', (s) => s.put(value, k))) !== null
+  } finally {
+    db.close()
+  }
+}
+
 interface Stored {
   version: string
   bytes: ArrayBuffer
