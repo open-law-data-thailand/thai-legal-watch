@@ -485,6 +485,16 @@ export function Explore({ q }: { q: URLSearchParams }) {
           </span>
         )}
       </p>
+      {/* Checking a name in the bankruptcy notices is the commonest thing a business wants from
+          this archive, and it runs straight into the one limit the page has. Say how to continue
+          rather than leaving somebody to conclude the search is broken. */}
+      {f.q && scope !== 'all' && (
+        <p class="muted" style="font-size:.85rem;margin:-6px 0 10px">
+          ค้นในชื่อเรื่องทำได้ทีละช่วงเวลา — เปลี่ยน{scope === 'year' ? 'ปี' : 'เดือน'}ด้านบนเพื่อค้นคำเดิมใน
+          {scope === 'year' ? 'ปี' : 'เดือน'}อื่น คำค้นจะติดไปด้วย ·
+          ลิงก์ของหน้านี้เก็บทั้งคำค้นและตัวกรองไว้ครบ
+        </p>
+      )}
       <p class="muted" style="font-size:.85rem;margin:-6px 0 16px">
         ตัวเลขในวงเล็บคือจำนวนฉบับที่จะได้ <b>ถ้าเลือกตัวเลือกนั้น</b> โดยยังคงตัวกรองอื่นไว้ —
         เลือกจังหวัดแล้ว รายการเดือนและปีก็จะนับเฉพาะจังหวัดนั้น

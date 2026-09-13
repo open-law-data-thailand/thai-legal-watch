@@ -435,6 +435,14 @@ page. It has fooled three sessions. `link:data` and `prebuild` now clear all of 
 - **Legacy documents still have no direct PDF.** `pdf/` covers only 2026; everything older can
   only be pointed at the gazette's own search or a several-hundred-megabyte monthly zip. This is
   the site's worst remaining dead end — wishlist item 2.
+- **Whole-archive title search for a narrow filter is within reach, and was not built.** The
+  index already knows exactly which documents match a filter and which shards hold them: ที่ดินและ
+  ผังเมือง × ตรัง is 87 documents over 19 month files, ~3 MB gzipped. So "search titles across all
+  22 years, for any filter narrow enough to be worth it" is `planFetch` with a larger budget plus
+  a title scan — roughly: lift the `CUBE_ROWS` cap for this path, fetch the shards a wave at a
+  time with progress, and refuse above a shard threshold with the count so the reader knows why.
+  It does **not** work for the big subjects (ล้มละลาย alone is 501,355 documents), which is
+  exactly why `DATA-WISHLIST.md` item 3 asks for `debtor_name` instead.
 - **Whole-archive title search** — see plan item 3; the box is disabled in the "ทั้งหมด" scope and
   says why.
 - Housekeeping never done: a Lighthouse budget in CI, visual regression, and moving the topic
