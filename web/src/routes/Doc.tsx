@@ -21,14 +21,8 @@ export const STAGE: Record<string, string> = {
 }
 export const xLabel = (k: string) => XKEY[k] ?? k
 export const xValue = (k: string, v: string) => (k === 'stage' ? (STAGE[v] ?? v) : v)
-const EVIDENCE: Record<string, string> = {
-  auth: 'ผู้ออก',
-  title: 'ชื่อเรื่อง',
-  head: 'ข้อความต้น',
-  dtype: 'ประเภทเอกสาร',
-  partclass: 'ตอนของราชกิจจาฯ',
-  prov: 'จังหวัด',
-}
+const EVIDENCE: Record<string, string> = {\1}
+export const evidenceLabel = (m: string) => EVIDENCE[m] ?? `กฎ ${m.replace(/^\^/, '')}`
 const HF = 'https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha'
 
 /** Where the PDF is: modern ids resolve at the source; legacy years live in the dataset's monthly zips. */
@@ -177,7 +171,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                   <span class="muted">({l.x})</span>
                 </span>
                 <span class="muted">
-                  {l.m.map((m) => EVIDENCE[m] ?? m).join(' + ')} · น้ำหนัก {l.w.toFixed(2)}{' '}
+                  {l.m.map(evidenceLabel).join(' + ')} · น้ำหนัก {l.w.toFixed(2)}{' '}
                   {l.c ? '· ยืนยัน ✓' : ''}
                 </span>
               </div>

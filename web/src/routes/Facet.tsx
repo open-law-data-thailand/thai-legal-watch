@@ -1,6 +1,6 @@
 /** Topic, agency and province pages share one shape: a Facet with counts, agencies, provinces and recent docs. */
 import { useLoad } from '../data/context'
-import type { AgencyPage, Facet, ProvincePage } from '../data/types'
+import type { AgencyPage, Facet, ProvincePage, Taxonomy } from '../data/types'
 import { href } from '../router'
 import {
   Bars,
@@ -14,6 +14,16 @@ import {
   govName,
   topicName,
 } from '../ui/bits'
+
+export function mainAction(f: Facet, t: Taxonomy | undefined): string {
+  const [slug, n] = Object.entries(f.by_action)[0] ?? []
+  if (!slug || !n || n < f.total * 0.2) return 'ยังไม่มีป้ายยืนยันพอ'
+  return actionName(t, slug)
+}
+export function mainActionHint(f: Facet): string | undefined {
+  const n = Object.values(f.by_action).reduce((s, x) => s + x, 0)
+  return f.total ? `ยืนยันแล้ว ${Math.round((100 * n) / f.total)}% ของฉบับ` : undefined
+}
 
 function YearBars({ f }: { f: Facet }) {
   const rows = Object.entries(f.by_year)
@@ -56,9 +66,13 @@ function FacetBody({
             years.length ? `${Number(years[0]) + 543}–${Number(years[years.length - 1]) + 543}` : undefined
           }
         />
-        <Metric label="หน่วยงานที่ออก" value={f.agencies.length >= 50 ? '50+' : f.agencies.length} />
+        {kind === 'agency' ? (
+          <Metric label="ประเภท" value={(f as { type?: string | null }).type ?? '—'} />
+        ) : (
+          <Metric label="หน่วยงานที่ออก" value={f.agencies.length >= 50 ? '50+' : f.agencies.length} />
+        )}
         <Metric label="จังหวัด" value={Object.keys(f.provinces).length} />
-        <Metric label="การกระทำหลัก" value={actionName(t, Object.keys(f.by_action)[0] ?? null) || '—'} />
+        <Metric label="การกระทำหลัก" value={mainAction(f, t)} hint={mainActionHint(f)} />
       </div>
       <YearBars f={f} />
       <div class="muted" style="font-size:.8rem;margin-bottom:24px">

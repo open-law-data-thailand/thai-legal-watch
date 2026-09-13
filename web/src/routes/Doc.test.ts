@@ -17,3 +17,9 @@ it('names bankruptcy stages in Thai and passes unknown keys through', async () =
   expect(xLabel('case_number')).toBe('หมายเลขคดี')
   expect(xLabel('other')).toBe('other')
 })
+
+it('turns a raw rule name into a readable evidence label', async () => {
+  const { evidenceLabel } = await import('./Doc')
+  expect(evidenceLabel('auth')).toBe('ผู้ออก')
+  expect(evidenceLabel('^profession')).toBe('กฎ profession')
+})
