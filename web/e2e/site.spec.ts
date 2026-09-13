@@ -670,6 +670,21 @@ test.describe('dashboard, graph and about', () => {
     await a11y(page)
   })
 
+  test('the about page hands the data over, and its links are real files', async ({ page, request }) => {
+    // an open-data site that cannot be reused is a screenshot of open data
+    await page.goto('/#/about')
+    const links = page.getByRole('link', { name: /agg\// })
+    await expect(links.first()).toBeVisible()
+    for (const href of await links.evaluateAll((as) =>
+      as.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''),
+    )) {
+      const r = await request.get(href)
+      expect(r.status(), href).toBe(200)
+      expect(r.headers()['content-type'], href).toContain('json')
+      expect(r.headers()['access-control-allow-origin'] ?? '*', href).toBe('*')
+    }
+  })
+
   test('the about page states the accuracy', async ({ page }) => {
     await page.goto('/#/about')
     await expect(page.getByText('100% (ช่วงเชื่อมั่น 98.6–100)')).toBeVisible()

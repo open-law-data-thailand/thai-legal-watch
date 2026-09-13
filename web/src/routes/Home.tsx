@@ -51,7 +51,9 @@ export function Home() {
       <StaleNotice generatedAt={meta.generated_at} />
       <section class="hero" aria-labelledby="hero-h">
         <div class="hero-text">
-          <div class="kicker light">สำหรับนักกฎหมายและคนทำงานที่ต้องตามราชกิจจานุเบกษาทุกวัน</div>
+          <div class="kicker light">
+            เปิดให้ทุกคนใช้ฟรี — นักกฎหมาย ผู้ประกอบการ นักข่าว นักวิจัย และประชาชนทั่วไป
+          </div>
           <h1 id="hero-h">
             ราชกิจจานุเบกษา
             <br />
