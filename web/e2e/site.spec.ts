@@ -383,6 +383,53 @@ test('feeds are served as Atom', async ({ request }) => {
   expect(await r.text()).toContain('<feed xmlns="http://www.w3.org/2005/Atom">')
 })
 
+test.describe('finding your way back', () => {
+  test('a document reached from สำรวจ offers the exact list it came from', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/explore?topic=bankruptcy')
+    const results = page.getByTestId('results')
+    await expect(results.locator('.doc a.title').first()).toBeVisible()
+    await results.locator('.doc a.title').first().click()
+    await expect(page.getByTestId('doc-title')).toBeVisible()
+    const back = page.getByRole('link', { name: /กลับไปผลการค้นหา/ })
+    await expect(back).toBeVisible()
+    await back.click()
+    await expect(page).toHaveURL(/topic=bankruptcy/)
+    await expect(results.locator('.doc').first()).toBeVisible()
+  })
+
+  test('every kind of page names itself in the tab title', async ({ page, request }) => {
+    await page.goto('/#/ratchakitcha/topic/environment')
+    await expect(page).toHaveTitle(/^สิ่งแวดล้อม · หมวด — /)
+    const provinces = await data.provinces(request)
+    const first = provinces[0]
+    if (!first) throw new Error('fixture has no provinces')
+    await page.goto(`/#/ratchakitcha/province/${encodeURIComponent(first.file)}`)
+    await expect(page).toHaveTitle(new RegExp(`^${first.name} · จังหวัด — `))
+    const months = await data.months(request)
+    const docs = await data.docs(request, months[months.length - 1] as string)
+    const doc = docs[0]
+    if (!doc) throw new Error('fixture month is empty')
+    await page.goto(`/#/ratchakitcha/doc/${doc.id}`)
+    await expect(page).toHaveTitle(new RegExp(doc.id))
+  })
+})
+
+test.describe('dead ends', () => {
+  test('a topic that does not exist says so instead of blaming the network', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/topic/no_such_topic')
+    const alert = page.getByRole('alert')
+    await expect(alert).toContainText('ไม่พบหมวดนี้ในคลัง')
+    await expect(alert).not.toContainText('/data/')
+    await expect(alert.getByRole('link', { name: /กลับหน้าแรก/ })).toBeVisible()
+  })
+
+  test('a filter combination with no results explains itself', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/explore?q=%E0%B9%84%E0%B8%A1%E0%B9%88%E0%B8%A1%E0%B8%B5')
+    await expect(page.getByTestId('results').locator('.doc')).toHaveCount(0)
+    await expect(page.locator('.empty')).toContainText('ไม่พบฉบับที่ตรงเงื่อนไข')
+  })
+})
+
 test('the site tells a crawler and a link preview what it is', async ({ page, request }) => {
   await page.goto('/#/')
   for (const [selector, attr] of [

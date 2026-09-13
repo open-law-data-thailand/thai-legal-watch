@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks'
 import { useCountUp } from '../lib/motion'
 import { highlight } from '../lib/highlight'
 import { familyColor, tint } from '../lib/family'
+import { DataError } from '../data/client'
 import type { RecentDoc, SlimDoc, Taxonomy } from '../data/types'
 import { thaiDate } from '../lib/thai'
 import { href } from '../router'
@@ -24,21 +25,30 @@ export function Metric({ label, value, hint }: { label: string; value: string | 
   )
 }
 
-export function ErrorBox({ error }: { error: unknown }) {
-  const msg = error instanceof Error ? error.message : String(error)
+export function ErrorBox({ error, what }: { error: unknown; what?: string }) {
+  const msg = error instanceof Error ? error.message : 'ข้อผิดพลาดที่ไม่รู้จัก'
+  // A 404 is not a failure, it is an answer: that thing does not exist. Saying "โหลดไม่สำเร็จ"
+  // and printing an internal path sends the reader looking for a problem that is not theirs.
+  const missing = error instanceof DataError && error.status === 404
   // A failed fetch is usually the network, not the site, and a dead end with no way forward is the
   // worst thing to leave someone with. Reloading re-runs the request with a cold client cache.
   return (
     <div class="error" role="alert">
-      <p style="margin:0 0 8px">โหลดข้อมูลไม่สำเร็จ — {msg}</p>
+      <p style="margin:0 0 8px">
+        {missing
+          ? `ไม่พบ${what ?? 'หน้านี้'}ในคลัง — อาจพิมพ์ผิด หรือยังไม่มีในชุดข้อมูล`
+          : `โหลดข้อมูลไม่สำเร็จ — ${msg}`}
+      </p>
       <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap">
-        <button
-          onClick={() => {
-            location.reload()
-          }}
-        >
-          ลองใหม่
-        </button>
+        {!missing && (
+          <button
+            onClick={() => {
+              location.reload()
+            }}
+          >
+            ลองใหม่
+          </button>
+        )}
         <a class="btn" href={href.home()}>
           กลับหน้าแรก
         </a>
@@ -130,6 +140,16 @@ export function LabelPills({
         </a>
       )}
     </>
+  )
+}
+
+/** Every list on the site can legitimately be empty; none of them should render as a blank gap
+ *  under a heading that promised something. */
+export function Empty({ children }: { children: ComponentChildren }) {
+  return (
+    <p class="muted empty" role="status">
+      {children}
+    </p>
   )
 }
 

@@ -3,6 +3,7 @@ import { docIdOk } from '../data/client'
 import { useLoad } from '../data/context'
 import { CITE_FORMATS, formatCitation, permalink, type CiteFormat } from '../lib/cite'
 import { coordinates, thaiDate } from '../lib/thai'
+import { lastExplore, useTitle } from '../lib/title'
 import { DEFAULT_SOURCE, href } from '../router'
 import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 import { Crumbs } from '../ui/Crumbs'
@@ -81,20 +82,35 @@ export function Doc({ id, month }: { id: string; month?: string }) {
     },
     [id, month],
   )
+  // read once, outside render: sessionStorage throws in a storage-blocked context, and three
+  // synchronous reads per render would take the whole route down with it
+  const [back] = useState(lastExplore)
   const [copied, setCopied] = useState('')
   const [fmt, setFmt] = useState<CiteFormat>('standard')
+  useTitle(st.state === 'ok' ? st.data.doc.t : null, st.state === 'ok' ? st.data.doc.id : undefined)
   if (st.state === 'loading') return <Loading what="เอกสาร" />
-  if (st.state === 'error') return <ErrorBox error={st.error} />
+  if (st.state === 'error') return <ErrorBox error={st.error} what="เอกสารฉบับนี้" />
   const { doc: d, tax, agency, siblings } = st.data
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
   const links = docLinks(d.id, st.data.month)
+  // Clipboard access needs a secure context and can be refused; the optional chain used to mean
+  // the button simply did nothing, forever, with no explanation. These buttons are the page's
+  // whole point for a lawyer, so a failure has to say so and leave the text selectable.
   const copy = (what: string, text: string) => {
-    void navigator.clipboard?.writeText(text).then(() => {
+    const done = () => {
       setCopied(what)
       setTimeout(() => {
         setCopied('')
       }, 1500)
+    }
+    const clip = navigator.clipboard
+    if (!clip) {
+      setCopied('fail')
+      return
+    }
+    clip.writeText(text).then(done, () => {
+      setCopied('fail')
     })
   }
   const before = siblings.filter((s) => (s.pg ?? 0) < (d.pg ?? 0)).slice(-1)[0]
@@ -103,14 +119,14 @@ export function Doc({ id, month }: { id: string; month?: string }) {
     <article>
       <Crumbs
         items={[
-          { label: 'สำรวจ', to: sessionStorage.getItem('tlw:lastExplore') ?? href.explore() },
+          { label: 'สำรวจ', to: back ?? href.explore() },
           ...(d.topic ? [{ label: topicName(tax, d.topic), to: href.topic(d.topic) }] : []),
           { label: d.id },
         ]}
       />
-      {sessionStorage.getItem('tlw:lastExplore') && (
+      {back && (
         <p style="margin:0 0 8px">
-          <a class="btn" href={sessionStorage.getItem('tlw:lastExplore') ?? '#/explore'}>
+          <a class="btn" href={back}>
             ← กลับไปผลการค้นหา
           </a>
         </p>
@@ -233,7 +249,15 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                 {copied === 'link' ? 'คัดลอกแล้ว ✓' : 'คัดลอกลิงก์'}
               </button>
             </div>
-            <p style="font-size:.9rem;margin:10px 0 0;font-family:var(--serif)" data-testid="citation">
+            {copied === 'fail' && (
+              <p class="muted" style="font-size:.85rem;margin:10px 0 0" role="status">
+                คัดลอกอัตโนมัติไม่ได้ในเบราว์เซอร์นี้ — เลือกข้อความด้านล่างแล้วคัดลอกเองได้เลย
+              </p>
+            )}
+            <p
+              style="font-size:.9rem;margin:10px 0 0;font-family:var(--serif);user-select:all"
+              data-testid="citation"
+            >
               {cite}
             </p>
           </div>

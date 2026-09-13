@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
 import { beMonth, beYear, thaiDate } from '../lib/thai'
+import { rememberExplore } from '../lib/title'
 import { href } from '../router'
-import { Bars, DocRow, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
+import { Bars, DocRow, Empty, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 
 const PAGE = 50
 /** a stable empty array, so a memo keyed on `loaded` is not invalidated every render */
@@ -92,6 +93,11 @@ export function Explore({ q }: { q: URLSearchParams }) {
   )
   const agg = useLoad(async (c) => (scope === 'all' && f.topic ? c.topic(f.topic) : null), [scope, f.topic])
   const [page, setPage] = useState(0)
+  // so a document page can offer "back to the list you came from" — the key was read in three
+  // places and written in none, which made that button unreachable since it was written
+  useEffect(() => {
+    rememberExplore(location.hash)
+  }, [q])
   const tax = base.state === 'ok' ? base.data.tax : undefined
   const loaded = useMemo(() => (docs.state === 'ok' ? docs.data : EMPTY), [docs])
   // `f` rather than a hand-written list of its fields: the list forgot `f.day`, so choosing a day
@@ -426,6 +432,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
             <p class="muted">
               เลือกหมวดเพื่อดูฉบับล่าสุดของหมวดนั้น หรือสลับไปรายปี/รายเดือนเพื่อไล่ดูทีละฉบับ
             </p>
+          )}
+          {docs.state === 'ok' && list.length === 0 && (
+            <Empty>
+              ไม่พบฉบับที่ตรงเงื่อนไขใน{scopeLabel} — ลองขยายช่วงเวลา ลบตัวกรองบางอัน
+              หรือเปลี่ยนคำค้นในชื่อเรื่อง
+            </Empty>
           )}
           <div class="doclist" data-testid="results">
             {list.slice(page * PAGE, (page + 1) * PAGE).map((d) => (

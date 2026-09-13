@@ -2,6 +2,7 @@
 import { useLoad } from '../data/context'
 import type { AgencyPage, Facet, ProvincePage, Taxonomy } from '../data/types'
 import { beRange, percent } from '../lib/thai'
+import { useTitle } from '../lib/title'
 import { href } from '../router'
 import { Crumbs } from '../ui/Crumbs'
 import {
@@ -10,6 +11,7 @@ import {
   ErrorBox,
   FeedLink,
   Kicker,
+  Empty,
   Loading,
   Metric,
   actionName,
@@ -130,6 +132,7 @@ function FacetBody({
               </a>
             </span>
           </div>
+          {f.recent.length === 0 && <Empty>ยังไม่มีฉบับล่าสุดในหมวดนี้</Empty>}
           <div class="doclist" data-testid="recent">
             {f.recent.map((d) => (
               <DocRow
@@ -149,9 +152,16 @@ function FacetBody({
 }
 
 export function Topic({ slug }: { slug: string }) {
-  const st = useLoad(async (c) => ({ page: await c.topic(slug), tax: await c.taxonomy() }), [slug])
-  if (st.state === 'loading') return <Loading />
-  if (st.state === 'error') return <ErrorBox error={st.error} />
+  const st = useLoad(
+    async (c) => {
+      const [page, tax] = await Promise.all([c.topic(slug), c.taxonomy()])
+      return { page, tax }
+    },
+    [slug],
+  )
+  useTitle(st.state === 'ok' ? (st.data.page.thai ?? st.data.page.slug) : null, 'หมวด')
+  if (st.state === 'loading') return <Loading what="หมวด" />
+  if (st.state === 'error') return <ErrorBox error={st.error} what="หมวดนี้" />
   const { page, tax } = st.data
   const crumbs: string[] = []
   for (let cur = page.parent; cur; cur = tax.topics[cur]?.parent ?? null) crumbs.unshift(cur)
@@ -190,8 +200,9 @@ export function Topic({ slug }: { slug: string }) {
 
 export function Agency({ id }: { id: string }) {
   const st = useLoad((c) => c.agency(id), [id])
-  if (st.state === 'loading') return <Loading />
-  if (st.state === 'error') return <ErrorBox error={st.error} />
+  useTitle(st.state === 'ok' ? st.data.name : null, 'หน่วยงาน')
+  if (st.state === 'loading') return <Loading what="หน่วยงาน" />
+  if (st.state === 'error') return <ErrorBox error={st.error} what="หน่วยงานนี้" />
   const page: AgencyPage = st.data
   return (
     <>
@@ -216,8 +227,9 @@ export function Agency({ id }: { id: string }) {
 
 export function Province({ file }: { file: string }) {
   const st = useLoad((c) => c.province(file), [file])
-  if (st.state === 'loading') return <Loading />
-  if (st.state === 'error') return <ErrorBox error={st.error} />
+  useTitle(st.state === 'ok' ? st.data.name : null, 'จังหวัด')
+  if (st.state === 'loading') return <Loading what="จังหวัด" />
+  if (st.state === 'error') return <ErrorBox error={st.error} what="จังหวัดนี้" />
   const page: ProvincePage = st.data
   return (
     <>

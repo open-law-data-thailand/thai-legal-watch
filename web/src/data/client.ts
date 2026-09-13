@@ -51,6 +51,11 @@ export class DataClient {
   readonly source: string
   private readonly f: typeof fetch
   private readonly cache = new Map<string, Promise<unknown>>()
+  /** Aggregates are small and asked for constantly; month shards are up to 10 MB parsed and are
+   *  usually read once. Keeping every one of them is how a long browse ends up holding a hundred
+   *  megabytes, so the oldest shards are evicted once there are more than this many. */
+  private readonly shards: string[] = []
+  private static readonly MAX_SHARDS = 6
 
   constructor(opts: ClientOptions = {}) {
     this.root = (opts.baseUrl ?? '/data').replace(/\/$/, '')
@@ -80,6 +85,13 @@ export class DataClient {
         throw e instanceof DataError ? e : new DataError(String(e), path)
       })
     this.cache.set(path, p)
+    if (/\/docs\/\d{4}\/[\d-]+\.json$/.test(path)) {
+      this.shards.push(path)
+      while (this.shards.length > DataClient.MAX_SHARDS) {
+        const old = this.shards.shift()
+        if (old && old !== path) this.cache.delete(old)
+      }
+    }
     return p
   }
 

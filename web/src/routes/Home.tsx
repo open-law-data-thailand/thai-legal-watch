@@ -60,9 +60,12 @@ export function Home() {
           <div class="hero-links">
             <a
               class="btn primary"
-              href={href.explore({ scope: 'year', year: meta.years[meta.years.length - 1] ?? '' })}
+              href={href.explore({
+                scope: 'month',
+                month: home.latest_date?.slice(0, 7) ?? '',
+              })}
             >
-              สำรวจปีนี้ →
+              สำรวจเดือนนี้ →
             </a>
             <a class="btn" href={href.provinces()}>
               ท้องถิ่นฉัน

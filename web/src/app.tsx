@@ -10,6 +10,7 @@ import { Agency, Province, Topic } from './routes/Facet'
 import { Home } from './routes/Home'
 import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
+import { Boundary } from './ui/Boundary'
 import { QuickSearch } from './ui/QuickSearch'
 
 const NAV: [string, () => string, Route['name'][]][] = [
@@ -65,7 +66,9 @@ export function App({ client }: { client?: DataClient }) {
         </div>
       </header>
       <main class="wrap" id="main">
-        <Page route={route} />
+        <Boundary key={routeKey(route)}>
+          <Page route={route} />
+        </Boundary>
       </main>
       <footer>
         <div class="wrap foot">
@@ -98,6 +101,14 @@ export function App({ client }: { client?: DataClient }) {
       </footer>
     </ClientContext.Provider>
   )
+}
+
+/** Remounting the boundary on navigation means one broken page does not poison the next. */
+function routeKey(route: Route): string {
+  return Object.entries(route)
+    .filter(([k]) => k !== 'q')
+    .map(([k, v]) => `${k}:${String(v)}`)
+    .join('|')
 }
 
 function Page({ route }: { route: Route }) {

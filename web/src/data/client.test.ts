@@ -107,3 +107,33 @@ describe('DataClient accessors', () => {
     expect(await c.monthsOf('2024')).toEqual([])
   })
 })
+
+it('drops old month shards so a long browse does not pin a hundred megabytes', async () => {
+  const months = Object.fromEntries(
+    ['01', '02', '03', '04', '05', '06', '07'].map((m) => [`docs/2024/2024-${m}.json`, []]),
+  )
+  const { f, calls } = fakeFetch(months)
+  const c = new DataClient({ fetchImpl: f })
+  for (const m of ['01', '02', '03', '04', '05', '06', '07']) await c.month('2024', `2024-${m}`)
+  const before = calls.length
+  // the six newest are still cached; the first has been evicted and refetches
+  await c.month('2024', '2024-07')
+  expect(calls.length).toBe(before)
+  await c.month('2024', '2024-01')
+  expect(calls.length).toBe(before + 1)
+})
+
+it('keeps small aggregates cached however many shards go by', async () => {
+  const { f, calls } = fakeFetch({
+    'agg/taxonomy.json': { topics: {}, actions: {}, govlevels: {} },
+    ...Object.fromEntries(
+      ['01', '02', '03', '04', '05', '06', '07', '08'].map((m) => [`docs/2024/2024-${m}.json`, []]),
+    ),
+  })
+  const c = new DataClient({ fetchImpl: f })
+  await c.taxonomy()
+  for (const m of ['01', '02', '03', '04', '05', '06', '07', '08']) await c.month('2024', `2024-${m}`)
+  const before = calls.length
+  await c.taxonomy()
+  expect(calls.length).toBe(before)
+})
