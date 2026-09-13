@@ -1221,3 +1221,57 @@ body {
 .movers td.trend > i.down {
   background: var(--accent-2);
 }
+
+/* On a phone the header was taking 29% of the screen before any content: the brand wrapped to two
+   lines, its tagline to two more, and six nav items to two rows. Brand and search share one row,
+   the nav scrolls sideways on the next, and the tagline goes. */
+@media (max-width: 700px) {
+  .topbar .wrap {
+    gap: 10px 12px;
+    min-height: 0;
+    padding-top: 9px;
+    padding-bottom: 4px;
+  }
+  .brand .sub {
+    display: none;
+  }
+  .topbar .brand .name {
+    font-size: 1.02rem;
+    white-space: nowrap;
+  }
+  .topbar .qs {
+    /* basis 0, not auto: with auto the input's content width is its hypothetical size, which is
+       wider than the space left beside the brand, so it wrapped onto a row of its own */
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+  .topbar .qs input {
+    height: 38px;
+    padding: 0 12px;
+    font-size: 0.95rem;
+    /* without this the search input's intrinsic width from its placeholder pushes it onto a
+       row of its own, which is where most of the wasted header height came from */
+    width: 100%;
+    min-width: 0;
+  }
+  nav.main {
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    gap: 2px;
+    /* bleed to the screen edges so the first and last items can sit under the gutter */
+    margin: 0 -20px;
+    padding: 0 20px 5px;
+  }
+  nav.main::-webkit-scrollbar {
+    display: none;
+  }
+  nav.main a {
+    padding: 5px 10px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+}

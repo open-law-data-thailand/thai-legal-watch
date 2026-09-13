@@ -1,4 +1,5 @@
 import { useLoad } from '../data/context'
+import { beYear } from '../lib/thai'
 import { ErrorBox, Kicker, Loading } from '../ui/bits'
 
 export function About() {
@@ -28,7 +29,8 @@ export function About() {
                   {s.built_from_years && (
                     <span class="muted">
                       {' '}
-                      · {s.built_from_years[0]}–{s.built_from_years[s.built_from_years.length - 1]}
+                      · พ.ศ. {beYear(s.built_from_years[0] ?? '')}–
+                      {beYear(s.built_from_years[s.built_from_years.length - 1] ?? '')}
                     </span>
                   )}
                 </li>

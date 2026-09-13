@@ -34,6 +34,13 @@ export function App({ client }: { client?: DataClient }) {
   useEffect(() => {
     document.title = titleFor(route)
   }, [route])
+  useEffect(() => {
+    // the nav scrolls sideways on a phone; keep the page you are on from hiding off the edge
+    const nav = document.querySelector('nav.main')
+    const current = nav?.querySelector('[aria-current="page"]')
+    if (nav && current && nav.scrollWidth > nav.clientWidth)
+      current.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [route])
   const source = 'source' in route ? route.source : DEFAULT_SOURCE
   const sourced = useMemo(
     () => new DataClient({ baseUrl: import.meta.env.VITE_DATA_BASE_URL ?? '/data', source }),
