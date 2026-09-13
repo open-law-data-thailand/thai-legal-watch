@@ -343,6 +343,12 @@ month change.
 - **A custom domain needs `VITE_SITE_URL` and `--site` set to it**, or canonical, og: and the feeds
   will point at pages.dev.
 - Document full text: blocked upstream, see above.
+- **Pills that cannot be filtered.** In `LabelPills` only หมวด and หน่วยงาน are links, because only
+  they have a pre-built facet page — the grey is not a hierarchy (หน่วยงาน is the same grey and
+  *is* a link), and `.pill:hover` lifts all five, so three advertise themselves as clickable and
+  are not. The archive index removed the reason: a pill can point at สำรวจ now. **Decided:
+  replace, never add** — one filter, `scope=all`, same meaning wherever it is clicked. The full
+  TODO, including why a "คาดว่า" pill must stay unlinked, is at the top of `LabelPills`.
 - **Whole-archive title search** — see plan item 3; the box is disabled in the "ทั้งหมด" scope and
   says why.
 - Housekeeping never done: a Lighthouse budget in CI, visual regression, and moving the topic

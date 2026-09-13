@@ -100,6 +100,29 @@ export function govName(tax: Taxonomy | undefined, slug: string | null): string 
 }
 
 /** Labels of a document as pills; an uncorroborated headline label is shown as a guess. */
+// TODO (agreed, not yet built): make การกระทำ / ระดับผู้ออก / จังหวัด / ประเภทเอกสาร filterable.
+// Only หมวด and หน่วยงาน are links, because only they have a pre-built facet page to point at —
+// an accident of the data's shape, not a hierarchy. The grey does not mean "secondary": หน่วยงาน
+// is the same grey and *is* a link. Worse, `.pill:hover` lifts every pill, so three of five
+// advertise themselves as clickable and are not.
+//
+// The archive index removed the reason: a pill can now point at สำรวจ instead of a page, and the
+// cube answers `govlevel=central` over the whole corpus in under a millisecond —
+// `href.explore({ scope: 'all', govlevel: d.govlevel })`, no new data files. จังหวัด filters by
+// the Thai name, so it needs no slug mapping either.
+//
+// Decided — **replace, never add**: a pill always goes to สำรวจ scope=all carrying that one
+// filter, wherever it was clicked. One meaning everywhere; it matches what the two existing
+// linked pills already do; Back returns the reader to the list they built, so nothing is lost;
+// and สำรวจ's own chips and dropdowns already do "narrow further" properly, with counts.
+//
+// Still to settle when this is built:
+//  - a "คาดว่า" pill must NOT link: filters count corroborated labels only, so it would land the
+//    reader on a list missing the very document they clicked from. Leaving those unlinked is also
+//    what finally gives the dashed style a meaning — unconfirmed means not groupable.
+//  - stop `.pill:hover` lifting the pills that are not links.
+//  - the same two rows in Doc.tsx (การกระทำ, ระดับ) are plain text there too.
+//  - ประเภทเอกสาร is a filter now but is not rendered as a pill anywhere yet.
 export function LabelPills({
   d,
   tax,
