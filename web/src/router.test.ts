@@ -15,6 +15,7 @@ describe('parseHash', () => {
     })
     expect(parseHash(href.doc('2024-001232'))).toEqual({ name: 'doc', id: '2024-001232', month: undefined })
     expect(parseHash('#/dashboard')).toEqual({ name: 'dashboard' })
+    expect(parseHash('#/graph')).toEqual({ name: 'graph' })
     expect(parseHash('#/about')).toEqual({ name: 'about' })
   })
   it('keeps explore filters as query params', () => {

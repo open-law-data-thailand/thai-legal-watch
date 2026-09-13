@@ -17,22 +17,20 @@
   --maxw: 1120px;
   --r: 8px;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #ecebe6;
-    --ink-2: #b9b8b1;
-    --ink-3: #7f7e78;
-    --paper: #131316;
-    --paper-2: #1c1c21;
-    --line: #2a2a31;
-    --accent: #a89cf0;
-    --accent-ink: #cecbf6;
-    --accent-bg: #26215c;
-    --ok: #5dcaa5;
-    --ok-bg: #085041;
-    --warn: #fac775;
-    --warn-bg: #412402;
-  }
+:root[data-theme='dark'] {
+  --ink: #ecebe6;
+  --ink-2: #b9b8b1;
+  --ink-3: #7f7e78;
+  --paper: #131316;
+  --paper-2: #1c1c21;
+  --line: #2a2a31;
+  --accent: #a89cf0;
+  --accent-ink: #cecbf6;
+  --accent-bg: #26215c;
+  --ok: #5dcaa5;
+  --ok-bg: #085041;
+  --warn: #fac775;
+  --warn-bg: #412402;
 }
 * {
   box-sizing: border-box;
@@ -364,4 +362,143 @@ th {
   gap: 8px;
   align-items: center;
   margin-top: 14px;
+}
+
+/* motion — every entrance is short, eased, and off when the OS says so */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+main > * {
+  animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.metric {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.metric:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.metric:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.metric:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.bar > i {
+  transform-origin: left;
+  animation: grow-x 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  transition: width 0.4s;
+}
+.spark > i {
+  transform-origin: bottom;
+  animation: grow-y 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.doc {
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.doc:hover {
+  background: var(--paper-2);
+  transform: translateX(4px);
+}
+.doclist .doc {
+  animation: rise 0.35s both;
+}
+.doclist .doc:nth-child(n + 2) {
+  animation-delay: 0.04s;
+}
+.doclist .doc:nth-child(n + 4) {
+  animation-delay: 0.08s;
+}
+.doclist .doc:nth-child(n + 7) {
+  animation-delay: 0.12s;
+}
+.chip,
+button,
+.btn {
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.12s;
+}
+.chip:active,
+button:active {
+  transform: scale(0.96);
+}
+.pill {
+  transition: transform 0.15s;
+}
+.pill:hover {
+  transform: translateY(-1px);
+}
+mark {
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.count {
+  display: inline-block;
+  min-width: 1ch;
+}
+.scope {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.scope button {
+  border: 0;
+  border-radius: 0;
+  padding: 6px 14px;
+}
+.scope button[aria-pressed='true'] {
+  background: var(--accent);
+  color: #fff;
+}
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+.graph-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

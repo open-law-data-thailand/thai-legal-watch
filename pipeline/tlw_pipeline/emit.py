@@ -89,6 +89,16 @@ class Emitter:
         self.sizes["agg/years.json"] = dump(os.path.join(self.out, "agg/years.json"),
             {"by_year": dict(agg.all.by_year), "by_month": dict(agg.all.by_month)})
         self.sizes["agg/home.json"] = dump(os.path.join(self.out, "agg/home.json"), agg.home())
+        top_agencies = {a for f in agg.topics.values() for a, _ in f.agencies.most_common(6)}
+        graph = {
+            "topics": [{"slug": s, "thai": v["thai"], "parent": v["parent"], "n": v["n"]}
+                       for s, v in topics_out.items() if v["n"]],
+            "agencies": [{"id": ids[a], "name": a, "n": agg.agencies[a].total} for a in top_agencies if a in ids],
+            "topic_agency": [{"t": s, "a": ids[a], "n": n} for s, f in agg.topics.items()
+                             for a, n in f.agencies.most_common(6) if a in ids],
+            "topic_topic": [{"a": a, "b": b, "n": n} for (a, b), n in agg.topic_pairs.most_common(400)],
+        }
+        self.sizes["agg/graph.json"] = dump(os.path.join(self.out, "agg/graph.json"), graph)
         self.sizes["agg/bankruptcy.json"] = dump(os.path.join(self.out, "agg/bankruptcy.json"),
             {"by_court_stage": [{"court": c, "stage": s, "n": n} for (c, s), n in agg.extracted_stage.most_common()]})
         meta = {"contract": CONTRACT_VERSION, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),

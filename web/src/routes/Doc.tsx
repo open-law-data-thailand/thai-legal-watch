@@ -162,10 +162,10 @@ export function Doc({ id, month }: { id: string; month?: string }) {
           </p>
         </section>
         <section>
-          <h2 style="font-size:1.05rem;margin-bottom:8px">ทำไมถึงติดป้ายนี้</h2>
+          <h2 style="font-size:1.05rem;margin-bottom:8px">ระบบจำแนกหมวดนี้จากอะไร</h2>
           <div class="evidence" data-testid="evidence">
             {d.labels.length === 0 && (
-              <p class="muted">ไม่มีป้าย — เอกสารนี้ไม่เข้ากับหมวดใดที่ rule รู้จัก</p>
+              <p class="muted">ยังจำแนกไม่ได้ — เอกสารนี้ไม่เข้ากับหมวดใดที่ rule รู้จัก</p>
             )}
             {d.labels.map((l) => (
               <div class="lab" key={`${l.x}-${l.s}`}>
@@ -185,7 +185,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
           </div>
           <p class="muted" style="font-size:.85rem">
             ป้ายมาจาก rule (ไม่ใช่ ML): "ยืนยัน" = มีหลักฐานเชิงโครงสร้างหรือสองแหล่งอิสระ
-            ความแม่นของป้ายที่ยืนยัน ≈ 98–100% · <a href={href.about()}>วิธีวัด</a>
+            ความแม่นของหมวดที่ยืนยัน ≈ 98–100% · <a href={href.about()}>วิธีวัด</a>
           </p>
           {(before || after) && (
             <>

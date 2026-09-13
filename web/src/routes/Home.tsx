@@ -68,7 +68,7 @@ export function Home() {
               hrefOf={(k) => href.topic(k)}
             />
           ) : (
-            <p class="muted">ไม่มีป้ายที่ยืนยันได้ในวันนี้</p>
+            <p class="muted">ไม่มีหมวดที่ยืนยันได้ในวันนี้</p>
           )}
           <p style="margin-top:14px">
             <a href={href.explore()}>สำรวจทั้ง {Object.keys(tax.topics).length} หมวด →</a>
@@ -108,8 +108,8 @@ export function Home() {
       </div>
       <p class="muted" style="margin-top:40px;font-size:.85rem">
         คลังทั้งหมด {meta.docs.toLocaleString('th-TH')} ฉบับ ({meta.years[0]}–
-        {meta.years[meta.years.length - 1]}) · ติดป้ายแล้ว {Math.round((100 * meta.labelled) / meta.docs)}% ·
-        สร้างเมื่อ {meta.generated_at.slice(0, 16).replace('T', ' ')}
+        {meta.years[meta.years.length - 1]}) · จำแนกหมวดแล้ว {Math.round((100 * meta.labelled) / meta.docs)}%
+        · สร้างเมื่อ {meta.generated_at.slice(0, 16).replace('T', ' ')}
       </p>
     </>
   )

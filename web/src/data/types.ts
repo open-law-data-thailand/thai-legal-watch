@@ -140,6 +140,12 @@ export interface Years {
   by_year: Record<string, number>
   by_month: Record<string, number>
 }
+export interface Graph {
+  topics: { slug: string; thai: string | null; parent: string | null; n: number }[]
+  agencies: { id: string; name: string; n: number }[]
+  topic_agency: { t: string; a: string; n: number }[]
+  topic_topic: { a: string; b: string; n: number }[]
+}
 export interface Bankruptcy {
   by_court_stage: { court: string; stage: string; n: number }[]
 }

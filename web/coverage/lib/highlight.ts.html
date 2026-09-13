@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for data/context.ts</title>
+    <title>Code coverage report for lib/highlight.ts</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../prettify.css" />
     <link rel="stylesheet" href="../base.css" />
@@ -19,34 +19,34 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../index.html">All files</a> / <a href="index.html">data</a> context.ts</h1>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">lib</a> highlight.ts</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>16/16</span>
+                <span class='fraction'>27/27</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">50% </span>
+                <span class="strong">72.22% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>2/4</span>
+                <span class='fraction'>13/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>6/6</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>13/13</span>
+                <span class='fraction'>22/22</span>
             </div>
         
             
@@ -93,65 +93,68 @@
 <a name='L28'></a><a href='#L28'>28</a>
 <a name='L29'></a><a href='#L29'>29</a>
 <a name='L30'></a><a href='#L30'>30</a>
-<a name='L31'></a><a href='#L31'>31</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">38x</span>
+<span class="cline-any cline-yes">34x</span>
+<span class="cline-any cline-yes">34x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { createContext } from 'preact'
-import { useContext, useEffect, useState } from 'preact/hooks'
-import { DataClient } from './client'
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/** Split a title into plain/marked segments for a whitespace-insensitive query. */
+export type Segment = { text: string; hit: boolean }
 &nbsp;
-export const ClientContext = createContext&lt;DataClient&gt;(new DataClient())
-export const useClient = () =&gt; useContext(ClientContext)
-&nbsp;
-export type Loaded&lt;T&gt; = { state: 'loading' } | { state: 'ok'; data: T } | { state: 'error'; error: unknown }
-&nbsp;
-/** Load once per dependency change; never leaves a stale result on screen. */
-export function useLoad&lt;T&gt;(load: (c: DataClient) =&gt; Promise&lt;T&gt;, deps: unknown[]): Loaded&lt;T&gt; {
-  const c = useClient()
-  const [st, setSt] = useState&lt;Loaded&lt;T&gt;&gt;({ state: 'loading' })
-  useEffect(() =&gt; {
-    let live = true
-    setSt({ state: 'loading' })
-    load(c).then(
-      (data) =&gt; {
-        <span class="missing-if-branch" title="else path not taken" >E</span>if (live) setSt({ state: 'ok', data })
-      },
-      (error: unknown) =&gt; {
-        <span class="missing-if-branch" title="else path not taken" >E</span>if (live) setSt({ state: 'error', error })
-      },
-    )
-    return () =&gt; {
-      live = false
+export function highlight(title: string, query: string | undefined): Segment[] {
+  const q = (query ?? <span class="branch-1 cbranch-no" title="branch not covered" >'')</span>.replace(/\s+/g, '')
+  if (!q) return [{ text: title, hit: false }]
+  // map every non-space character of the title back to its original index
+  const idx: number[] = []
+  let stripped = ''
+  for (let i = 0; i &lt; title.length; i++) {
+    if (!/\s/.test(title[i] ?? <span class="branch-1 cbranch-no" title="branch not covered" >'')</span>) {
+      idx.push(i)
+      stripped += title[i]
     }
-  }, deps)
-  return st
+  }
+  const out: Segment[] = []
+  let cursor = 0
+  let from = 0
+  for (;;) {
+    const at = stripped.indexOf(q, from)
+    if (at &lt; 0) break
+    const start = idx[at] ?? <span class="branch-1 cbranch-no" title="branch not covered" >0</span>
+    const end = (idx[at + q.length - 1] ?? <span class="branch-1 cbranch-no" title="branch not covered" >start) + 1</span>
+    if (start &gt; cursor) out.push({ text: title.slice(cursor, start), hit: false })
+    out.push({ text: title.slice(start, end), hit: true })
+    cursor = end
+    from = at + q.length
+  }
+  <span class="missing-if-branch" title="else path not taken" >E</span>if (cursor &lt; title.length) out.push({ text: title.slice(cursor), hit: false })
+  return out
 }
 &nbsp;</pre></td></tr></table></pre>
 

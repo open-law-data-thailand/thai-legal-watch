@@ -1,4 +1,6 @@
 import type { ComponentChildren } from 'preact'
+import { useCountUp } from '../lib/motion'
+import { highlight } from '../lib/highlight'
 import type { RecentDoc, SlimDoc, Taxonomy } from '../data/types'
 import { thaiDate } from '../lib/thai'
 import { href } from '../router'
@@ -8,11 +10,12 @@ export function Kicker({ children }: { children: ComponentChildren }) {
 }
 
 export function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  const n = useCountUp(typeof value === 'number' ? value : 0)
   return (
     <div class="metric">
       <div class="label">{label}</div>
       <div class={`value${typeof value === 'string' && value.length > 6 ? ' text' : ''}`}>
-        {typeof value === 'number' ? value.toLocaleString('th-TH') : value}
+        {typeof value === 'number' ? <span class="count">{n.toLocaleString('th-TH')}</span> : value}
       </div>
       {hint && <div class="hint">{hint}</div>}
     </div>
@@ -66,7 +69,7 @@ export function LabelPills({
         <a
           class={`pill topic${d.tc ? '' : ' guess'}`}
           href={href.topic(d.topic)}
-          title={d.tc ? 'ป้ายยืนยันแล้ว' : 'คาดว่า — ยังไม่มีหลักฐานที่สอง'}
+          title={d.tc ? 'ยืนยันแล้ว' : 'คาดว่า — ยังไม่มีหลักฐานที่สอง'}
         >
           {topicName(tax, d.topic)}
           {d.tc ? ' ✓' : ' · คาดว่า'}
@@ -94,16 +97,20 @@ export function DocRow({
   tax,
   month,
   agencyName,
+  q,
 }: {
   d: RecentDoc | SlimDoc
   tax?: Taxonomy
   month?: string
   agencyName?: string | null
+  q?: string
 }) {
   return (
     <article class="doc">
       <a class="title" href={href.doc(d.id, month ?? d.d?.slice(0, 7))}>
-        {d.t}
+        {highlight(d.t, q).map((s, i) =>
+          s.hit ? <mark key={i}>{s.text}</mark> : <span key={i}>{s.text}</span>,
+        )}
       </a>
       <div class="meta">
         <LabelPills d={d} tax={tax} agencyName={agencyName} />

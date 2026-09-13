@@ -13,6 +13,7 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | `agg/home.json` | latest publication day: counts per axis, highlights, 30-day sparkline | <100 KB |
 | `agg/years.json` | docs per month per year | <50 KB |
 | `agg/bankruptcy.json` | court × stage counts for the funnel | <200 KB |
+| `agg/graph.json` | relationship graph: topics, their top agencies, topic↔agency and topic↔topic edge weights | <400 KB |
 | `agg/topic/<slug>.json` | one topic: by year/action/govlevel, top agencies, provinces, recent docs | <150 KB |
 | `agg/agency/<id>.json` | one agency: topics, actions, timeline, provinces, recent docs | <100 KB |
 | `agg/province/<name>.json` | one province: local/provincial docs by topic, agencies, recent docs | <100 KB |

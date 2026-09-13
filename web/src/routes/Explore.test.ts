@@ -46,10 +46,17 @@ describe('matches', () => {
   })
 })
 
-it('filtersFrom reads only known keys', () => {
+it('filtersFrom reads only known keys and defaults the scope to month', () => {
   const f = filtersFrom(new URLSearchParams('topic=health&evil=1&q=x'))
-  expect(f).toMatchObject({ topic: 'health', q: 'x' })
+  expect(f).toMatchObject({ topic: 'health', q: 'x', scope: 'month' })
   expect('evil' in f).toBe(false)
+  expect(filtersFrom(new URLSearchParams('scope=year&year=2024')).scope).toBe('year')
+  expect(filtersFrom(new URLSearchParams('scope=bogus')).scope).toBe('month')
+})
+
+it('matches can leave one dimension open for option counts', () => {
+  expect(matches(doc({}), { govlevel: 'central', topic: 'environment' }, tax, 'govlevel')).toBe(true)
+  expect(matches(doc({}), { govlevel: 'central', topic: 'bankruptcy' }, tax, 'govlevel')).toBe(false)
 })
 
 it('toCsv escapes quotes and starts with a BOM for Excel', () => {

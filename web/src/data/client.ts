@@ -3,6 +3,7 @@ import type {
   AgencyIndexItem,
   AgencyPage,
   Bankruptcy,
+  Graph,
   Home,
   Meta,
   ProvinceIndexItem,
@@ -73,6 +74,9 @@ export class DataClient {
   }
   years(): Promise<Years> {
     return this.get('agg/years.json')
+  }
+  graph(): Promise<Graph> {
+    return this.get('agg/graph.json')
   }
   get_bankruptcy(): Promise<Bankruptcy> {
     return this.get('agg/bankruptcy.json')

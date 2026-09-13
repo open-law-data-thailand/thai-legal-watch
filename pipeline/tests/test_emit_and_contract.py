@@ -55,3 +55,12 @@ def test_contract_flags_budget_and_unexpected_files(built, tmp_path):
 def test_safe_name_keeps_thai_and_strips_slashes():
     assert safe_name("กรุงเทพมหานคร") == "กรุงเทพมหานคร"
     assert "/" not in safe_name("a/b c")
+
+
+def test_graph_has_edges_between_topics_and_agencies(built):
+    out, _ = built
+    g = json.load(open(os.path.join(out, "agg/graph.json"), encoding="utf-8"))
+    slugs = {t["slug"] for t in g["topics"]}
+    aids = {a["id"] for a in g["agencies"]}
+    assert g["topic_agency"] and all(e["t"] in slugs and e["a"] in aids for e in g["topic_agency"])
+    assert all(e["a"] < e["b"] for e in g["topic_topic"])

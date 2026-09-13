@@ -17,7 +17,7 @@ import {
 
 export function mainAction(f: Facet, t: Taxonomy | undefined): string {
   const [slug, n] = Object.entries(f.by_action)[0] ?? []
-  if (!slug || !n || n < f.total * 0.2) return 'ยังไม่มีป้ายยืนยันพอ'
+  if (!slug || !n || n < f.total * 0.2) return 'ยืนยันได้น้อยเกินไป'
   return actionName(t, slug)
 }
 export function mainActionHint(f: Facet): string | undefined {
@@ -76,7 +76,7 @@ function FacetBody({
       </div>
       <YearBars f={f} />
       <div class="muted" style="font-size:.8rem;margin-bottom:24px">
-        ฉบับต่อปี (นับเฉพาะป้ายที่ยืนยัน)
+        ฉบับต่อปี (นับเฉพาะหมวดที่ยืนยัน)
       </div>
       <div class="two">
         <section>

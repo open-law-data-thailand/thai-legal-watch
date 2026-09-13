@@ -35,14 +35,36 @@ test.describe('explore', () => {
     const results = page.getByTestId('results')
     await expect(results.locator('.doc').first()).toBeVisible()
     const all = await results.locator('.doc').count()
-    await page.getByRole('button', { name: 'ล้มละลาย' }).click()
+    await page.getByRole('button', { name: /^ล้มละลาย/ }).click()
     await expect(page).toHaveURL(/topic=bankruptcy/)
     await expect.poll(() => results.locator('.doc').count()).toBeLessThan(all)
     await expect(results.locator('.doc .pill.topic').first()).toContainText('ล้มละลาย')
+    await page.getByRole('button', { name: /^ทุกหมวด/ }).click()
+    await page.getByPlaceholder(/ขยะ/).fill('มูลฝอย')
+    await expect(results.locator('.doc mark').first()).toHaveText('มูลฝอย')
     await page.getByPlaceholder(/ขยะ/).fill('ไม่มีคำนี้แน่นอน')
     await expect(results.locator('.doc')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /ดาวน์โหลด CSV/ })).toBeDisabled()
     await a11y(page)
+  })
+})
+
+test.describe('explore scopes', () => {
+  test('year scope loads every month of the year and shows counts on chips and options', async ({ page }) => {
+    await page.goto('/#/explore?scope=year&year=2024')
+    const results = page.getByTestId('results')
+    await expect(results.locator('.doc')).toHaveCount(50) // first page of 80
+    await expect(page.locator('.pager')).toContainText('หน้า 1 / 2')
+    await expect(page.getByRole('button', { name: /^ทุกหมวด \(80\)/ })).toBeVisible()
+    await expect(
+      page
+        .getByLabel('การกระทำ')
+        .locator('option', { hasText: /\(\d+\)/ })
+        .first(),
+    ).toBeAttached()
+    await page.getByRole('button', { name: 'ทั้งหมด' }).click()
+    await expect(page).toHaveURL(/scope=all/)
+    await expect(page.getByPlaceholder(/ขยะ/)).toBeDisabled()
   })
 })
 
@@ -108,10 +130,19 @@ test.describe('document', () => {
   })
 })
 
-test.describe('dashboard and about', () => {
-  test('charts mount and the about page states the accuracy', async ({ page }) => {
+test.describe('dashboard, graph and about', () => {
+  test('the relationship graph mounts on a canvas', async ({ page }) => {
+    await page.goto('/#/graph')
+    await expect(page.getByTestId('graph').locator('canvas').first()).toBeVisible()
+    await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')
+    await a11y(page)
+  })
+  test('charts mount, a year click focuses the table, and the about page states the accuracy', async ({
+    page,
+  }) => {
     await page.goto('/#/dashboard')
     await expect(page.getByTestId('chart-years').locator('svg')).toBeVisible()
+    await expect(page.getByTestId('chart-topics').locator('svg')).toBeVisible()
     await expect(page.getByTestId('chart-funnel').locator('svg')).toBeVisible()
     await page.goto('/#/about')
     await expect(page.getByText('100% (ช่วงเชื่อมั่น 98.6–100)')).toBeVisible()

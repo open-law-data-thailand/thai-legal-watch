@@ -84,6 +84,7 @@ class Aggregator:
         self.labelled = 0
         self.corroborated_any = 0
         self.extracted_stage: Counter = Counter()      # (court, stage) for the bankruptcy funnel
+        self.topic_pairs: Counter = Counter()          # two topic labels on one document → an edge in the graph
         self.parents = {s: v.get("parent") for s, v in taxonomy.get("topics", {}).items()}
         self._newest_day = ""
 
@@ -115,6 +116,10 @@ class Aggregator:
             if len(self.day_docs) > 45:                     # keep memory flat: only the newest ~45 days matter
                 for k in sorted(self.day_docs)[:-45]:
                     del self.day_docs[k]
+        tl = sorted({lb.slug for lb in d.labels if lb.axis == "topic" and (lb.corroborated or lb.weight >= 0.7)})
+        for i, a in enumerate(tl):
+            for b in tl[i + 1:]:
+                self.topic_pairs[(a, b)] += 1
         x = d.extracted
         if x.get("stage"):
             self.extracted_stage[(x.get("court") or "?", x["stage"])] += 1

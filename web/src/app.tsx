@@ -3,6 +3,7 @@ import { ClientContext } from './data/context'
 import { DataClient } from './data/client'
 import { About } from './routes/About'
 import { Dashboard } from './routes/Dashboard'
+import { Graph } from './routes/Graph'
 import { Doc } from './routes/Doc'
 import { Explore } from './routes/Explore'
 import { Agency, Province, Topic } from './routes/Facet'
@@ -13,6 +14,7 @@ const NAV: [string, () => string, Route['name'][]][] = [
   ['วันนี้', href.home, ['home']],
   ['สำรวจ', () => href.explore(), ['explore', 'topic', 'agency', 'province', 'doc']],
   ['แดชบอร์ด', href.dashboard, ['dashboard']],
+  ['ความสัมพันธ์', href.graph, ['graph']],
   ['เกี่ยวกับ', href.about, ['about']],
 ]
 
@@ -57,7 +59,7 @@ export function App({ client }: { client?: DataClient }) {
           <a href="https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha">
             OpenLawData — soc-ratchakitcha
           </a>{' '}
-          · Thai Legal Watch เป็นโครงการในเครือ OpenLawData · ป้ายจาก rule ตรวจสอบได้ทุกฉบับ ·{' '}
+          · Thai Legal Watch เป็นโครงการในเครือ OpenLawData · จำแนกหมวดด้วย rule ตรวจสอบที่มาได้ทุกฉบับ ·{' '}
           <a href={href.about()}>เกี่ยวกับและความแม่น</a>
         </div>
       </footer>
@@ -81,6 +83,8 @@ function Page({ route }: { route: Route }) {
       return <Doc id={route.id} month={route.month} />
     case 'dashboard':
       return <Dashboard />
+    case 'graph':
+      return <Graph />
     case 'about':
       return <About />
     case 'notfound':
@@ -109,6 +113,8 @@ export function titleFor(route: Route): string {
       return `${route.id} — ${base}`
     case 'dashboard':
       return `แดชบอร์ด — ${base}`
+    case 'graph':
+      return `ความสัมพันธ์ระหว่างหมวด — ${base}`
     case 'about':
       return `เกี่ยวกับ — ${base}`
     case 'notfound':

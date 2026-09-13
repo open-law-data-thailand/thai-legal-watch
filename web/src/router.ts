@@ -7,6 +7,7 @@ export type Route =
   | { name: 'province'; file: string }
   | { name: 'doc'; id: string; month?: string }
   | { name: 'dashboard' }
+  | { name: 'graph' }
   | { name: 'about' }
   | { name: 'notfound'; path: string }
 
@@ -32,6 +33,8 @@ export function parseHash(hash: string): Route {
         : { name: 'notfound', path: raw }
     case 'dashboard':
       return { name: 'dashboard' }
+    case 'graph':
+      return { name: 'graph' }
     case 'about':
       return { name: 'about' }
     default:
@@ -51,6 +54,7 @@ export const href = {
   province: (file: string) => `#/province/${encodeURIComponent(file)}`,
   doc: (id: string, month?: string) => `#/doc/${encodeURIComponent(id)}${month ? `?m=${month}` : ''}`,
   dashboard: () => '#/dashboard',
+  graph: () => '#/graph',
   about: () => '#/about',
 }
 
