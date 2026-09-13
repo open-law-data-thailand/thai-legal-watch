@@ -343,8 +343,16 @@ test.describe('dashboard, graph and about', () => {
   })
 
   test('the dashboard answers a question and a year click narrows it', async ({ page }) => {
+    // data-ready goes up when the chart is configured, but the bars animate in after that, so a
+    // click can land on empty canvas. Reduced motion removes the animation entirely — which the
+    // charts now honour — and waiting for a drawn bar removes the rest of the race.
+    await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/#/ratchakitcha/dashboard')
     await expect(page.getByTestId('chart-years')).toHaveAttribute('data-ready', '1')
+    // Count, not visibility: ECharts emits clip and background paths that are legitimately
+    // hidden. The fixture has two years, so this only proves the series has been drawn at all
+    // before a click is aimed at it.
+    await expect.poll(() => page.locator('[data-testid=chart-years] svg path').count()).toBeGreaterThan(4)
     await expect(page.getByTestId('chart-years').locator('svg')).toBeVisible()
     // the headline numbers, the month-of-year profile and the per-year sections all render
     await expect(page.locator('.grid.metrics .metric')).not.toHaveCount(0)
@@ -538,6 +546,25 @@ test('the site tells a crawler and a link preview what it is', async ({ page, re
   const sitemap = await request.get('/sitemap.xml')
   expect(sitemap.ok()).toBeTruthy()
   expect(await sitemap.text()).toContain('sitemaps.org/schemas/sitemap/0.9')
+})
+
+test('every page says which code read which data', async ({ page, request }) => {
+  const meta = (await (await request.get('/data/ratchakitcha/agg/meta.json')).json()) as {
+    build?: { code?: { sha?: string }; dataset?: { sha?: string } }
+  }
+  const code = meta.build?.code?.sha
+  if (!code) return // built outside a checkout; provenance is absent by design, not broken
+
+  await page.goto('/#/about')
+  const link = page.getByRole('link', { name: code.slice(0, 7) })
+  await expect(link).toBeVisible()
+  await expect(link).toHaveAttribute('href', new RegExp(`/commit/${code}$`))
+  await expect(link).toHaveAttribute('title', code)
+
+  // and on the static pages, which is where someone auditing a number is most likely to land
+  const html = await (await request.get('/directory')).text()
+  expect(html).toContain(`/commit/${code}`)
+  expect(html).not.toContain('/commit/"') // never a link to nothing
 })
 
 test.describe('what a machine without JavaScript sees', () => {

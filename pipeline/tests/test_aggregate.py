@@ -159,3 +159,48 @@ def test_static_pages_escape_what_comes_from_the_data(tmp_path):
                 "https://example.org", "ratchakitcha", {})
     assert "<script>" not in out
     assert "&lt;script&gt;" in out
+
+
+def test_build_records_which_code_read_which_data(tmp_path):
+    """A number on a page should be traceable to the pair of commits that produced it."""
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2024",), per_month=5)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2024",
+                 "--dataset-revision", "0" * 40, "--code-revision", "1" * 40,
+                 "--site", "https://example.org"]) == 0
+
+    meta = json.loads((out / "ratchakitcha" / "agg" / "meta.json").read_text(encoding="utf-8"))
+    assert meta["build"]["dataset"]["sha"] == "0" * 40
+    assert meta["build"]["code"]["sha"] == "1" * 40
+    assert "huggingface.co" in meta["build"]["dataset"]["repo"]
+    assert "github.com" in meta["build"]["code"]["repo"]
+
+    # and the static pages a crawler reads carry it as links, not bare text
+    page = (out / "_site" / "directory.html").read_text(encoding="utf-8")
+    assert f'/commit/{"0" * 40}' in page
+    assert f'/commit/{"1" * 40}' in page
+    assert "1111111</code>" in page  # shortened for reading
+
+
+def test_build_survives_having_no_revisions_to_report(tmp_path):
+    """Built outside a checkout with no dataset sha: provenance is absent, not broken."""
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2024",), per_month=5)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2024",
+                 "--code-revision", " ", "--site", "https://example.org"]) == 0
+    meta = json.loads((out / "ratchakitcha" / "agg" / "meta.json").read_text(encoding="utf-8"))
+    assert meta["build"]["dataset"]["sha"] == ""
+    page = (out / "_site" / "directory.html").read_text(encoding="utf-8")
+    assert "รุ่น:" not in page or "commit/" not in page

@@ -20,6 +20,7 @@ interface EChart {
 import { useLoad } from '../data/context'
 import type { Graph as GraphData } from '../data/types'
 import { FAMILY_PALETTE, rootOf } from '../lib/family'
+import { reducedMotion } from '../lib/motion'
 import { beYear } from '../lib/thai'
 import { useHref } from '../data/context'
 import { ErrorBox, Kicker, Loading } from '../ui/bits'
@@ -221,6 +222,7 @@ export function Graph() {
       )
       chart.setOption({
         backgroundColor: 'transparent',
+        animation: !reducedMotion(),
         color: [...FAMILY_PALETTE.slice(0, model.roots.length), '#8a8a94'],
         tooltip: {
           formatter: (p: {
@@ -246,7 +248,7 @@ export function Graph() {
             force: { repulsion: 180, edgeLength: [40, 160], gravity: 0.08, friction: 0.2 },
             emphasis: { focus: 'adjacency', label: { show: true } },
             lineStyle: { color: 'source', curveness: 0.15 },
-            animationDuration: 1200,
+            animationDuration: reducedMotion() ? 0 : 1200,
             animationEasingUpdate: 'quinticInOut',
           },
         ],

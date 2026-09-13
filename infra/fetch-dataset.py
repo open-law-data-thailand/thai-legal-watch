@@ -33,6 +33,16 @@ def hf_token() -> str | None:
     return os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or None
 
 
+def dataset_revision(token: str | None) -> tuple[str, str]:
+    """The exact commit of the dataset this build is reading, so the site can say which one."""
+    req = urllib.request.Request(f"https://huggingface.co/api/datasets/{REPO}")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req, timeout=60) as r:
+        d = json.load(r)
+    return d.get("sha") or "", d.get("lastModified") or ""
+
+
 def verify(token: str) -> bool:
     """Does this token actually authenticate? A wrong one is accepted silently for public files."""
     req = urllib.request.Request("https://huggingface.co/api/whoami-v2")
@@ -68,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--years", help="range to intersect with what is published (default: all of it)")
     ap.add_argument("--print-years", action="store_true", help="print the years and exit")
     ap.add_argument("--emit-years", help="write the resolved range (e.g. 2002-2026) to this file")
+    ap.add_argument("--emit-revision", help="write the dataset's commit sha to this file")
     a = ap.parse_args(argv)
 
     try:
@@ -95,6 +106,11 @@ def main(argv: list[str] | None = None) -> int:
     # only worth reporting a gap inside the range, or a year someone explicitly asked for
     missing = sorted(y for y in ask - both if years[0] <= y <= years[-1]) if not a.years else sorted(ask - both)
     print(f"years: {years[0]}–{years[-1]} ({len(years)})" + (f" · missing: {missing}" if missing else ""))
+    sha, modified = dataset_revision(token)
+    print(f"dataset: {REPO}@{sha[:12] or '?'} (last modified {modified[:19] or '?'})")
+    if a.emit_revision:
+        pathlib.Path(a.emit_revision).write_text(sha, encoding="utf-8")
+
     span = f"{years[0]}-{years[-1]}"
     if a.emit_years:
         pathlib.Path(a.emit_years).write_text(span, encoding="utf-8")

@@ -94,12 +94,18 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          infra/fetch-dataset.py --out hfdata --root hfroot --emit-years years.txt \
+          infra/fetch-dataset.py --out hfdata --root hfroot \
+            --emit-years years.txt --emit-revision dataset-sha.txt \
             ${{ inputs.years && format('--years {0}', inputs.years) || '' }}
           echo "TLW_YEARS=$(cat years.txt)" >> "$GITHUB_ENV"
+          echo "TLW_DATASET_SHA=$(cat dataset-sha.txt)" >> "$GITHUB_ENV"
 
       - name: Build the site's data
-        run: tlw-build --root hfroot --out dist-data --years "$TLW_YEARS"
+        # Both commits go into the build so every page can say which code read which data.
+        run: |
+          tlw-build --root hfroot --out dist-data --years "$TLW_YEARS" \
+            --dataset-revision "$TLW_DATASET_SHA" \
+            --code-revision "${{ github.sha }}"
 
       - name: Deploy to Cloudflare Pages
         env:

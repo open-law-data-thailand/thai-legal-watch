@@ -50,7 +50,22 @@ def e(s) -> str:
     return html.escape(str(s or ""), quote=True)
 
 
-def _page(title: str, desc: str, canonical: str, body: str, site: str) -> str:
+def _build_line(build: dict) -> str:
+    """Same provenance the app shows, on the pages a machine reads."""
+    parts = []
+    for label, key in (("โค้ด", "code"), ("ชุดข้อมูล", "dataset")):
+        info = build.get(key) or {}
+        sha, repo = (info.get("sha") or "").strip(), (info.get("repo") or "").strip()
+        if not sha:
+            continue
+        short = e(sha[:7])
+        parts.append(f'{label} <a href="{e(repo)}/commit/{e(sha)}"><code>{short}</code></a>'
+                     if repo else f"{label} <code>{short}</code>")
+    return " · รุ่น: " + " · ".join(parts) if parts else ""
+
+
+def _page(title: str, desc: str, canonical: str, body: str, site: str, build: dict) -> str:
+    build_line = _build_line(build)
     return f"""<!doctype html>
 <html lang="th">
 <head>
@@ -75,7 +90,7 @@ def _page(title: str, desc: str, canonical: str, body: str, site: str) -> str:
 ข้อมูลจาก <a href="https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha">OpenLawData — soc-ratchakitcha</a>
 · จำแนกหมวดอัตโนมัติ อาจคลาดเคลื่อน
 <b>โปรดตรวจกับต้นฉบับที่ <a href="https://ratchakitcha.soc.go.th/">ราชกิจจานุเบกษา</a>
-ก่อนใช้อ้างอิง</b>
+ก่อนใช้อ้างอิง</b>{build_line}
 </footer>
 </div></body></html>
 """
@@ -143,6 +158,7 @@ def write(out: str, source: str, site: str) -> list[str]:
             return json.load(fh)
 
     tax = load("agg/taxonomy.json", {}) or {}
+    build = (load("agg/meta.json", {}) or {}).get("build") or {}
     names = {a["id"]: a["name"] for a in (load("index/agencies.json", []) or [])}
     urls: list[str] = []
 
@@ -161,7 +177,7 @@ def write(out: str, source: str, site: str) -> list[str]:
         desc = (f"{name}: {f.get('total', 0):,} ฉบับในราชกิจจานุเบกษา "
                 f"จำแนกหมวดอัตโนมัติ พร้อมเล่ม ตอน หน้า สำหรับอ้างอิง และติดตามผ่าน RSS")
         body = _facet_body(name, kind, f, site, source, f"{site}/#{app_hash}", names, tax, feed)
-        emit(rel_url, _page(name, desc, canonical, body, site))
+        emit(rel_url, _page(name, desc, canonical, body, site, build))
 
     for t in load("index/topics.json", []) or []:
         slug = t["slug"]
@@ -196,7 +212,7 @@ def write(out: str, source: str, site: str) -> list[str]:
         f"<h2>หน่วยงาน ({len(ags)})</h2><ul>{links(ags)}</ul>"
     )
     emit("/directory", _page("สารบัญ", f"สารบัญหมวด จังหวัด และหน่วยงานทั้งหมดของราชกิจจานุเบกษา "
-                             f"{meta.get('docs', 0):,} ฉบับ", f"{site}/directory", body, site))
+                             f"{meta.get('docs', 0):,} ฉบับ", f"{site}/directory", body, site, build))
 
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

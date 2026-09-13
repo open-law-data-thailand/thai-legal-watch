@@ -15,6 +15,7 @@ import {
   topicName,
 } from '../ui/bits'
 import { CiteLookup } from '../ui/CiteLookup'
+import { Provenance } from '../ui/Provenance'
 import { QuickSearch } from '../ui/QuickSearch'
 import { STAGE } from './Doc'
 
@@ -156,7 +157,8 @@ export function Home() {
       <p class="muted" style="margin-top:40px;font-size:.85rem">
         ทั้งเว็บมี {meta.docs.toLocaleString('th-TH')} ฉบับ (พ.ศ. {beRange(meta.years)}) · จำแนกหมวดได้{' '}
         {percent(meta.labelled, meta.docs)} · ปรับปรุงข้อมูลล่าสุด{' '}
-        {(meta.generated_at || '').slice(0, 16).replace('T', ' ') || '—'} น.
+        {(meta.generated_at || '').slice(0, 16).replace('T', ' ') || '—'} น. ·{' '}
+        <Provenance build={meta.build} />
       </p>
     </>
   )

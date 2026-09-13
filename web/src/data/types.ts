@@ -50,6 +50,13 @@ export interface SourceCredit {
   built_from_years?: string[]
 }
 
+/** Which code read which data. Both halves are commit shas so a number on a page can be traced
+ *  to the exact source that produced it; either may be empty when built outside a checkout. */
+export interface BuildInfo {
+  code?: { repo?: string; sha?: string }
+  dataset?: { repo?: string; sha?: string }
+}
+
 export interface Meta {
   contract: number
   generated_at: string
@@ -62,6 +69,7 @@ export interface Meta {
   site: string
   files: number
   bytes: number
+  build?: BuildInfo
 }
 
 export interface TopicNode {

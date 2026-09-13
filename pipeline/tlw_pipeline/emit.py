@@ -52,7 +52,7 @@ class Emitter:
                 self.sizes[f"docs/{y}/{m}.json"] = dump(os.path.join(self.out, "docs", y, f"{m}.json"), docs)
                 del self.shards[(y, m)]
 
-    def finish(self, agg: Aggregator, sources: list[dict], site: str) -> dict:
+    def finish(self, agg: Aggregator, sources: list[dict], site: str, build: dict | None = None) -> dict:
         self.site = site
         ids = agg.agency_ids()
         tax = agg.taxonomy
@@ -146,7 +146,10 @@ class Emitter:
                 "sources": sources, "years": sorted(agg.all.by_year), "docs": agg.all.total,
                 "labelled": agg.labelled, "corroborated_any": agg.corroborated_any,
                 "latest_date": max(agg.by_day) if agg.by_day else None, "site": site,
-                "files": len(self.sizes) + 1, "bytes": sum(self.sizes.values())}
+                "files": len(self.sizes) + 1, "bytes": sum(self.sizes.values()),
+                # which code read which data: a reader looking at a number should be able to find
+                # the exact commit that produced it, on both sides
+                "build": build or {}}
         self.sizes["agg/meta.json"] = dump(os.path.join(self.out, "agg/meta.json"), meta)
         # the cross-source index the site boots from; other sources append themselves here
         idx_path = os.path.join(self.root, "sources.json")

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { Taxonomy, Trends } from '../data/types'
 import { completeYears, monthProfile, movers, sumAt, yearToDate, type Move } from '../lib/trends'
+import { reducedMotion } from '../lib/motion'
 import { beYear, percent, thaiDate } from '../lib/thai'
 import { useHref } from '../data/context'
 import { Bars, ErrorBox, Kicker, Loading, Metric, actionName, govName, topicName } from '../ui/bits'
@@ -61,12 +62,19 @@ export function Dashboard() {
       chartRef.current = chart
       chart.setOption({
         backgroundColor: 'transparent',
+        animation: !reducedMotion(),
         textStyle: { fontFamily: 'Anuphan, sans-serif' },
         grid: { left: 58, right: 12, top: 14, bottom: 30 },
         xAxis: { type: 'category', data: ys.map((k) => beYear(k)) },
         yAxis: { type: 'value' },
         tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toLocaleString('th-TH')} ฉบับ` },
-        series: [{ type: 'bar', data: ys.map((k) => byYear[k]), animationDelay: (i: number) => i * 25 }],
+        series: [
+          {
+            type: 'bar',
+            data: ys.map((k) => byYear[k]),
+            animationDelay: (i: number) => (reducedMotion() ? 0 : i * 25),
+          },
+        ],
       })
       chart.on('click', (p: { dataIndex: number }) => {
         const clicked = ys[p.dataIndex] ?? null

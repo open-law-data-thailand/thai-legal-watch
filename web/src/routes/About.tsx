@@ -1,5 +1,6 @@
 import { useLoad } from '../data/context'
 import { beYear } from '../lib/thai'
+import { Provenance } from '../ui/Provenance'
 import { ErrorBox, Kicker, Loading } from '../ui/bits'
 
 export function About() {
@@ -108,6 +109,36 @@ export function About() {
             ทุกหน้าหมวด จังหวัด และหน่วยงานหลัก มีปุ่ม RSS ให้ติดตาม นำไปใส่ในโปรแกรมอ่าน RSS, Slack หรือ
             IFTTT ได้เลย ไม่ต้องสมัครสมาชิกและไม่ต้องให้อีเมล
           </p>
+          <h2 style="font-size:1.05rem;margin-top:22px">รุ่นที่คุณกำลังดูอยู่</h2>
+          {st.state === 'ok' && (
+            <>
+              <p>
+                หน้านี้สร้างจากโค้ดคอมมิตหนึ่ง อ่านชุดข้อมูลคอมมิตหนึ่ง — ทั้งสองระบุไว้ตรงนี้
+                เพื่อให้ย้อนกลับไปดูได้ว่าเลขที่เห็นมาจากอะไร
+              </p>
+              <table>
+                <tbody>
+                  <tr>
+                    <th scope="row">สร้างเมื่อ</th>
+                    <td>{st.data.generated_at.replace('T', ' ').slice(0, 19)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">รุ่น</th>
+                    <td>
+                      <Provenance build={st.data.build} />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">ขนาด</th>
+                    <td>
+                      {st.data.files.toLocaleString('th-TH')} ไฟล์ ·{' '}
+                      {Math.round(st.data.bytes / 1e6).toLocaleString('th-TH')} MB
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
           <h2 style="font-size:1.05rem;margin-top:22px">โค้ด</h2>
           <p>
             ทั้งเว็บและตัวประมวลผลข้อมูลเป็นโอเพนซอร์ส (สัญญาอนุญาต MIT) — Thai Legal Watch เป็นโครงการในเครือ
