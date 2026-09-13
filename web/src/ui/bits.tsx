@@ -99,30 +99,17 @@ export function govName(tax: Taxonomy | undefined, slug: string | null): string 
   return tax?.govlevels[slug] ?? slug
 }
 
-/** Labels of a document as pills; an uncorroborated headline label is shown as a guess. */
-// TODO (agreed, not yet built): make การกระทำ / ระดับผู้ออก / จังหวัด / ประเภทเอกสาร filterable.
-// Only หมวด and หน่วยงาน are links, because only they have a pre-built facet page to point at —
-// an accident of the data's shape, not a hierarchy. The grey does not mean "secondary": หน่วยงาน
-// is the same grey and *is* a link. Worse, `.pill:hover` lifts every pill, so three of five
-// advertise themselves as clickable and are not.
-//
-// The archive index removed the reason: a pill can now point at สำรวจ instead of a page, and the
-// cube answers `govlevel=central` over the whole corpus in under a millisecond —
-// `href.explore({ scope: 'all', govlevel: d.govlevel })`, no new data files. จังหวัด filters by
-// the Thai name, so it needs no slug mapping either.
-//
-// Decided — **replace, never add**: a pill always goes to สำรวจ scope=all carrying that one
-// filter, wherever it was clicked. One meaning everywhere; it matches what the two existing
-// linked pills already do; Back returns the reader to the list they built, so nothing is lost;
-// and สำรวจ's own chips and dropdowns already do "narrow further" properly, with counts.
-//
-// Still to settle when this is built:
-//  - a "คาดว่า" pill must NOT link: filters count corroborated labels only, so it would land the
-//    reader on a list missing the very document they clicked from. Leaving those unlinked is also
-//    what finally gives the dashed style a meaning — unconfirmed means not groupable.
-//  - stop `.pill:hover` lifting the pills that are not links.
-//  - the same two rows in Doc.tsx (การกระทำ, ระดับ) are plain text there too.
-//  - ประเภทเอกสาร is a filter now but is not rendered as a pill anywhere yet.
+/** Labels of a document as pills; an uncorroborated headline label is shown as a guess.
+ *
+ *  Every pill that can be a filter is a link to สำรวจ carrying that one filter — **replace, never
+ *  add**, so a pill means the same thing wherever it is clicked, and Back returns the reader to
+ *  the list they built. Before this only หมวด and หน่วยงาน were links, because only they had a
+ *  pre-built facet page to point at; the archive index removed that constraint.
+ *
+ *  A "คาดว่า" pill is deliberately *not* a link. Filters count corroborated labels only, so it
+ *  would land the reader on a list missing the very document they clicked from. That is also what
+ *  finally gives the dashed style a meaning: unconfirmed means not groupable.
+ */
 export function LabelPills({
   d,
   tax,
@@ -134,31 +121,53 @@ export function LabelPills({
 }) {
   const href = useHref()
   const gov = 'gc' in d ? d.gc : true
+  const to = (patch: Record<string, string>) => href.explore({ scope: 'all', ...patch })
+  const dtype = 'dt' in d ? d.dt : null
   return (
     <>
-      {d.topic && (
-        <a
-          class={`pill topic${d.tc ? '' : ' guess'}`}
-          style={
-            d.tc
-              ? `background:${tint(familyColor(d.topic, tax))};color:${familyColor(d.topic, tax)}`
-              : undefined
-          }
-          href={href.topic(d.topic)}
-          title={d.tc ? 'ยืนยันแล้ว' : 'คาดว่า — ยังไม่มีหลักฐานที่สอง'}
-        >
-          {topicName(tax, d.topic)}
-          {d.tc ? ' ✓' : ' · คาดว่า'}
+      {d.topic &&
+        (d.tc ? (
+          <a
+            class="pill topic"
+            style={`background:${tint(familyColor(d.topic, tax))};color:${familyColor(d.topic, tax)}`}
+            href={href.topic(d.topic)}
+            title="ยืนยันแล้ว — กดเพื่อเปิดหน้าหมวด"
+          >
+            {topicName(tax, d.topic)} ✓
+          </a>
+        ) : (
+          <span class="pill topic guess" title="คาดว่า — ยังไม่มีหลักฐานที่สอง จึงไม่ถูกนับและกรองไม่ได้">
+            {topicName(tax, d.topic)} · คาดว่า
+          </span>
+        ))}
+      {d.action &&
+        (d.ac ? (
+          <a class="pill action" href={to({ action: d.action })} title="กดเพื่อดูฉบับอื่นที่ทำสิ่งเดียวกัน">
+            {actionName(tax, d.action)} ✓
+          </a>
+        ) : (
+          <span class="pill action guess" title="คาดว่า — ยังไม่มีหลักฐานที่สอง จึงไม่ถูกนับและกรองไม่ได้">
+            {actionName(tax, d.action)} · คาดว่า
+          </span>
+        ))}
+      {d.govlevel &&
+        (gov ? (
+          <a class="pill" href={to({ govlevel: d.govlevel })} title="กดเพื่อดูฉบับอื่นจากผู้ออกระดับเดียวกัน">
+            {govName(tax, d.govlevel)}
+          </a>
+        ) : (
+          <span class="pill guess">{govName(tax, d.govlevel)}</span>
+        ))}
+      {d.pr && (
+        <a class="pill" href={to({ province: d.pr })} title={`กดเพื่อดูฉบับอื่นของ${d.pr}`}>
+          {d.pr}
         </a>
       )}
-      {d.action && (
-        <span class={`pill action${d.ac ? '' : ' guess'}`}>
-          {actionName(tax, d.action)}
-          {d.ac ? ' ✓' : ' · คาดว่า'}
-        </span>
+      {dtype && (
+        <a class="pill" href={to({ dtype })} title="กดเพื่อดูฉบับอื่นประเภทเดียวกัน">
+          {dtype}
+        </a>
       )}
-      {d.govlevel && <span class={`pill${gov ? '' : ' guess'}`}>{govName(tax, d.govlevel)}</span>}
-      {d.pr && <span class="pill">{d.pr}</span>}
       {agencyName && d.a && (
         <a class="pill" href={href.agency(d.a)} title={agencyName}>
           {agencyName}

@@ -200,14 +200,26 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                 <tr>
                   <th scope="row">การกระทำ</th>
                   <td>
-                    {actionName(tax, d.action) || '—'}{' '}
+                    {d.action && d.ac ? (
+                      <a href={href.explore({ scope: 'all', action: d.action })}>
+                        {actionName(tax, d.action)}
+                      </a>
+                    ) : (
+                      actionName(tax, d.action) || '—'
+                    )}{' '}
                     {d.action && (d.ac ? '✓' : <span class="pill guess">คาดว่า</span>)}
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">ระดับ</th>
                   <td>
-                    {govName(tax, d.govlevel) || '—'}{' '}
+                    {d.govlevel && d.gc ? (
+                      <a href={href.explore({ scope: 'all', govlevel: d.govlevel })}>
+                        {govName(tax, d.govlevel)}
+                      </a>
+                    ) : (
+                      govName(tax, d.govlevel) || '—'
+                    )}{' '}
                     {d.govlevel && (d.gc ? '✓' : <span class="pill guess">คาดว่า</span>)}
                   </td>
                 </tr>

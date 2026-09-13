@@ -574,10 +574,13 @@ button,
 button:active {
   transform: scale(0.96);
 }
-.pill {
+/* Only a pill that goes somewhere moves under the cursor. Lifting all of them made three of
+   five advertise themselves as clickable while doing nothing — a false affordance, and the thing
+   that made the whole row feel broken. */
+a.pill {
   transition: transform 0.15s;
 }
-.pill:hover {
+a.pill:hover {
   transform: translateY(-1px);
 }
 mark {

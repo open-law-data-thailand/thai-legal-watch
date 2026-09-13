@@ -277,6 +277,53 @@ test('no page trips the Content-Security-Policy it is served with', async ({ pag
   expect(violations.join('\n')).toBe('')
 })
 
+test.describe('every label on a document is a way into the archive', () => {
+  test('a confirmed pill filters; a "คาดว่า" one does not, and says why', async ({ page, request }) => {
+    // Before this, only หมวด and หน่วยงาน were links — because only they had a pre-built page to
+    // point at. The grey never meant "secondary": หน่วยงาน is the same grey and always was a
+    // link. Three of five pills lifted under the cursor and did nothing.
+    const months = await data.months(request)
+    const last = months[months.length - 1] as string
+    await page.goto(`/#/ratchakitcha/explore?scope=month&month=${last}`)
+    const rows = page.getByTestId('results')
+    await expect(rows.locator('.doc').first()).toBeVisible()
+
+    const confirmed = rows.locator('a.pill.action').first()
+    await expect(confirmed).toBeVisible()
+    const label = ((await confirmed.textContent()) ?? '').replace('✓', '').trim()
+    await confirmed.click()
+    await expect(page).toHaveURL(/scope=all/)
+    await expect(page).toHaveURL(/action=/)
+    // it landed on the filter the pill named, not on a different one
+    await expect(page.getByLabel('สิ่งที่เอกสารทำ')).toHaveValue(/.+/)
+    expect(label.length).toBeGreaterThan(0)
+
+    // and a guess is not a link: filters count corroborated labels only, so following one would
+    // land the reader on a list missing the document they clicked from
+    await page.goto(`/#/ratchakitcha/explore?scope=month&month=${last}`)
+    const guesses = rows.locator('.pill.guess')
+    if (await guesses.count()) {
+      await expect(guesses.first()).not.toHaveAttribute('href', /./)
+      await expect(guesses.first()).toHaveJSProperty('tagName', 'SPAN')
+    }
+  })
+
+  test('only a pill that goes somewhere behaves as if it does', async ({ page, request }) => {
+    const months = await data.months(request)
+    const last = months[months.length - 1] as string
+    await page.goto(`/#/ratchakitcha/explore?scope=month&month=${last}`)
+    await expect(page.getByTestId('results').locator('.doc').first()).toBeVisible()
+    // a false affordance is what made this row feel broken: everything moved, most did nothing
+    const lifts = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('.pill')].filter(
+          (p) => p.tagName !== 'A' && getComputedStyle(p).transitionProperty.includes('transform'),
+        ).length,
+    )
+    expect(lifts).toBe(0)
+  })
+})
+
 test.describe('arriving with a subject rather than a date', () => {
   test('the front page offers subjects, and each one opens filtered', async ({ page }) => {
     // Most people arrive knowing what they care about, not what came out today. The doorways are
