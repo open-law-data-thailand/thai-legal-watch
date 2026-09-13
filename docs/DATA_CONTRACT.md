@@ -25,6 +25,7 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | `agg/province/<name>.json` | one province: local/provincial docs by topic, agencies, recent docs | <100 KB |
 | `index/agencies.json` | `[{id,name,type,n,page}]` for search and linking; `page` says whether `agg/agency/<id>.json` exists (agencies with ≥5 documents) | <2.5 MB |
 | `index/provinces.json` | `[{name,n}]` | <10 KB |
+| `index/volumes/<volume>.json` | `{volume, parts: {"219 ง": ["2026-09"]}}` — which month shard holds each ตอน of a เล่ม, for citation lookup | <200 KB |
 | `index/topics.json` | `[{slug,thai,parent,n}]` | <20 KB |
 | `docs/<year>/<year-month>.json` | slim document records for one month (the only place with per-document data; also the title-search corpus) | <12 MB (2009–2012 months reach 6–10 MB raw, ~1.5 MB compressed) |
 

@@ -118,6 +118,10 @@ class Emitter:
                                 for (a, b), n in agg.topic_pairs_year.get(year, Counter()).most_common(400)],
             }
             self.sizes[f"agg/graph/{year}.json"] = dump(os.path.join(self.out, "agg/graph", f"{year}.json"), gy)
+        # citation lookup: a lawyer types เล่ม/ตอน/หน้า; the site needs to know which month shard to open
+        for vol, parts in agg.volume_parts.items():
+            body = {"volume": vol, "parts": {p: sorted(m) for p, m in sorted(parts.items())}}
+            self.sizes[f"index/volumes/{vol}.json"] = dump(os.path.join(self.out, "index/volumes", f"{vol}.json"), body)
         self.sizes["agg/bankruptcy.json"] = dump(os.path.join(self.out, "agg/bankruptcy.json"),
             {"by_court_stage": [{"court": c, "stage": s, "n": n} for (c, s), n in agg.extracted_stage.most_common()]})
         meta = {"contract": CONTRACT_VERSION, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),

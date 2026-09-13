@@ -81,3 +81,12 @@ def test_year_graph_is_a_subset_of_the_global_graph(built):
     assert {t["slug"] for t in gy["topics"]} <= {t["slug"] for t in g["topics"]}
     assert sum(t["n"] for t in gy["topics"]) < sum(t["n"] for t in g["topics"])
     assert all(e["n"] > 0 for e in gy["topic_agency"] + gy["topic_topic"])
+
+
+def test_volume_index_points_a_part_at_its_months(built):
+    out, _ = built
+    out = os.path.join(out, "ratchakitcha")
+    v = json.load(open(os.path.join(out, "index/volumes/141.json"), encoding="utf-8"))
+    assert v["volume"] == 141
+    assert set(v["parts"]) == {"17 ง", "17 ง พิเศษ"}
+    assert v["parts"]["17 ง"] == ["2023-01", "2023-02", "2024-01", "2024-02"]

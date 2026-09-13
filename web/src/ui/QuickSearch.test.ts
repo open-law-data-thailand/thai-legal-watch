@@ -22,3 +22,9 @@ it('finds topics by Thai or slug ignoring spaces, provinces, agencies by size, a
   expect(search('2026-09-10-00125805', idx)[0]).toMatchObject({ kind: 'เอกสาร' })
   expect(search('   ', idx)).toEqual([])
 })
+
+it('recognises a gazette citation as a resolvable hit', () => {
+  const h = search('เล่ม 143 ตอนพิเศษ 219 ง หน้า 23', idx)[0]
+  expect(h?.kind).toBe('อ้างอิง')
+  expect(h?.citation).toEqual({ volume: 143, part: '219 ง พิเศษ', page: 23 })
+})

@@ -15,6 +15,7 @@ import type {
   Years,
 } from './types'
 import { CONTRACT } from './types'
+import { pickByPage } from '../lib/coords'
 
 export class DataError extends Error {
   readonly path: string
@@ -100,6 +101,30 @@ export class DataClient {
   years(): Promise<Years> {
     return this.get('agg/years.json')
   }
+  volume(volume: number): Promise<{ volume: number; parts: Record<string, string[]> }> {
+    return this.get(`index/volumes/${volume}.json`)
+  }
+
+  /** เล่ม/ตอน/หน้า → the document that starts at or before that page in that ตอน. */
+  async byCitation(c: {
+    volume: number
+    part: string
+    page: number | null
+  }): Promise<{ doc: SlimDoc; month: string } | null> {
+    const v = await this.volume(c.volume).catch(() => null)
+    const months = v?.parts[c.part] ?? []
+    const candidates: { doc: SlimDoc; month: string }[] = []
+    for (const m of months) {
+      const docs = await this.month(m.slice(0, 4), m)
+      for (const d of docs) if (d.v === c.volume && d.p === c.part) candidates.push({ doc: d, month: m })
+    }
+    const pick = pickByPage(
+      candidates.map((x) => ({ ...x, pg: x.doc.pg })),
+      c.page,
+    )
+    return pick ? { doc: pick.doc, month: pick.month } : null
+  }
+
   graph(): Promise<Graph> {
     return this.get('agg/graph.json')
   }

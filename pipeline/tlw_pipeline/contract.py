@@ -8,7 +8,8 @@ BUDGETS = {  # bytes
     "agg/meta.json": 10_000, "agg/taxonomy.json": 100_000, "agg/home.json": 100_000, "agg/years.json": 50_000,
     "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000, "agg/graph/": 400_000,
     "agg/topic/": 150_000, "agg/agency/": 100_000, "agg/province/": 100_000,
-    "index/agencies.json": 2_500_000, "index/provinces.json": 10_000, "index/topics.json": 20_000,
+    "index/agencies.json": 2_500_000, "index/volumes/": 200_000, "index/provinces.json": 10_000,
+    "index/topics.json": 20_000,
     "docs/": 12_000_000, "feeds/": 100_000,
 }
 REQUIRED_DOC_KEYS = {"id", "t", "d", "v", "p", "pg", "dt", "a", "pr", "topic", "action", "govlevel",

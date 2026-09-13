@@ -88,7 +88,8 @@ class OpenLawDataSoc:
                         title=clean_title(m.get("doctitle")) or "(ไม่มีชื่อเรื่อง)",
                         date=r.get("publish_date") or m.get("publishDate") or None,
                         volume=r.get("volume") or _int(m.get("bookNo")),
-                        part=r.get("part") or _part(m), part_class=r.get("part_class") or _letter(m.get("category")),
+                        # meta keeps ตอนพิเศษ (category "งพิเศษ"); the taxonomy's part drops it, and a citation needs it
+                        part=_part(m) or r.get("part"), part_class=_letter(m.get("category")) or r.get("part_class"),
                         page=_int(m.get("pageNo")), doc_type=r.get("doc_type"),
                         agency=r.get("agency"), agency_type=r.get("agency_type"), province=r.get("province"),
                         topic=r.get("topic"), action=r.get("action"), govlevel=r.get("govlevel"),
@@ -106,8 +107,11 @@ def _letter(cat) -> str | None:
 
 
 def _part(m: dict) -> str | None:
+    """"219 ง พิเศษ" from section "219" + category "งพิเศษ"/"ง พิเศษ": letter, then พิเศษ when present."""
     sec = str(m.get("section") or "").strip()
     cat = str(m.get("category") or "").strip()
-    if not sec and not cat:
+    letter = _letter(cat)
+    if not sec and not letter:
         return None
-    return f"{sec} {cat}".strip()
+    tail = " ".join(x for x in (letter, "พิเศษ" if "พิเศษ" in cat else None) if x)
+    return f"{sec} {tail}".strip()

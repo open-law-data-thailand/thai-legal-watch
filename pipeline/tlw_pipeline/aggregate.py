@@ -86,6 +86,7 @@ class Aggregator:
         self.extracted_stage: Counter = Counter()      # (court, stage) for the bankruptcy funnel
         self.topic_pairs: Counter = Counter()          # two topic labels on one document → an edge in the graph
         self.topic_pairs_year: dict[str, Counter] = defaultdict(Counter)
+        self.volume_parts: dict[int, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))  # volume → part → months
         self.topic_agency_year: dict[str, Counter] = defaultdict(Counter)   # (topic, agency) per year, corroborated topics
         self.parents = {s: v.get("parent") for s, v in taxonomy.get("topics", {}).items()}
         self._newest_day = ""
@@ -99,6 +100,8 @@ class Aggregator:
 
     def add(self, d: Doc) -> None:
         self.all.add(d)
+        if d.volume and d.part:
+            self.volume_parts[d.volume][d.part].add(d.month)
         if d.topic or d.action or d.govlevel:
             self.labelled += 1
         if d.topic_c or d.action_c or d.govlevel_c:

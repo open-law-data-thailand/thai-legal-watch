@@ -1,14 +1,17 @@
 /** One box that jumps anywhere: topics, provinces, agencies, a document id. "/" focuses it. */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { docIdOk } from '../data/client'
+import { parseCitation } from '../lib/coords'
+import { useClient } from '../data/context'
 import { useLoad } from '../data/context'
 import { href } from '../router'
 
 export interface Hit {
-  kind: 'หมวด' | 'จังหวัด' | 'หน่วยงาน' | 'เอกสาร'
+  kind: 'หมวด' | 'จังหวัด' | 'หน่วยงาน' | 'เอกสาร' | 'อ้างอิง'
   name: string
   to: string
   n?: number
+  citation?: { volume: number; part: string; page: number | null }
 }
 
 export function search(
@@ -24,6 +27,14 @@ export function search(
   if (!needle) return []
   const out: Hit[] = []
   if (docIdOk(q.trim())) out.push({ kind: 'เอกสาร', name: q.trim(), to: href.doc(q.trim()) })
+  const cite = parseCitation(q)
+  if (cite)
+    out.push({
+      kind: 'อ้างอิง',
+      name: `เล่ม ${cite.volume} ตอน ${cite.part}${cite.page ? ` หน้า ${cite.page}` : ''} → เปิดเอกสาร`,
+      to: '',
+      citation: cite,
+    })
   for (const t of idx.topics)
     if ((t.thai ?? t.slug).replace(/\s+/g, '').includes(needle) || t.slug.includes(needle))
       out.push({ kind: 'หมวด', name: t.thai ?? t.slug, to: href.topic(t.slug), n: t.n })
@@ -45,6 +56,8 @@ export function search(
 }
 
 export function QuickSearch({ big = false }: { big?: boolean } = {}) {
+  const client = useClient()
+  const [note, setNote] = useState('')
   const idx = useLoad(
     async (c) => ({ topics: await c.topics(), provinces: await c.provinces(), agencies: await c.agencies() }),
     [],
@@ -71,6 +84,18 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
     }
   }, [])
   const go = (h: Hit) => {
+    if (h.citation) {
+      setNote('กำลังหาเอกสารตามพิกัด…')
+      void client.byCitation(h.citation).then((hit) => {
+        if (hit) {
+          location.hash = href.doc(hit.doc.id, hit.month)
+          setQ('')
+          setOpen(false)
+          setNote('')
+        } else setNote('ไม่พบเอกสารที่พิกัดนี้ในคลัง')
+      })
+      return
+    }
     location.hash = h.to
     setQ('')
     setOpen(false)
@@ -84,7 +109,7 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
         value={q}
         placeholder={
           big
-            ? 'พิมพ์ชื่อหมวด จังหวัด หน่วยงาน หรือรหัสเอกสาร เช่น ขยะ, ตรัง, กระทรวงสาธารณสุข'
+            ? 'หมวด จังหวัด หน่วยงาน รหัสเอกสาร หรือพิกัด เช่น ขยะ · ตรัง · เล่ม 143 ตอนพิเศษ 219 ง หน้า 23'
             : 'ค้นด่วน  ( / )'
         }
         aria-label="ค้นหาด่วน"
@@ -121,6 +146,11 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
           }
         }}
       />
+      {note && (
+        <div class="qs-note" role="status">
+          {note}
+        </div>
+      )}
       {open && hits.length > 0 && (
         <ul id="qs-list" class="qs-list" role="listbox">
           {hits.map((h, i) => (
