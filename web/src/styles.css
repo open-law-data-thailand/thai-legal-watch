@@ -1767,3 +1767,11 @@ code,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* A title the dataset does not have. Said quietly and in the reader's own words, rather than
+   leaving "(ไม่มีชื่อเรื่อง)" to look like the name of the document. */
+.notitle {
+  font-weight: 400;
+  font-size: 0.82rem;
+  font-family: var(--sans);
+}

@@ -5,7 +5,7 @@ import { useHref, useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
 import { highlight } from '../lib/highlight'
 import { coordinates, thaiDate } from '../lib/thai'
-import { Empty, ErrorBox, Kicker, LabelPills, Loading } from '../ui/bits'
+import { displayTitle, Empty, ErrorBox, Kicker, LabelPills, Loading } from '../ui/bits'
 
 /** Fourteen thousand rows is not a list any browser should render at once. */
 const PAGE = 150
@@ -174,12 +174,14 @@ export function Latest({ q }: { q: URLSearchParams }) {
 
 function Row({ d, tax, q, agency }: { d: SlimDoc; tax: Taxonomy; q: string; agency: string | undefined }) {
   const href = useHref()
+  const title = displayTitle(d, agency)
   return (
     <article class="doc">
       <a class="title" href={href.doc(d.id, d.d?.slice(0, 7))}>
-        {highlight(d.t, q).map((s, i) =>
+        {highlight(title.text, q).map((s, i) =>
           s.hit ? <mark key={i}>{s.text}</mark> : <span key={i}>{s.text}</span>,
         )}
+        {title.missing && <span class="muted notitle"> · ชุดข้อมูลไม่มีชื่อเรื่องของฉบับนี้</span>}
       </a>
       <div class="meta">
         <LabelPills d={d} tax={tax} agencyName={agency} />

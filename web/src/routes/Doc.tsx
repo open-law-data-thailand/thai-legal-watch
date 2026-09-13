@@ -6,7 +6,7 @@ import { CITE_FORMATS, formatCitation, permalink, type CiteFormat } from '../lib
 import { coordinates, thaiDate } from '../lib/thai'
 import { lastExplore, useTitle } from '../lib/title'
 import { useClient, useHref } from '../data/context'
-import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
+import { displayTitle, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 import { Crumbs } from '../ui/Crumbs'
 import { FullText } from '../ui/FullText'
 
@@ -111,6 +111,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   if (st.state === 'loading') return <Loading what="เอกสาร" />
   if (st.state === 'error') return <ErrorBox error={st.error} what="เอกสารฉบับนี้" />
   const { doc: d, tax, agency, facet, siblings, provinces } = st.data
+  const title = displayTitle(d, agency?.name)
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
   const links = docLinks(d.id, st.data.month)
@@ -155,7 +156,13 @@ export function Doc({ id, month }: { id: string; month?: string }) {
         {d.dt ?? 'เอกสาร'} · ราชกิจจานุเบกษา {coordinates(coords)} · {thaiDate(d.d)}
       </Kicker>
       <h1 style="margin:8px 0 18px;font-size:1.6rem" data-testid="doc-title">
-        {d.t}
+        {title.text}
+        {title.missing && (
+          <span class="muted notitle">
+            {' '}
+            · ชุดข้อมูลไม่มีชื่อเรื่องของฉบับนี้ — ดูจาก PDF ต้นฉบับหรือเนื้อหาเต็ม
+          </span>
+        )}
       </h1>
       {/* on paper there is no address bar, so the printout carries its own way back */}
       <p class="printback">

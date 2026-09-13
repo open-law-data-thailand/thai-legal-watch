@@ -177,6 +177,27 @@ export function LabelPills({
   )
 }
 
+/** The placeholder the pipeline writes when the dataset carries no title for a document. */
+export const NO_TITLE = '(ไม่มีชื่อเรื่อง)'
+
+/** What to call a document whose title the dataset does not have.
+ *
+ *  676 documents have none — 673 of them one batch of bankruptcy notices from July 2025 that also
+ *  lost their ids. "(ไม่มีชื่อเรื่อง)" tells a reader nothing, and those are exactly the notices
+ *  somebody is checking a name against. The type and the issuer are there, so say those, and say
+ *  plainly that the title is missing rather than inventing one.
+ */
+export function displayTitle(
+  d: RecentDoc | SlimDoc,
+  agencyName?: string | null,
+): { text: string; missing: boolean } {
+  const t = (d.t ?? '').trim()
+  if (t && t !== NO_TITLE) return { text: t, missing: false }
+  const dtype = 'dt' in d ? (d.dt ?? '') : ''
+  const parts = [dtype, agencyName ?? ''].filter(Boolean)
+  return { text: parts.length ? parts.join(' · ') : 'ฉบับที่ยังไม่มีชื่อเรื่องในชุดข้อมูล', missing: true }
+}
+
 /** Every list on the site can legitimately be empty; none of them should render as a blank gap
  *  under a heading that promised something. */
 export function Empty({ children }: { children: ComponentChildren }) {
@@ -201,12 +222,14 @@ export function DocRow({
   q?: string
 }) {
   const href = useHref()
+  const title = displayTitle(d, agencyName)
   return (
     <article class="doc">
       <a class="title" href={href.doc(d.id, month ?? d.d?.slice(0, 7))}>
-        {highlight(d.t, q).map((s, i) =>
+        {highlight(title.text, q).map((s, i) =>
           s.hit ? <mark key={i}>{s.text}</mark> : <span key={i}>{s.text}</span>,
         )}
+        {title.missing && <span class="muted notitle"> · ชุดข้อมูลไม่มีชื่อเรื่องของฉบับนี้</span>}
       </a>
       <div class="meta">
         <LabelPills d={d} tax={tax} agencyName={agencyName} />

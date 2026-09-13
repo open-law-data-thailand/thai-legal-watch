@@ -98,6 +98,41 @@ are only possible if the two can be told apart, which a name alone does not do.
 
 ---
 
+## 3b. 673 documents from July 2025 lost their titles — and 660 of them are bankruptcy notices
+
+Found while sweeping the built data for quality. The archive is in very good shape overall:
+**0 duplicate ids, 0 missing publication dates, 0 missing เล่ม or ตอน** across 732,143 documents.
+Two things stand out.
+
+**One batch is broken.** `docs/2025/2025-07.json` holds 4,786 documents. **673 of them (14.1%)
+carry an id with a `1998-` prefix and have no title at all** — while the other 4,113 in the same
+month are all fine. Their เล่ม is 142 and their dates are 14–30 July 2025, both correct, so only
+the id and the title went wrong.
+
+| | |
+|---|---|
+| ids | `1998-001218` … `1998-015742` |
+| dates | 2025-07-14 … 2025-07-30 |
+| issuer | **660 of 673 are เจ้าพนักงานพิทักษ์ทรัพย์** (bankruptcy) |
+| titles | none |
+
+That makes this the same problem as item 3, concentrated: **the debtor's name lives in the
+title**, so for 660 bankruptcy notices from two weeks of 2025 the name is simply not in the
+dataset. Anyone checking a counterparty over that period gets a clean result that means nothing.
+
+**Ask.** Re-ingest 2025-07. The ids suggest one run used the wrong year prefix and dropped
+`doctitle` with it.
+
+**Meanwhile**, the site no longer shows those as "(ไม่มีชื่อเรื่อง)": it names them by document
+type and issuer and says the title is missing, so a reader can at least tell what they are looking
+at and go to the PDF.
+
+**One test record is published.** `2017-015965`, เล่ม 134, ตอน `ง พิเศษ` (no ตอน number), titled
+**`ทดลองระบบ`** — "system test". Worth removing, and worth asking how it got in, since whatever
+let it through may have let others.
+
+---
+
 ## 4. Agency names that are cut off, or are not agency names
 
 **Today.** 7,298 distinct agencies. **4,457 of them have fewer than five documents** — which is

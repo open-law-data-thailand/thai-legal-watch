@@ -1,6 +1,7 @@
-import { expect, it, vi, afterEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render } from '@testing-library/preact'
-import { Bars, StaleNotice } from './bits'
+import type { SlimDoc } from '../data/types'
+import { Bars, displayTitle, NO_TITLE, StaleNotice } from './bits'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -57,4 +58,55 @@ it('Bars does not divide by zero when everything is zero', () => {
     />,
   )
   expect(container.innerHTML).not.toContain('NaN')
+})
+
+describe('displayTitle', () => {
+  const doc = (o: Partial<SlimDoc>): SlimDoc => ({
+    id: '2025-000001',
+    t: 'ประกาศกระทรวง เรื่อง อะไรสักอย่าง',
+    d: '2025-07-14',
+    v: 142,
+    p: '244 ง',
+    pg: 1,
+    dt: 'ประกาศ',
+    a: 'a1',
+    pr: null,
+    topic: null,
+    action: null,
+    govlevel: null,
+    tc: false,
+    ac: false,
+    gc: false,
+    labels: [],
+    ...o,
+  })
+
+  it('uses the real title when there is one', () => {
+    expect(displayTitle(doc({}))).toEqual({ text: 'ประกาศกระทรวง เรื่อง อะไรสักอย่าง', missing: false })
+  })
+
+  it('names the document by its type and issuer when the dataset has no title', () => {
+    // 673 of these are one batch of bankruptcy notices from July 2025 — exactly the documents
+    // somebody is checking a name against, and "(ไม่มีชื่อเรื่อง)" tells them nothing
+    expect(displayTitle(doc({ t: NO_TITLE }), 'เจ้าพนักงานพิทักษ์ทรัพย์')).toEqual({
+      text: 'ประกาศ · เจ้าพนักงานพิทักษ์ทรัพย์',
+      missing: true,
+    })
+  })
+
+  it('treats an empty or whitespace title as missing too', () => {
+    expect(displayTitle(doc({ t: '' }), 'ก').missing).toBe(true)
+    expect(displayTitle(doc({ t: '   ' }), 'ก').missing).toBe(true)
+  })
+
+  it('falls back again when there is no type or issuer either', () => {
+    const d = displayTitle(doc({ t: NO_TITLE, dt: null }), null)
+    expect(d.missing).toBe(true)
+    expect(d.text).toContain('ยังไม่มีชื่อเรื่อง')
+  })
+
+  it('uses whichever of the two it has', () => {
+    expect(displayTitle(doc({ t: NO_TITLE, dt: null }), 'กรมที่ดิน').text).toBe('กรมที่ดิน')
+    expect(displayTitle(doc({ t: NO_TITLE }), null).text).toBe('ประกาศ')
+  })
 })
