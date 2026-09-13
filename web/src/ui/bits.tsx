@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { useCountUp } from '../lib/motion'
 import { highlight } from '../lib/highlight'
+import { familyColor, tint } from '../lib/family'
 import type { RecentDoc, SlimDoc, Taxonomy } from '../data/types'
 import { thaiDate } from '../lib/thai'
 import { href } from '../router'
@@ -68,6 +69,11 @@ export function LabelPills({
       {d.topic && (
         <a
           class={`pill topic${d.tc ? '' : ' guess'}`}
+          style={
+            d.tc
+              ? `background:${tint(familyColor(d.topic, tax))};color:${familyColor(d.topic, tax)}`
+              : undefined
+          }
           href={href.topic(d.topic)}
           title={d.tc ? 'ยืนยันแล้ว' : 'คาดว่า — ยังไม่มีหลักฐานที่สอง'}
         >
@@ -176,7 +182,7 @@ export function Sparkline({ points }: { points: { d: string; n: number }[] }) {
 
 export function FeedLink({ path }: { path: string }) {
   return (
-    <a class="btn" href={`/data/feeds/${path}.xml`} title="ติดตามด้วย RSS reader">
+    <a class="btn" href={`/data/ratchakitcha/feeds/${path}.xml`} title="ติดตามด้วย RSS reader">
       <span aria-hidden="true">◌ </span>RSS
     </a>
   )

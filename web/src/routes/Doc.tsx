@@ -4,6 +4,7 @@ import { useLoad } from '../data/context'
 import { citation, coordinates, thaiDate } from '../lib/thai'
 import { href } from '../router'
 import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
+import { Crumbs } from '../ui/Crumbs'
 
 const XKEY: Record<string, string> = {
   stage: 'ขั้นตอนคดี',
@@ -79,6 +80,20 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   const after = siblings.find((s) => (s.pg ?? 0) > (d.pg ?? 0))
   return (
     <article>
+      <Crumbs
+        items={[
+          { label: 'สำรวจ', to: sessionStorage.getItem('tlw:lastExplore') ?? href.explore() },
+          ...(d.topic ? [{ label: topicName(tax, d.topic), to: href.topic(d.topic) }] : []),
+          { label: d.id },
+        ]}
+      />
+      {sessionStorage.getItem('tlw:lastExplore') && (
+        <p style="margin:0 0 8px">
+          <a class="btn" href={sessionStorage.getItem('tlw:lastExplore') ?? '#/explore'}>
+            ← กลับไปผลลัพธ์ที่ค้นไว้
+          </a>
+        </p>
+      )}
       <Kicker>
         {d.dt ?? 'เอกสาร'} · ราชกิจจานุเบกษา {coordinates(coords)} · {thaiDate(d.d)}
       </Kicker>

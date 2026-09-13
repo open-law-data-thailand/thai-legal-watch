@@ -5,7 +5,7 @@ import json
 import os
 import re
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from . import CONTRACT_VERSION
 from .aggregate import Aggregator
@@ -32,8 +32,12 @@ def dump(path: str, obj) -> int:
 
 
 class Emitter:
-    def __init__(self, out: str):
-        self.out = out
+    """Writes one source's tree under <root>/<source id>/; `root` keeps the cross-source sources.json."""
+
+    def __init__(self, root: str, source: str):
+        self.root = root
+        self.source = source
+        self.out = os.path.join(root, source)
         self.shards: dict[tuple[str, str], list[dict]] = defaultdict(list)
         self.sizes: dict[str, int] = {}
 
@@ -49,6 +53,7 @@ class Emitter:
                 del self.shards[(y, m)]
 
     def finish(self, agg: Aggregator, sources: list[dict], site: str) -> dict:
+        self.site = site
         ids = agg.agency_ids()
         tax = agg.taxonomy
         topics_out = {}
@@ -99,6 +104,20 @@ class Emitter:
             "topic_topic": [{"a": a, "b": b, "n": n} for (a, b), n in agg.topic_pairs.most_common(400)],
         }
         self.sizes["agg/graph.json"] = dump(os.path.join(self.out, "agg/graph.json"), graph)
+        # the same graph per year: node sizes, co-occurrence and agency edges of that year only
+        for year in sorted(agg.all.by_year):
+            ta = agg.topic_agency_year.get(year, Counter())
+            gy = {
+                "year": year,
+                "topics": [{"slug": s, "n": f.by_year.get(year, 0)} for s, f in agg.topics.items() if f.by_year.get(year)],
+                "agencies": [{"id": ids[a], "name": a, "n": agg.agencies[a].by_year.get(year, 0)}
+                             for a in top_agencies if a in ids and agg.agencies[a].by_year.get(year)],
+                "topic_agency": [{"t": s, "a": ids[a], "n": n} for (s, a), n in ta.most_common(1500)
+                                 if a in top_agencies and a in ids],
+                "topic_topic": [{"a": a, "b": b, "n": n}
+                                for (a, b), n in agg.topic_pairs_year.get(year, Counter()).most_common(400)],
+            }
+            self.sizes[f"agg/graph/{year}.json"] = dump(os.path.join(self.out, "agg/graph", f"{year}.json"), gy)
         self.sizes["agg/bankruptcy.json"] = dump(os.path.join(self.out, "agg/bankruptcy.json"),
             {"by_court_stage": [{"court": c, "stage": s, "n": n} for (c, s), n in agg.extracted_stage.most_common()]})
         meta = {"contract": CONTRACT_VERSION, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -107,11 +126,24 @@ class Emitter:
                 "latest_date": max(agg.by_day) if agg.by_day else None, "site": site,
                 "files": len(self.sizes) + 1, "bytes": sum(self.sizes.values())}
         self.sizes["agg/meta.json"] = dump(os.path.join(self.out, "agg/meta.json"), meta)
+        # the cross-source index the site boots from; other sources append themselves here
+        idx_path = os.path.join(self.root, "sources.json")
+        idx = {"contract": CONTRACT_VERSION, "sources": []}
+        if os.path.exists(idx_path):
+            with open(idx_path, encoding="utf-8") as f:
+                idx = json.load(f)
+        idx["sources"] = [s for s in idx["sources"] if s["id"] != self.source] + [{
+            "id": self.source, "title": sources[0].get("title", self.source), "credit": sources[0].get("name"),
+            "url": sources[0].get("url"), "docs": agg.all.total, "latest_date": meta["latest_date"],
+            "generated_at": meta["generated_at"]}]
+        idx["sources"].sort(key=lambda s: s["id"])
+        dump(idx_path, idx)
         return meta
 
     def _feed(self, feed_id: str, title: str, recent: list[dict], site: str) -> None:
         p = os.path.join(self.out, "feeds", f"{feed_id}.xml")
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8") as f:
-            f.write(atom(f"{title} — Thai Legal Watch", feed_id, recent[:50], recent[0]["d"] if recent else None, site))
+            updated = recent[0]["d"] if recent else None
+            f.write(atom(f"{title} — Thai Legal Watch", feed_id, recent[:50], updated, site, self.source))
         self.sizes[f"feeds/{feed_id}.xml"] = os.path.getsize(p)

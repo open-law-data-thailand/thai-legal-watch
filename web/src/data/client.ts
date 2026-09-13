@@ -29,23 +29,43 @@ export class DataError extends Error {
 
 export interface ClientOptions {
   baseUrl?: string
+  source?: string
   fetchImpl?: typeof fetch
+}
+
+export interface SourceInfo {
+  id: string
+  title: string
+  credit: string
+  url: string
+  docs: number
+  latest_date: string | null
+  generated_at: string
 }
 
 export class DataClient {
   private readonly base: string
+  private readonly root: string
+  readonly source: string
   private readonly f: typeof fetch
   private readonly cache = new Map<string, Promise<unknown>>()
 
   constructor(opts: ClientOptions = {}) {
-    this.base = (opts.baseUrl ?? '/data').replace(/\/$/, '')
+    this.root = (opts.baseUrl ?? '/data').replace(/\/$/, '')
+    this.source = opts.source ?? 'ratchakitcha'
+    this.base = `${this.root}/${encodeURIComponent(this.source)}`
     this.f = opts.fetchImpl ?? ((input, init) => fetch(input, init))
   }
 
-  private get<T>(path: string): Promise<T> {
+  get<T>(path: string): Promise<T> {
+    return this.getAbs(`${this.base}/${path}`)
+  }
+
+  private getAbs<T>(url: string): Promise<T> {
+    const path = url
     const hit = this.cache.get(path)
     if (hit) return hit as Promise<T>
-    const p = this.f(`${this.base}/${path}`)
+    const p = this.f(url)
       .then(async (r) => {
         if (!r.ok) throw new DataError(`${r.status} for ${path}`, path, r.status)
         // a static host answers an unknown path with the SPA's index.html (200, text/html)
@@ -59,6 +79,11 @@ export class DataClient {
       })
     this.cache.set(path, p)
     return p
+  }
+
+  /** Every source in this build, from the data root. */
+  sources(): Promise<{ contract: number; sources: SourceInfo[] }> {
+    return this.getAbs(`${this.root}/sources.json`)
   }
 
   async meta(): Promise<Meta> {

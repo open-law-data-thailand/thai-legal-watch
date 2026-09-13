@@ -6,7 +6,7 @@ function fakeFetch(files: Record<string, unknown>) {
   const f = vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     calls.push(url)
-    const key = decodeURIComponent(url.replace(/^\/data\//, ''))
+    const key = decodeURIComponent(url.replace(/^\/data\/(ratchakitcha\/)?/, ''))
     const body = files[key]
     return Promise.resolve(
       body === undefined
@@ -44,15 +44,18 @@ describe('DataClient', () => {
     expect(hit?.doc.t).toBe('a')
     expect(hit?.month).toBe('2024-01')
     expect(calls.filter((u) => u.includes('/docs/'))).toEqual([
-      '/data/docs/2024/2024-02.json',
-      '/data/docs/2024/2024-01.json',
+      '/data/ratchakitcha/docs/2024/2024-02.json',
+      '/data/ratchakitcha/docs/2024/2024-01.json',
     ])
     expect(await c.doc('2024-999999')).toBeNull()
   })
 
   it('surfaces 404 as DataError with status and does not poison the cache', async () => {
     const c = new DataClient({ fetchImpl: fakeFetch({}).f })
-    await expect(c.topic('nope')).rejects.toMatchObject({ status: 404, path: 'agg/topic/nope.json' })
+    await expect(c.topic('nope')).rejects.toMatchObject({
+      status: 404,
+      path: '/data/ratchakitcha/agg/topic/nope.json',
+    })
     await expect(c.topic('nope')).rejects.toBeInstanceOf(DataError)
   })
 
@@ -99,7 +102,7 @@ describe('DataClient accessors', () => {
       c.provinces(),
       c.topics(),
     ])
-    expect(calls).toContain('/data/agg/province/%E0%B8%95%E0%B8%A3%E0%B8%B1%E0%B8%87.json')
+    expect(calls).toContain('/data/ratchakitcha/agg/province/%E0%B8%95%E0%B8%A3%E0%B8%B1%E0%B8%87.json')
     expect(calls).toHaveLength(9)
     expect(await c.monthsOf('2024')).toEqual([])
   })

@@ -6,7 +6,7 @@ import os
 
 BUDGETS = {  # bytes
     "agg/meta.json": 10_000, "agg/taxonomy.json": 100_000, "agg/home.json": 100_000, "agg/years.json": 50_000,
-    "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000,
+    "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000, "agg/graph/": 400_000,
     "agg/topic/": 150_000, "agg/agency/": 100_000, "agg/province/": 100_000,
     "index/agencies.json": 2_500_000, "index/provinces.json": 10_000, "index/topics.json": 20_000,
     "docs/": 12_000_000, "feeds/": 100_000,
@@ -21,7 +21,25 @@ def budget_for(rel: str) -> int | None:
     return next((b for k, b in BUDGETS.items() if k.endswith("/") and rel.startswith(k)), None)
 
 
-def validate(out: str) -> list[str]:
+def validate(root: str) -> list[str]:
+    """Validate <root>/sources.json and every <root>/<source>/ tree."""
+    problems: list[str] = []
+    idx_path = os.path.join(root, "sources.json")
+    if not os.path.exists(idx_path):
+        return ["missing sources.json"]
+    with open(idx_path, encoding="utf-8") as f:
+        idx = json.load(f)
+    if not idx.get("sources"):
+        problems.append("sources.json lists no source")
+    for s in idx.get("sources", []):
+        problems += [f"[{s['id']}] {p}" for p in validate_source(os.path.join(root, s["id"]))]
+    total = sum(len(files) for _, _, files in os.walk(root))
+    if total > 19_000:
+        problems.append(f"{total} files — Cloudflare Pages caps a deploy at 20,000")
+    return problems
+
+
+def validate_source(out: str) -> list[str]:
     problems: list[str] = []
     for rel in ("agg/meta.json", "agg/taxonomy.json", "agg/home.json", "index/agencies.json", "index/topics.json"):
         if not os.path.exists(os.path.join(out, rel)):
@@ -45,8 +63,6 @@ def validate(out: str) -> list[str]:
                 problems.append(f"unexpected file {rel}")
             elif os.path.getsize(p) > b:
                 problems.append(f"{rel} is {os.path.getsize(p):,} B > budget {b:,}")
-    if total_files > 19_000:
-        problems.append(f"{total_files} files — Cloudflare Pages caps a deploy at 20,000")
     for y in meta.get("years", []):
         d = os.path.join(out, "docs", y)
         if not os.path.isdir(d):

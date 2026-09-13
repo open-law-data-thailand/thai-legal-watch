@@ -23,7 +23,7 @@ def build(root: str, out: str, years: list[str] | None = None, limit: int | None
     if missing:
         sys.exit(f"years not present in both meta/ and taxonomy/: {sorted(missing)}")
     agg = Aggregator(src.taxonomy())
-    em = Emitter(out)
+    em = Emitter(out, src.id)
     t0 = time.time()
     n = 0
     for y in todo:

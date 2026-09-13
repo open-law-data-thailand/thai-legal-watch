@@ -8,7 +8,7 @@ function withClient(files: Record<string, unknown>) {
   const client = new DataClient({
     fetchImpl: (input: RequestInfo | URL) => {
       const key = (typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).replace(
-        /^\/data\//,
+        /^\/data\/(ratchakitcha\/)?/,
         '',
       )
       const body = files[key]

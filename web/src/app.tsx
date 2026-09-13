@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import { ClientContext } from './data/context'
 import { DataClient } from './data/client'
 import { About } from './routes/About'
@@ -8,7 +8,8 @@ import { Doc } from './routes/Doc'
 import { Explore } from './routes/Explore'
 import { Agency, Province, Topic } from './routes/Facet'
 import { Home } from './routes/Home'
-import { href, parseHash, subscribe, type Route } from './router'
+import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
+import { QuickSearch } from './ui/QuickSearch'
 
 const NAV: [string, () => string, Route['name'][]][] = [
   ['วันนี้', href.home, ['home']],
@@ -31,16 +32,20 @@ export function App({ client }: { client?: DataClient }) {
   useEffect(() => {
     document.title = titleFor(route)
   }, [route])
+  const source = 'source' in route ? route.source : DEFAULT_SOURCE
+  const sourced = useMemo(
+    () => new DataClient({ baseUrl: import.meta.env.VITE_DATA_BASE_URL ?? '/data', source }),
+    [source],
+  )
   return (
-    <ClientContext.Provider
-      value={client ?? new DataClient({ baseUrl: import.meta.env.VITE_DATA_BASE_URL ?? '/data' })}
-    >
+    <ClientContext.Provider value={client ?? sourced}>
       <header class="topbar">
         <div class="wrap">
           <a class="brand" href={href.home()}>
             <span class="name">Thai Legal Watch</span>
             <span class="sub">ราชกิจจานุเบกษา จัดหมวดทุกวัน</span>
           </a>
+          <QuickSearch />
           <nav class="main" aria-label="หลัก">
             {NAV.map(([label, to, names]) => (
               <a key={label} href={to()} aria-current={names.includes(route.name) ? 'page' : undefined}>
@@ -54,13 +59,32 @@ export function App({ client }: { client?: DataClient }) {
         <Page route={route} />
       </main>
       <footer>
-        <div class="wrap">
-          ข้อมูล:{' '}
-          <a href="https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha">
-            OpenLawData — soc-ratchakitcha
-          </a>{' '}
-          · Thai Legal Watch เป็นโครงการในเครือ OpenLawData · จำแนกหมวดด้วย rule ตรวจสอบที่มาได้ทุกฉบับ ·{' '}
-          <a href={href.about()}>เกี่ยวกับและความแม่น</a>
+        <div class="wrap foot">
+          <div>
+            <div class="brand">
+              <span class="name">Thai Legal Watch</span>
+            </div>
+            <p>
+              ราชกิจจานุเบกษา จำแนกหมวดทุกวัน อ่านง่าย ติดตามได้ — โครงการในเครือ{' '}
+              <a href="https://github.com/open-law-data-thailand">OpenLawData</a>
+            </p>
+          </div>
+          <div>
+            <p class="disclaimer">
+              <b>ข้อจำกัดความรับผิด</b> ข้อมูลบนเว็บนี้สร้างขึ้นโดยอัตโนมัติจากชุดข้อมูลเปิด
+              อาจมีความคลาดเคลื่อนจากการสกัดข้อความและการจำแนกหมวด{' '}
+              <b>โปรดตรวจสอบกับต้นฉบับในราชกิจจานุเบกษา (ratchakitcha.soc.go.th) ทุกครั้ง</b>{' '}
+              ก่อนนำไปใช้อ้างอิงหรือดำเนินการทางกฎหมาย
+            </p>
+            <p>
+              ข้อมูล:{' '}
+              <a href="https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha">
+                OpenLawData — soc-ratchakitcha
+              </a>{' '}
+              (ชั้น meta และ taxonomy) · จำแนกหมวดด้วย rule ตรวจสอบที่มาได้ทุกฉบับ ·{' '}
+              <a href={href.about()}>วิธีวัดความแม่นและข้อจำกัด</a>
+            </p>
+          </div>
         </div>
       </footer>
     </ClientContext.Provider>

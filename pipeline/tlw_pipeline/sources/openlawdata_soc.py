@@ -16,7 +16,10 @@ from collections.abc import Iterator
 
 from ..model import TH_DIGITS, Doc, Label
 
+SOURCE_ID = "ratchakitcha"   # the URL segment: #/ratchakitcha/…, data/ratchakitcha/…  — never changes once published
 CREDIT = {
+    "id": SOURCE_ID,
+    "title": "ราชกิจจานุเบกษา",
     "name": "OpenLawData — soc-ratchakitcha",
     "url": "https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha",
     "layers": ["meta", "taxonomy/openlawdata-taxonomy"],
@@ -38,6 +41,7 @@ def _int(v) -> int | None:
 
 class OpenLawDataSoc:
     name = "openlawdata-soc"
+    id = SOURCE_ID
     credit = CREDIT
 
     def __init__(self, root: str):
@@ -93,7 +97,7 @@ class OpenLawDataSoc:
                         labels=[Label(lb["slug"], lb["axis"], float(lb.get("weight", 0)), bool(lb.get("corroborated")),
                                       list(lb.get("matched_by") or [])) for lb in r.get("labels") or []],
                         extracted={k: v for k, v in (r.get("extracted") or {}).items() if v not in (None, "", [])},
-                        source=self.name,
+                        source=self.id,
                     )
 
 

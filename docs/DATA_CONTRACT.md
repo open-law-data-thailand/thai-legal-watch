@@ -4,16 +4,22 @@ Everything the site renders is a static JSON file produced by `pipeline/` from t
 OpenLawData dataset. The web app never sees the dataset directly. Paths are relative to
 `DATA_BASE_URL` (same origin by default; may point at a CDN/HF folder later).
 
+**Every path and every public URL is scoped by a source id** (`ratchakitcha` today):
+`data/<source>/agg/…`, `data/<source>/feeds/…`, `#/<source>/topic/…`. A second dataset is a
+second id beside it; nothing already published ever moves.
+
 Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a file at 25 MB.
 
 | Path | Purpose | Budget |
 |---|---|---|
-| `agg/meta.json` | build stamp, source credit, year list, totals | <10 KB |
+| `sources.json` | (root) every source in this build: `{id,title,credit,url,docs,latest_date}` — the site boots from it | <5 KB |
+| `<source>/agg/meta.json` | build stamp, source credit, year list, totals | <10 KB |
 | `agg/taxonomy.json` | topic tree / actions / govlevels with counts | <100 KB |
 | `agg/home.json` | latest publication day: counts per axis, highlights, 30-day sparkline | <100 KB |
 | `agg/years.json` | docs per month per year | <50 KB |
 | `agg/bankruptcy.json` | court × stage counts for the funnel | <200 KB |
 | `agg/graph.json` | relationship graph: topics, their top agencies, topic↔agency and topic↔topic edge weights | <400 KB |
+| `agg/graph/<year>.json` | the same graph restricted to one year (node sizes and edges of that year; thai/parent come from `agg/graph.json`) | <400 KB |
 | `agg/topic/<slug>.json` | one topic: by year/action/govlevel, top agencies, provinces, recent docs | <150 KB |
 | `agg/agency/<id>.json` | one agency: topics, actions, timeline, provinces, recent docs | <100 KB |
 | `agg/province/<name>.json` | one province: local/provincial docs by topic, agencies, recent docs | <100 KB |

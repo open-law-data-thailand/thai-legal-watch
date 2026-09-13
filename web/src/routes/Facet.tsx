@@ -2,6 +2,7 @@
 import { useLoad } from '../data/context'
 import type { AgencyPage, Facet, ProvincePage, Taxonomy } from '../data/types'
 import { href } from '../router'
+import { Crumbs } from '../ui/Crumbs'
 import {
   Bars,
   DocRow,
@@ -153,6 +154,13 @@ export function Topic({ slug }: { slug: string }) {
   for (let cur = page.parent; cur; cur = tax.topics[cur]?.parent ?? null) crumbs.unshift(cur)
   return (
     <>
+      <Crumbs
+        items={[
+          { label: 'สำรวจ', to: href.explore({ scope: 'all' }) },
+          ...crumbs.map((s) => ({ label: topicName(tax, s), to: href.topic(s) })),
+          { label: page.thai ?? page.slug },
+        ]}
+      />
       <Kicker>
         หมวด{crumbs.length ? ' · ' : ''}
         {crumbs.map((s, i) => (
@@ -184,6 +192,13 @@ export function Agency({ id }: { id: string }) {
   const page: AgencyPage = st.data
   return (
     <>
+      <Crumbs
+        items={[
+          { label: 'สำรวจ', to: href.explore({ scope: 'all' }) },
+          { label: 'หน่วยงาน' },
+          { label: page.name },
+        ]}
+      />
       <Kicker>หน่วยงาน{page.type ? ` · ${page.type}` : ''}</Kicker>
       <h1 style="margin-top:6px">{page.name}</h1>
       <FacetBody
@@ -203,6 +218,13 @@ export function Province({ file }: { file: string }) {
   const page: ProvincePage = st.data
   return (
     <>
+      <Crumbs
+        items={[
+          { label: 'สำรวจ', to: href.explore({ scope: 'all' }) },
+          { label: 'จังหวัด' },
+          { label: page.name },
+        ]}
+      />
       <Kicker>ท้องถิ่นฉัน · จังหวัด</Kicker>
       <h1 style="margin-top:6px">{page.name}</h1>
       <FacetBody f={page} kind="province" feed={`province/${file}`} explore={{ province: page.name }} />
