@@ -29,7 +29,7 @@
   # the Google Fonts stylesheet is remote. There is no inline <script> in the built page.
   #
   # connect-src names Hugging Face because the document page reads the full text of one document
-  # straight out of the dataset with range requests — the layer is 12 GB and cannot be built into
+  # straight out of the dataset with range requests — the layer is 10 GB and cannot be built into
   # the site. `resolve/` redirects to whichever host is serving the file that minute, and a
   # redirect is checked against connect-src too. Naming the hosts individually was tried and
   # failed in production: the real target was `us.aws.cdn.hf.co`, a Xet bridge host that appears

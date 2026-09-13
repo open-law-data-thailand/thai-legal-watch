@@ -1,8 +1,8 @@
 # What extra data would unlock, in order of what it buys
 
 Every item here is something the site cannot do today, with the measurement that says why and
-what it would cost upstream. Numbers are from the build of 2026-09-13: 732,143 documents locally,
-773,162 in CI, 297 month files, 25 years.
+what it would cost upstream. Numbers are measured, not estimated: the build of 2026-09-13 (732,143 documents locally,
+773,162 in CI, 297 month files, 25 years) and the dataset's own tree API.
 
 Nothing here is a bug report about the gazette. These are all about the *shape* of the published
 dataset, and every one of them is small next to the data that already exists.
@@ -28,8 +28,20 @@ ocr/openlawdata-ocr/<year>/<month>.idx.json
 ```
 
 `[doc_id, byte offset, byte length]`, in file order. About 3,000 rows a month at ~45 bytes each:
-**~135 KB raw, ~30 KB gzipped per month**, ~9 MB for the whole archive — against 12 GB of text
-it indexes.
+**~135 KB raw, ~30 KB gzipped per month**, ~9 MB for the whole archive.
+
+For scale, the layer it would index, measured from the tree API on 2026-09-14:
+
+| | |
+|---|---|
+| `ocr/openlawdata-ocr/` | **9.97 GB** across 285 month files (2003–2026; the 2002 listing timed out) |
+| smallest year | 2003, 154 MB |
+| largest year | 2025, 686 MB |
+| a recent month | 2026-09, 20.8 MB, ~2,100 records |
+
+So the index is about **one part in a thousand** of what it indexes. It is also why this has to
+come from whoever already has the bytes: building it means reading all ten gigabytes, which is a
+one-off on a machine that holds the dataset and is not something a nightly CI job should do.
 
 **Buys.** 17 requests and 7 seconds become **one request, ~30 KB, and one more of ~8 KB**. "This
 document has no text" is answered instantly instead of after a full search. And the text could
@@ -152,7 +164,7 @@ its เล่ม covers would find the second kind cheaply.
 
 ## Not asked for, deliberately
 
-**A full-text search index.** The titles alone are **306 MB of UTF-8**; the text is 12 GB. No
+**A full-text search index.** The titles alone are **306 MB of UTF-8**; the text is 10 GB. No
 client-side format fixes that — it is not a query-engine problem, it is a corpus-size one. If
 whole-archive search is wanted it needs an index with a server in front of it (a Worker over R2,
 or the dataset's own `search` once item 5 is fixed). Items 1 and 3 give most of the practical

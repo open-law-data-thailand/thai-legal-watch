@@ -373,7 +373,7 @@ was listed twice, and the canvas kept its old width when the panel opened, hangi
 swallowing its clicks (ResizeObserver on the stage, `overflow: hidden` as a backstop).
 
 **Full text, read live from the dataset (`lib/ocr.ts`, `ui/FullText.tsx`).** The text layer is
-~40 MB a month, 12 GB for the archive, so it cannot be built in — but it is one JSON object per
+~40 MB a month, 10 GB for the archive, so it cannot be built in — but it is one JSON object per
 line sorted by `doc_id`, and Hugging Face answers range requests with CORS open. That makes the
 file a sorted array we can seek in, with no new build artefact and no server. It brings
 `announcement_date` (the date the document carries, which is not the date it reached the gazette),

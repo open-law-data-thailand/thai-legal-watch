@@ -1,7 +1,7 @@
 /** The document itself, read one record at a time out of the dataset's text layer.
  *
  *  This is the thing a lawyer actually came for, and until now the site could only point at a PDF
- *  somewhere else. It is not built into the site — the layer is about 12 GB — so it is fetched
+ *  somewhere else. It is not built into the site — the layer is about 10 GB — so it is fetched
  *  live with range requests (see `lib/ocr.ts`). That makes it the one part of the page that
  *  depends on somebody else's server being up, so it loads after everything else and every
  *  failure ends in "the text is not available", never in a broken page.

@@ -80,7 +80,7 @@ arrays in memory, 11 ms to decompress, and 0.8 ms for one filtered count with a 
 
 `agg/meta.json.text.base` points at the dataset's own text layer:
 `ocr/openlawdata-ocr/<year>/<year-month>.jsonl`, one JSON object per line, **sorted by `doc_id`**.
-It is about 40 MB a month and 12 GB for the archive, so it is not part of a build. The document
+It is about 40 MB a month and 10 GB for the archive, so it is not part of a build. The document
 page reads one record out of it with HTTP range requests — Hugging Face answers `206` with CORS
 open, which makes the file a sorted array we are allowed to seek in.
 

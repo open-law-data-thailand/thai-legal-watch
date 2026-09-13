@@ -71,7 +71,7 @@ export interface Meta {
   bytes: number
   build?: BuildInfo
   /** Where the full text of a document can be read from, one record at a time. Not part of the
-   *  build — the layer is about 12 GB — so the site range-reads it from the publisher. Absent
+   *  build — the layer is about 10 GB — so the site range-reads it from the publisher. Absent
    *  means this build simply does not offer full text. */
   text?: { base: string; layer?: string; credit?: string }
 }

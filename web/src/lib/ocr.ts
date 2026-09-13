@@ -1,6 +1,6 @@
 /** The full text of one document, fetched straight from the dataset.
  *
- *  The text layer is ~40 MB per month and about 12 GB for the archive, so it can neither be
+ *  The text layer is ~40 MB per month and about 10 GB for the archive, so it can neither be
  *  shipped with the site nor indexed by the build. But it is one JSON object per line, sorted by
  *  `doc_id`, and Hugging Face answers HTTP range requests with CORS open — which makes the file a
  *  sorted array on a disk we are allowed to seek in. No new build artefact, no offset index, no

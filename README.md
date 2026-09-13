@@ -29,7 +29,7 @@ with a group-by. So any combination of filters is instant, including ones nobody
 comes from the same place. Titles stay out of it — 306 MB — and are read from month files only for
 the documents actually shown. (`pipeline/tlw_pipeline/cube.py`, `web/src/lib/cube.ts`.)
 
-**Reading one document's text out of a 12 GB layer with no server.** The dataset's text layer is
+**Reading one document's text out of a 10 GB layer with no server.** The dataset's text layer is
 one JSON object per line, sorted by `doc_id`, and Hugging Face answers HTTP range requests with
 CORS open — which makes the file a sorted array you are allowed to seek in. A parallel k-way
 search finds one record in about a dozen range requests. No index to build, no backend: the sort

@@ -26,7 +26,7 @@ CREDIT = {
     "license": "see dataset card",
 }
 
-# The text layer is not built into the site: it is 40 MB a month and 12 GB for the archive. The
+# The text layer is not built into the site: it is 40 MB a month and 10 GB for the archive. The
 # site reads one record out of it at a time with HTTP range requests, so all it needs is where the
 # files are. Declared here because the source module is the only thing that knows its own dataset;
 # a build from a different dataset simply declares a different one, or none.

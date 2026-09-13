@@ -185,7 +185,7 @@ class Emitter:
                 # the exact commit that produced it, on both sides
                 "build": build or {},
                 # where the full text of a document can be read from, one record at a time. Not
-                # built into the site — 12 GB — so the site range-reads it directly from the
+                # built into the site — 10 GB — so the site range-reads it directly from the
                 # publisher. Absent means the site simply does not offer full text.
                 **({"text": text} if text else {})}
         self.sizes["agg/meta.json"] = dump(os.path.join(self.out, "agg/meta.json"), meta)
