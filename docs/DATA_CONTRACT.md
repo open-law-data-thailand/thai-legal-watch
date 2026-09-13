@@ -16,10 +16,10 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | `agg/topic/<slug>.json` | one topic: by year/action/govlevel, top agencies, provinces, recent docs | <150 KB |
 | `agg/agency/<id>.json` | one agency: topics, actions, timeline, provinces, recent docs | <100 KB |
 | `agg/province/<name>.json` | one province: local/provincial docs by topic, agencies, recent docs | <100 KB |
-| `index/agencies.json` | `[{id,name,type,n,page}]` for search and linking; `page` says whether `agg/agency/<id>.json` exists (agencies with ≥5 documents) | <1.5 MB |
+| `index/agencies.json` | `[{id,name,type,n,page}]` for search and linking; `page` says whether `agg/agency/<id>.json` exists (agencies with ≥5 documents) | <2.5 MB |
 | `index/provinces.json` | `[{name,n}]` | <10 KB |
 | `index/topics.json` | `[{slug,thai,parent,n}]` | <20 KB |
-| `docs/<year>/<year-month>.json` | slim document records for one month (the only place with per-document data; also the title-search corpus) | <6 MB |
+| `docs/<year>/<year-month>.json` | slim document records for one month (the only place with per-document data; also the title-search corpus) | <12 MB (2009–2012 months reach 6–10 MB raw, ~1.5 MB compressed) |
 
 | `feeds/topic/<slug>.xml`, `feeds/province/<name>.xml`, `feeds/agency/<id>.xml` | Atom, 50 newest | <100 KB |
 
