@@ -8,6 +8,7 @@ import { Doc } from './routes/Doc'
 import { Explore } from './routes/Explore'
 import { Agency, Province, Topic } from './routes/Facet'
 import { Home } from './routes/Home'
+import { Latest } from './routes/Latest'
 import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
 import { Boundary } from './ui/Boundary'
@@ -15,6 +16,7 @@ import { QuickSearch } from './ui/QuickSearch'
 
 const NAV: [string, () => string, Route['name'][]][] = [
   ['วันนี้', href.home, ['home']],
+  ['ล่าสุด', () => href.latest(), ['latest']],
   ['สำรวจ', () => href.explore(), ['explore', 'topic', 'agency', 'doc']],
   ['ท้องถิ่นฉัน', href.provinces, ['provinces', 'province']],
   ['แดชบอร์ด', href.dashboard, ['dashboard']],
@@ -132,6 +134,8 @@ function Page({ route }: { route: Route }) {
       return <Province file={route.file} />
     case 'provinces':
       return <Provinces />
+    case 'latest':
+      return <Latest q={route.q} />
     case 'doc':
       return <Doc id={route.id} month={route.month} />
     case 'dashboard':
@@ -164,6 +168,8 @@ export function titleFor(route: Route): string {
       return `จังหวัด${route.file} — ${base}`
     case 'provinces':
       return `ท้องถิ่นฉัน — ${base}`
+    case 'latest':
+      return `ล่าสุด 90 วัน — ${base}`
     case 'doc':
       return `${route.id} — ${base}`
     case 'dashboard':

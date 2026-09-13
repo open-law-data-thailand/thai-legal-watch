@@ -6,7 +6,7 @@ import os
 
 BUDGETS = {  # bytes
     "agg/meta.json": 10_000, "agg/taxonomy.json": 100_000, "agg/home.json": 100_000, "agg/years.json": 50_000,
-    "agg/trends.json": 200_000, "index/months/": 5_000,
+    "agg/trends.json": 200_000, "agg/latest.json": 14_000_000, "index/months/": 5_000,
     "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000, "agg/graph/": 400_000,
     "agg/topic/": 150_000, "agg/agency/": 100_000, "agg/province/": 100_000,
     "index/agencies.json": 2_500_000, "index/volumes/": 200_000, "index/provinces.json": 10_000,
@@ -78,7 +78,7 @@ def validate_source(out: str) -> list[str]:
     # opening a document by a legacy id depends on the second. If a future change stops emitting
     # them the site degrades quietly, which is exactly what a contract is for.
     for rel in ("agg/meta.json", "agg/taxonomy.json", "agg/home.json", "agg/years.json",
-                "agg/trends.json", "index/agencies.json", "index/topics.json"):
+                "agg/trends.json", "agg/latest.json", "index/agencies.json", "index/topics.json"):
         if not os.path.exists(os.path.join(out, rel)):
             problems.append(f"missing {rel}")
     if problems:

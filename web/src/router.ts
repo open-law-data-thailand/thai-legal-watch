@@ -10,6 +10,7 @@ export type Route =
   | { name: 'agency'; source: string; id: string }
   | { name: 'province'; source: string; file: string }
   | { name: 'provinces'; source: string }
+  | { name: 'latest'; source: string; q: URLSearchParams }
   | { name: 'doc'; source: string; id: string; month?: string }
   | { name: 'dashboard'; source: string }
   | { name: 'graph'; source: string }
@@ -38,6 +39,8 @@ export function parseHash(hash: string): Route {
       return segs[2] ? { name: 'agency', source, id: segs[2] } : nf()
     case 'provinces':
       return { name: 'provinces', source }
+    case 'latest':
+      return { name: 'latest', source, q }
     case 'province':
       return segs[2] ? { name: 'province', source, file: segs[2] } : nf()
     case 'doc':
@@ -65,6 +68,7 @@ export function hrefFor(source: string) {
     agency: (id: string) => `${base}/agency/${encodeURIComponent(id)}`,
     province: (file: string) => `${base}/province/${encodeURIComponent(file)}`,
     provinces: () => `${base}/provinces`,
+    latest: (q = '') => `${base}/latest${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     doc: (id: string, month?: string) => `${base}/doc/${encodeURIComponent(id)}${month ? `?m=${month}` : ''}`,
     dashboard: () => `${base}/dashboard`,
     graph: () => `${base}/graph`,

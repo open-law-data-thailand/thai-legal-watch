@@ -1313,3 +1313,53 @@ body {
 .skip:focus {
   left: 0;
 }
+
+/* ล่าสุด: a dated list you scan, not a dashboard you read */
+.latestbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.latestfilter {
+  width: 100%;
+  font: inherit;
+  font-size: 1.02rem;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+}
+.latestfilter:focus-visible {
+  outline: 2px solid var(--accent-2);
+}
+/* the date is the thing you navigate by, so it stays on screen while its run scrolls past */
+.daybar {
+  position: sticky;
+  top: 60px;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 22px 0 0;
+  padding: 8px 12px;
+  font-size: 1rem;
+  background: var(--accent-bg);
+  color: var(--accent-ink);
+  border-radius: var(--r);
+  border-left: 3px solid var(--accent);
+}
+.daybar .n {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .daybar {
+    top: 100px;
+  }
+}

@@ -112,6 +112,15 @@ export interface ProvincePage extends Facet {
   name: string
 }
 
+/** The raw listing behind the "ล่าสุด" page: every document of the last N days, newest first,
+ *  without the evidence trail or the bankruptcy extras that a listing never shows. */
+export interface Latest {
+  days: number
+  from: string | null
+  to: string | null
+  docs: SlimDoc[]
+}
+
 export interface Home {
   latest_date: string | null
   count: number

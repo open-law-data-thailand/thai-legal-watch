@@ -69,6 +69,9 @@ export function Home() {
             >
               สำรวจเดือนนี้ →
             </a>
+            <a class="btn" href={href.latest()}>
+              ไล่ดูล่าสุด 90 วัน
+            </a>
             <a class="btn" href={href.provinces()}>
               ท้องถิ่นฉัน
             </a>

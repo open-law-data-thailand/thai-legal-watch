@@ -14,6 +14,8 @@ from .model import Doc
 
 _SAFE = re.compile(r"[^\w฀-๿-]+")
 MIN_AGENCY_PAGE = 5
+# how many days of raw listing the "ล่าสุด" page covers
+LATEST_DAYS = 90
 MIN_AGENCY_FEED = 50
 
 
@@ -40,9 +42,20 @@ class Emitter:
         self.out = os.path.join(root, source)
         self.shards: dict[tuple[str, str], list[dict]] = defaultdict(list)
         self.sizes: dict[str, int] = {}
+        # A lawyer checking the news wants the last few months in one list, newest first. Building
+        # that from the month shards would be four requests and ~12 MB to parse on a page meant to
+        # be opened every morning; dropping the evidence arrays makes it one request and a third
+        # of the work. Kept as a date -> records map and trimmed after every year, so memory does
+        # not grow with the corpus.
+        self.latest: dict[str, list[dict]] = defaultdict(list)
 
     def add(self, d: Doc) -> None:
-        self.shards[(d.year, d.month)].append(d.slim())
+        slim = d.slim()
+        self.shards[(d.year, d.month)].append(slim)
+        if d.date:
+            # labels are the evidence trail and x the bankruptcy extras: neither is shown in a
+            # listing, and together they are half the bytes
+            self.latest[d.date].append({k: v for k, v in slim.items() if k not in ("labels", "x")})
 
     def flush_year(self, year: str) -> None:
         """Shards are written per year so memory does not grow with the corpus."""
@@ -51,6 +64,8 @@ class Emitter:
                 docs.sort(key=lambda x: (x["d"] or "", x["id"]))
                 self.sizes[f"docs/{y}/{m}.json"] = dump(os.path.join(self.out, "docs", y, f"{m}.json"), docs)
                 del self.shards[(y, m)]
+        for day in sorted(self.latest)[:-LATEST_DAYS]:
+            del self.latest[day]
 
     def finish(self, agg: Aggregator, sources: list[dict], site: str, build: dict | None = None) -> dict:
         self.site = site
@@ -94,6 +109,15 @@ class Emitter:
         self.sizes["agg/years.json"] = dump(os.path.join(self.out, "agg/years.json"),
             {"by_year": dict(agg.all.by_year), "by_month": dict(agg.all.by_month)})
         self.sizes["agg/home.json"] = dump(os.path.join(self.out, "agg/home.json"), agg.home())
+        days = sorted(self.latest, reverse=True)[:LATEST_DAYS]
+        self.sizes["agg/latest.json"] = dump(os.path.join(self.out, "agg/latest.json"), {
+            "days": LATEST_DAYS,
+            "from": days[-1] if days else None,
+            "to": days[0] if days else None,
+            # newest first, and within a day by page, which is the order the gazette prints them
+            "docs": [x for day in days
+                     for x in sorted(self.latest[day], key=lambda r: (r.get("pg") or 0, r["id"]))],
+        })
         # one small file with every series the dashboard draws, so it never fetches 22 year graphs
         years = sorted(agg.all.by_year)
 

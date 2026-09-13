@@ -63,6 +63,7 @@ test.describe('every route', () => {
       ['#/ratchakitcha/explore', /สำรวจ/],
       ['#/ratchakitcha/explore?scope=all', /สำรวจ/],
       ['#/ratchakitcha/provinces', /ท้องถิ่นฉัน/],
+      ['#/ratchakitcha/latest', /ล่าสุด 90 วัน/],
       [`#/ratchakitcha/province/${encodeURIComponent(provinces[0]?.file ?? '')}`, /จังหวัด/],
       [`#/ratchakitcha/agency/${withPage.id}`, /หน่วยงาน/],
       ['#/ratchakitcha/topic/environment', /หมวด/],
@@ -112,6 +113,59 @@ test.describe('home', () => {
       .poll(() => page.getByTestId('results').locator('.doc').count())
       .toBeGreaterThanOrEqual(oneDay)
     await sane(page)
+  })
+})
+
+test.describe('ล่าสุด', () => {
+  test('lists every recent document newest first, with a count on each date', async ({ page, request }) => {
+    const latest = (await (await request.get('/data/ratchakitcha/agg/latest.json')).json()) as {
+      days: number
+      docs: { d: string | null; t: string }[]
+    }
+    await page.goto('/#/ratchakitcha/latest')
+    const bars = page.locator('.daybar')
+    await expect(bars.first()).toBeVisible()
+
+    // dates run newest to oldest, and each says how many that day has
+    const dates = await page.locator('.daybar > span:first-child').allTextContents()
+    expect(dates.length).toBeGreaterThan(0)
+    for (const b of await bars.allTextContents()) expect(b).toMatch(/\d+ ฉบับ/)
+
+    // the first row is the first document of the payload — the page reorders nothing
+    await expect(page.getByTestId('latest').locator('.doc a.title').first()).toHaveText(
+      latest.docs[0]?.t ?? '',
+    )
+    await sane(page)
+    await a11y(page)
+  })
+
+  test('the filter narrows as you type, says how many matched, and is shareable', async ({
+    page,
+    request,
+  }) => {
+    const latest = (await (await request.get('/data/ratchakitcha/agg/latest.json')).json()) as {
+      docs: { t: string }[]
+    }
+    const word = (latest.docs[0]?.t ?? '').slice(0, 6)
+    if (!word) throw new Error('fixture has no documents in the last 90 days')
+    await page.goto('/#/ratchakitcha/latest')
+    const rows = page.getByTestId('latest').locator('.doc')
+    const before = await rows.count()
+
+    await page.getByPlaceholder(/พิมพ์คำที่ต้องการ/).fill(word)
+    await expect(page.getByText(/ตรงกัน/)).toBeVisible()
+    await expect.poll(() => rows.count()).toBeLessThanOrEqual(before)
+    // every remaining row really contains it, and the match is marked
+    await expect(page.getByTestId('latest').locator('mark').first()).toBeVisible()
+
+    // the filter lives in the URL, so a search can be handed to someone else
+    await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(word)}`))
+    await page.reload()
+    await expect(page.getByPlaceholder(/พิมพ์คำที่ต้องการ/)).toHaveValue(word)
+
+    await page.getByPlaceholder(/พิมพ์คำที่ต้องการ/).fill('ไม่มีคำนี้ในราชกิจจาแน่นอน')
+    await expect(rows).toHaveCount(0)
+    await expect(page.locator('.empty')).toContainText('ไม่พบฉบับ')
   })
 })
 

@@ -5,6 +5,7 @@ import type {
   Bankruptcy,
   Graph,
   Home,
+  Latest,
   Meta,
   ProvinceIndexItem,
   ProvincePage,
@@ -109,6 +110,9 @@ export class DataClient {
   }
   taxonomy(): Promise<Taxonomy> {
     return this.get('agg/taxonomy.json')
+  }
+  latest(): Promise<Latest> {
+    return this.get('agg/latest.json')
   }
   home(): Promise<Home> {
     return this.get('agg/home.json')
