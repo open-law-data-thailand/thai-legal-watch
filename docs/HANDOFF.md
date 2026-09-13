@@ -1,6 +1,6 @@
-# Thai Legal Watch — progress and plan (handoff, 2026-09-13 19:15)
+# Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 24 · Vitest 79 · Playwright 66 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 26 · Vitest 79 · Playwright 70 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -244,18 +244,59 @@ edge actually serves the build it just made. `_headers` is generated per source,
 Pages **ignores a wildcard in the middle of a path** — measured, not guessed: a deploy carrying
 both `/data/*/feeds/*` and a literal rule reported the literal one.
 
+## Session 5 — deploying from CI, and a site a crawler can read
+
+**Deploys run in GitHub Actions now.** `.github/workflows/ci.yml` runs the tests, then a `deploy`
+job pulls `meta/` and `taxonomy/openlawdata-taxonomy/` from Hugging Face (~1.5 GB, public, no
+token), builds, deploys and verifies the edge. Same workflow on a 16:00 UTC schedule — 23:00
+Bangkok, after the dataset's own nightly. Push code; that is the whole job. Needs two repository
+secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+
+Years are **discovered, not configured** — `infra/fetch-dataset.py` asks the repository which years
+exist in *both* layers. This stopped being hypothetical while it was being written: 2002, 2003 and
+2004 were published that day, and it picked all three up. The site goes 22 → 25 years with nobody
+editing a range.
+
+**Cloudflare Pages Git integration was considered and rejected, with numbers.** Builds time out at
+20 minutes; build caching only covers package-manager directories, not an arbitrary 1.5 GB
+download; and Pages has no scheduled builds, so it would still need an external trigger. Measured
+against our timings (download ~5 min, `tlw-build` 48 s on a Mac but 550 s on the build box) that
+lands near 16 of the 20 minutes, with every new year pushing closer. Worth revisiting only if the
+data moves to R2, which would make the build 1.5 MB.
+
+**~3,000 static pages.** A hash-routed app is one page to a crawler and one card to a link
+unfurler. `tlw_pipeline/prerender.py` writes a real HTML twin of every topic, province and agency
+page — title, description, canonical, og:, the facet's numbers, its 30 most recent documents —
+plus `/directory` and a generated `sitemap.xml`. 41 MB, taking the deploy to 6,772 files against
+Cloudflare's 20,000. They are twins, not doorways: each links straight to the interactive page.
+`deploy.sh` moves `<dist-data>/_site/` to the site root; the fixture build does the same so e2e
+tests the real shape.
+
+**Document full text is blocked at the source, definitively.** The HF datasets-server fails to
+build this dataset: `Failed to parse string: '1946-02-29' as a scalar of type timestamp[s]`. The
+`meta/` layer is clean — 1,388,591 records scanned locally with zero impossible dates, and
+`meta/1946/1946-02.jsonl` fetched from HF has only the 5th–26th — so the bad value is in the OCR
+layer. Until that is fixed, `/rows` and `/filter` return errors and no per-document text lookup is
+possible from a browser.
+
+Also: `canonical`/`og:url` come from `VITE_SITE_URL` at build time (they were hardcoded to
+pages.dev and would have pointed every shared link off-domain the day a custom domain landed); CI
+runs `bash -n` and shellcheck over `infra/`; and the contract now requires `agg/trends.json`,
+`index/months/` and the static pages, checks trend series lengths, and checks that the month index
+covers exactly the shards on disk.
+
 ## Still open
-- **Crawlers see one page.** Hash routes are not URLs to a crawler, so 732k documents, 76 topics
-  and 77 provinces have no organic search surface. `robots.txt` points machines at the JSON
-  indexes, which is a mitigation, not a fix. Moving to path routing with an SPA fallback would fix
-  it and would change every URL — an owner's decision.
-- **Link previews are all the home page.** Scrapers do not run JS, so the per-route `document.title`
-  never reaches them and every shared document link unfurls as the site card.
-- **`canonical` and `og:url` are hardcoded to pages.dev** and must change with the custom domain.
-- Document full text from Hugging Face: the datasets-server is not ready for this dataset, and the
-  raw OCR month files are far too big to fetch in a browser. The workable path is a byte-offset
-  index built by the pipeline plus HTTP range requests.
-- 2002–2004 once they publish: `TLW_YEARS=2002-2026`.
+- **Document links still unfurl as the home page.** Topics, provinces and agencies have static
+  pages now; the 732,143 documents cannot, so a shared document link is still the site card.
+  Prerendering the most-read documents (say, everything from the last year) would be ~40,000
+  files — over Cloudflare's free 20,000 but inside the paid 100,000.
+- **A custom domain needs `VITE_SITE_URL` and `--site` set to it**, or canonical, og: and the feeds
+  will point at pages.dev.
+- Document full text: blocked upstream, see above.
+- Housekeeping never done: a Lighthouse budget in CI, visual regression, and moving the topic
+  family palette into CSS variables.
+- Phase 2 (Functions + D1: watches, feedback, a bankruptcy tracker for juristic persons) is a
+  feature, not a leftover.
 
 ## Plan (in order)
 
