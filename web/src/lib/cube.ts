@@ -23,10 +23,12 @@ export interface CubeMeta {
 
 export interface Cube {
   meta: CubeMeta
+  /** the stored columns, plus `shard` — the month each row belongs to, which is derived rather
+   *  than stored because the row ranges in `meta.months` already say it */
   cols: Record<string, Uint8Array | Uint16Array>
   /** value -> code, for turning a slug, a name or an id into the integer the columns hold */
   index: Record<string, Map<string, number>>
-  /** row -> its position in meta.months, so a row resolves to a shard without a search */
+  /** row -> 1-based position in meta.months; 0 would mean "none", as it does in every column */
   monthOf: Uint16Array
 }
 
@@ -70,9 +72,15 @@ export function buildCube(meta: CubeMeta, blob: ArrayBuffer): Cube {
     })
     index[name] = m
   }
+  // The month is a column like any other — it just happens to be implied by the row ranges
+  // instead of stored. Making it one means a filter can name shards rather than dates, which is
+  // what the reader actually clicks through to, and lets a scan skip every row outside them.
   const monthOf = new Uint16Array(meta.rows)
-  meta.months.forEach((m, i) => monthOf.fill(i, m.start, m.start + m.n))
-  return { meta, cols, index, monthOf }
+  meta.months.forEach((m, i) => monthOf.fill(i + 1, m.start, m.start + m.n))
+  cols['shard'] = monthOf
+  const shardNames: (string | null)[] = [null, ...meta.months.map((m) => m.m)]
+  index['shard'] = new Map(meta.months.map((m, i) => [m.m, i + 1]))
+  return { meta: { ...meta, codes: { ...meta.codes, shard: shardNames } }, cols, index, monthOf }
 }
 
 export interface CubeFilter {
@@ -90,6 +98,11 @@ export interface CubeFilter {
   to?: string
   /** one publication date, which is how a click on the home sparkline arrives */
   day?: string
+  /** month shards to restrict to. Not the same as a date range: 160 of 732,143 documents sit in
+   *  a shard whose year their publication date disagrees with, and a count beside "เดือน 2556-11"
+   *  has to mean what opening that month will actually show. Also the fastest filter there is —
+   *  shards are contiguous rows, so the scan skips everything outside them. */
+  shards?: string[]
 }
 
 /** Codes resolved once per query instead of once per row. A filter naming something the corpus
@@ -102,6 +115,10 @@ interface Compiled {
   prov: number
   dtype: number
   agency: number
+  /** the rows worth looking at at all, and which shards inside that window count */
+  lo: number
+  hi: number
+  shardMask: Uint8Array | null
 }
 
 function compile(cube: Cube, f: CubeFilter): Compiled {
@@ -120,8 +137,29 @@ function compile(cube: Cube, f: CubeFilter): Compiled {
     prov: code('prov', f.prov),
     dtype: code('dtype', f.dtype),
     agency: code('agency', f.agency),
+    lo: 0,
+    hi: cube.meta.rows,
+    shardMask: null,
   }
   if ([c.action, c.gov, c.prov, c.dtype, c.agency].includes(-1)) c.impossible = true
+  if (f.shards) {
+    const mask = new Uint8Array(cube.meta.months.length + 1)
+    let lo = cube.meta.rows
+    let hi = 0
+    for (const name of f.shards) {
+      const at = cube.index['shard']?.get(name)
+      if (at === undefined) continue
+      const m = cube.meta.months[at - 1]
+      if (!m) continue
+      mask[at] = 1
+      lo = Math.min(lo, m.start)
+      hi = Math.max(hi, m.start + m.n)
+    }
+    if (hi <= lo) c.impossible = true
+    c.lo = lo
+    c.hi = hi
+    c.shardMask = mask
+  }
   return c
 }
 
@@ -177,7 +215,8 @@ export function queryCube(
   const agency = cube.cols['agency']
   const day = cube.cols['day']
   const flags = cube.cols['flags']
-  if (!topic || !action || !gov || !prov || !dtype || !agency || !day || !flags)
+  const shard = cube.cols['shard']
+  if (!topic || !action || !gov || !prov || !dtype || !agency || !day || !flags || !shard)
     throw new CubeError('cube.bin is missing a column the query needs')
   const into = (opts.groupBy ?? []).map((g) => {
     const col = cube.cols[g]
@@ -187,7 +226,9 @@ export function queryCube(
   const rows: number[] = []
   let total = 0
 
-  for (let i = cube.meta.rows - 1; i >= 0; i--) {
+  // Only the rows the shard filter allows are even looked at: a month is ~3,000 of 773,000.
+  for (let i = c.hi - 1; i >= c.lo; i--) {
+    if (c.shardMask && !c.shardMask[shard[i]]) continue
     const fl = flags[i]
     if (c.topics && (!c.topics[topic[i]] || !(fl & FLAG_TOPIC))) continue
     if (c.action && (action[i] !== c.action || !(fl & FLAG_ACTION))) continue
@@ -210,7 +251,7 @@ export function queryCube(
 /** Which shard holds the document a row describes, and where in it. */
 export function rowLocation(cube: Cube, row: number): { month: string; offset: number } | null {
   const at = cube.monthOf[row]
-  const m = at === undefined ? undefined : cube.meta.months[at]
+  const m = at === undefined || at === 0 ? undefined : cube.meta.months[at - 1]
   if (!m || row < m.start || row >= m.start + m.n) return null
   return { month: m.m, offset: row - m.start }
 }

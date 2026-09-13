@@ -349,11 +349,40 @@ describe('crossFilter', () => {
   })
 })
 
+describe('the shard filter', () => {
+  it('restricts to a month file, which is what the reader will actually open', () => {
+    const r = queryCube(cube, { shards: ['2023-01'] })
+    expect(r.total).toBe(3)
+    expect(r.rows).toEqual([2, 1, 0])
+  })
+
+  it('covers several months at once, the way a year does', () => {
+    expect(queryCube(cube, { shards: ['2023-01', '2023-02'] }).total).toBe(4)
+  })
+
+  it('is not a date range: a row belongs to the file it is published in', () => {
+    // row 3 sits in 2023-02 and is dated 2023-02-02, so the two agree here — the point is that
+    // the filter asks the shard column, not the date column, and those can differ upstream
+    expect(queryCube(cube, { shards: ['2023-02'] }).rows).toEqual([3])
+    expect(queryCube(cube, { shards: ['2024-07'] }).total).toBe(2)
+  })
+
+  it('finds nothing for a month the corpus does not have', () => {
+    expect(queryCube(cube, { shards: ['1999-01'] }).total).toBe(0)
+    expect(queryCube(cube, { shards: [] }).total).toBe(0)
+  })
+
+  it('combines with the other filters', () => {
+    expect(queryCube(cube, { shards: ['2023-01'], prov: 'ตรัง' }).total).toBe(3)
+    expect(queryCube(cube, { shards: ['2024-07'], prov: 'ตรัง' }).total).toBe(0)
+  })
+})
+
 describe('period counts', () => {
   it('counts months and years with the period lifted, so a dropdown says where else to look', () => {
     // the reader is in 2023-01 with ตรัง chosen; the month list must still say what ตรัง has in
     // every other month, which is the thing `years.json` could never answer
-    const r = crossFilter(cube, tax, { prov: 'ตรัง', from: '2023-01-01', to: '2023-01-31' }, 50)
+    const r = crossFilter(cube, tax, { prov: 'ตรัง', shards: ['2023-01'] }, 50)
     expect(r.total).toBe(3)
     expect(r.months.get('2023-01')).toBe(3)
     expect(r.months.get('2023-02')).toBeUndefined()
@@ -361,17 +390,24 @@ describe('period counts', () => {
   })
 
   it('counts days inside the chosen period only, with the day lifted', () => {
-    const r = crossFilter(cube, tax, { from: '2023-01-01', to: '2023-01-31', day: '2023-01-05' }, 50)
+    const r = crossFilter(cube, tax, { shards: ['2023-01'], day: '2023-01-05' }, 50)
     expect(r.total).toBe(1)
     expect([...r.days.keys()].sort()).toEqual(['2023-01-05', '2023-01-09', '2023-01-20'])
     expect(r.days.get('2023-01-09')).toBe(1)
   })
 
   it('keeps every other filter while lifting the period', () => {
-    const r = crossFilter(cube, tax, { prov: 'ภูเก็ต', from: '2024-07-01', to: '2024-07-31' }, 50)
+    const r = crossFilter(cube, tax, { prov: 'ภูเก็ต', shards: ['2024-07'] }, 50)
     expect(r.months.get('2023-02')).toBe(1)
     expect(r.months.get('2024-07')).toBe(1)
     expect(r.months.get('2023-01')).toBeUndefined()
+  })
+
+  it('every month of the corpus is a shard the counts can name', () => {
+    const r = crossFilter(cube, tax, {}, 0)
+    expect([...r.months.keys()].sort()).toEqual(['2023-01', '2023-02', '2024-07'])
+    expect([...r.years.keys()].sort()).toEqual(['2023', '2024'])
+    expect([...r.months.values()].reduce((a, b) => a + b, 0)).toBe(cube.meta.rows)
   })
 })
 

@@ -1376,3 +1376,36 @@ body {
 .emptyhint .chip {
   margin-left: 2px;
 }
+
+/* สถิติ: the year picker is the page's one control, so it gets a frame of its own rather than
+   sitting in a column where it reads as just another chart. */
+.yearpick {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+  background: var(--paper-2);
+}
+.yearpick-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+/* Six breakdowns of the same year: a grid, because they are siblings and ranking them in one
+   column would imply an order they do not have. */
+.statgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 18px;
+}
+.statpanel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  min-width: 0;
+}
+.statpanel h3 {
+  font-size: 1rem;
+  margin: 0 0 10px;
+}

@@ -96,8 +96,11 @@ const signature = (f: CubeFilter): string => {
   return parts.join('&')
 }
 
-/** months, years and days are all read off the one date column. */
-const colOf = (dim: string) => (dim === 'months' || dim === 'years' || dim === 'days' ? 'day' : dim)
+/** `days` reads the real publication dates; `months` and `years` read the shard a row sits in,
+ *  because those two feed the period dropdowns and a number beside "เดือน 2556-11" has to mean
+ *  what opening that month will actually show. The two differ for 160 of 732,143 documents whose
+ *  publication date falls outside the file they are published in. */
+const colOf = (dim: string) => (dim === 'days' ? 'day' : dim === 'months' || dim === 'years' ? 'shard' : dim)
 
 export interface Want {
   dim: string
@@ -126,11 +129,17 @@ function passes(cube: Cube, wants: Want[]): Map<string, ReadonlyMap<number, numb
   return out
 }
 
-/** ISO dates grouped to a shorter prefix: 7 characters for a month, 4 for a year. */
-function bucket(cube: Cube, counts: ReadonlyMap<number, number>, width: number): Map<string, number> {
+/** Keys grouped to a shorter prefix: 7 characters for a month, 4 for a year. Works for both the
+ *  date column (YYYY-MM-DD) and the shard column (YYYY-MM). */
+function bucket(
+  cube: Cube,
+  dim: string,
+  counts: ReadonlyMap<number, number>,
+  width: number,
+): Map<string, number> {
   const out = new Map<string, number>()
-  for (const [date, n] of named(cube, 'day', counts)) {
-    const k = date.slice(0, width)
+  for (const [key, n] of named(cube, dim, counts)) {
+    const k = key.slice(0, width)
     out.set(k, (out.get(k) ?? 0) + n)
   }
   return out
@@ -154,8 +163,8 @@ export function crossFilter(
     { dim: 'dtype', filter: lift(base, ['dtype']) },
     { dim: 'agency', filter: lift(base, ['agency']) },
     { dim: 'days', filter: lift(base, ['day']) },
-    { dim: 'months', filter: lift(base, ['day', 'from', 'to']) },
-    { dim: 'years', filter: lift(base, ['day', 'from', 'to']) },
+    { dim: 'months', filter: lift(base, ['day', 'from', 'to', 'shards']) },
+    { dim: 'years', filter: lift(base, ['day', 'from', 'to', 'shards']) },
   ])
   const topic = got.get('topic') ?? NO_COUNTS
   return {
@@ -168,8 +177,8 @@ export function crossFilter(
     provinces: named(cube, 'prov', got.get('prov') ?? NO_COUNTS),
     dtypes: named(cube, 'dtype', got.get('dtype') ?? NO_COUNTS),
     agencies: named(cube, 'agency', got.get('agency') ?? NO_COUNTS),
-    days: bucket(cube, got.get('days') ?? NO_COUNTS, 10),
-    months: bucket(cube, got.get('months') ?? NO_COUNTS, 7),
-    years: bucket(cube, got.get('years') ?? NO_COUNTS, 4),
+    days: bucket(cube, 'day', got.get('days') ?? NO_COUNTS, 10),
+    months: bucket(cube, 'shard', got.get('months') ?? NO_COUNTS, 7),
+    years: bucket(cube, 'shard', got.get('years') ?? NO_COUNTS, 4),
   }
 }

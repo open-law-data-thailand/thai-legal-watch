@@ -128,16 +128,19 @@ export function Explore({ q }: { q: URLSearchParams }) {
   }, [q])
   const tax = base.state === 'ok' ? base.data.tax : undefined
   const loaded = useMemo(() => (docs.state === 'ok' ? docs.data : EMPTY), [docs])
-  // The scope is a date range like any other filter, which is what lets one code path answer
-  // "this month", "this year" and "everything".
+  // The scope is a filter like any other, expressed as the month files it covers rather than as
+  // a date range: that is exactly what the list below will load, so the count and the list can
+  // never disagree — and a shard is contiguous rows, so the scan skips everything outside it.
   const period = useMemo(
     () =>
       scope === 'month' && month
-        ? { from: `${month}-01`, to: `${month}-31` }
+        ? { shards: [month] }
         : scope === 'year' && year
-          ? { from: `${year}-01-01`, to: `${year}-12-31` }
+          ? { shards: months.filter((m) => m.startsWith(year)) }
           : {},
-    [scope, month, year],
+    // `months` is rebuilt every render from `base`; its contents are what matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scope, month, year, months.length],
   )
   const cubeFilter = useMemo<CubeFilter | null>(
     () =>

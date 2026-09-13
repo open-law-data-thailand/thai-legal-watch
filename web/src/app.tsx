@@ -174,7 +174,7 @@ export function titleFor(route: Route): string {
     case 'doc':
       return `${route.id} — ${base}`
     case 'dashboard':
-      return `แดชบอร์ด — ${base}`
+      return `สถิติ — ${base}`
     case 'graph':
       return `ความสัมพันธ์ของหมวด — ${base}`
     case 'about':

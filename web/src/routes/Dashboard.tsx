@@ -1,12 +1,20 @@
-/** The numbers a reader of the gazette actually asks for: is this year busier, what subject is
- *  growing, when in the year does the work land, and who is issuing the rules. */
-import { useEffect, useRef, useState } from 'preact/hooks'
-import { useLoad } from '../data/context'
-import type { Taxonomy, Trends } from '../data/types'
-import { completeYears, monthProfile, movers, sumAt, yearToDate, type Move } from '../lib/trends'
+/** สถิติ — the numbers a reader of the gazette actually asks for.
+ *
+ *  The page has one control: the year. Everything below it answers for that year, and every
+ *  comparison says out loud what it is a comparison against — a page that prints "มากขึ้น 12%"
+ *  without naming the baseline is not a statistic, it is a decoration.
+ *
+ *  The breakdowns come from the archive index rather than from pre-built files, which is why a
+ *  year can be broken down by province, agency and document type at all: nobody built a
+ *  `year × province` file, and with 22 years and 77 provinces nobody sensibly could.
+ */
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useHref, useLoad } from '../data/context'
+import type { Taxonomy } from '../data/types'
+import { crossFilter } from '../lib/cubequery'
+import { completeYears, movers, yearOverYear, type Move } from '../lib/trends'
 import { reducedMotion } from '../lib/motion'
 import { beYear, percent, thaiDate } from '../lib/thai'
-import { useHref } from '../data/context'
 import { Bars, ErrorBox, Kicker, Loading, Metric, actionName, govName, topicName } from '../ui/bits'
 import { STAGE } from './Doc'
 
@@ -26,31 +34,54 @@ const TH_MONTH_SHORT = [
   'ธ.ค.',
 ]
 
+/** The month files a year covers, or the whole archive when no year is chosen. Shards rather
+ *  than a date range, so these numbers are the ones สำรวจ will show when the reader clicks
+ *  through, and so the scan touches one year of rows instead of all twenty-two. */
+const range = (byMonth: Record<string, number>, year: string | null) =>
+  year ? { shards: Object.keys(byMonth).filter((m) => m.startsWith(year)) } : {}
+
 export function Dashboard() {
   const href = useHref()
   const st = useLoad(async (c) => {
-    const [years, tax, bk, trends, meta] = await Promise.all([
+    const [years, tax, bk, trends, meta, cube, agencies] = await Promise.all([
       c.years(),
       c.taxonomy(),
       c.get_bankruptcy(),
       c.trends(),
       c.meta(),
+      c.cube(),
+      c.agencies(),
     ])
-    return { years, tax, bk, trends, meta }
+    return { years, tax, bk, trends, meta, cube, agencyName: new Map(agencies.map((a) => [a.id, a.name])) }
   }, [])
   const [year, setYear] = useState<string | null>(null)
   const yearsRef = useRef<HTMLDivElement>(null)
 
+  const ok = st.state === 'ok'
+  const byYear = ok ? st.data.years.by_year : null
+  const cube = ok ? st.data.cube : null
+  const tax = ok ? st.data.tax : undefined
+  const allYears = useMemo(() => (byYear ? Object.keys(byYear).sort() : []), [byYear])
+  // the year before the focused one, so every comparison on the page has a named baseline
+  const prevYear = year ? (allYears[allYears.indexOf(year) - 1] ?? null) : null
+
+  const byMonth = ok ? st.data.years.by_month : null
+  const now = useMemo(
+    () => (cube && byMonth ? crossFilter(cube, tax, range(byMonth, year), 0) : null),
+    [cube, tax, year, byMonth],
+  )
+  const before = useMemo(
+    () => (cube && byMonth && prevYear ? crossFilter(cube, tax, range(byMonth, prevYear), 0) : null),
+    [cube, tax, prevYear, byMonth],
+  )
+
   // The chart is created once and then only re-styled. Re-running echarts.init on the same
-  // element — which is what happens if the effect depends on `year` — leaves the previous
-  // instance undisposed and its listeners attached, and the second instance renders unreliably.
+  // element leaves the previous instance undisposed and its listeners attached.
   const chartRef = useRef<{
     setOption: (o: unknown) => void
     resize: () => void
     dispose: () => void
   } | null>(null)
-  const ok = st.state === 'ok'
-  const byYear = ok ? st.data.years.by_year : null
   useEffect(() => {
     if (!byYear) return
     let disposed = false
@@ -67,7 +98,10 @@ export function Dashboard() {
         grid: { left: 58, right: 12, top: 14, bottom: 30 },
         xAxis: { type: 'category', data: ys.map((k) => beYear(k)) },
         yAxis: { type: 'value' },
-        tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toLocaleString('th-TH')} ฉบับ` },
+        tooltip: {
+          trigger: 'axis',
+          valueFormatter: (v: number) => `${v.toLocaleString('th-TH')} ฉบับ`,
+        },
         series: [
           {
             type: 'bar',
@@ -95,7 +129,7 @@ export function Dashboard() {
     }
   }, [byYear])
 
-  // highlight the selected year without rebuilding the chart
+  // highlight the focused year and the one it is compared against, without rebuilding the chart
   useEffect(() => {
     if (!byYear) return
     const ys = Object.keys(byYear).sort()
@@ -104,78 +138,95 @@ export function Dashboard() {
         {
           data: ys.map((k) => ({
             value: byYear[k],
-            itemStyle: { color: k === year ? '#c9502a' : '#6b4fd8', borderRadius: [3, 3, 0, 0] },
+            itemStyle: {
+              color: k === year ? '#c9502a' : k === prevYear ? '#d8a08c' : '#6b4fd8',
+              borderRadius: [3, 3, 0, 0],
+            },
           })),
         },
       ],
     })
-  }, [year, byYear])
+  }, [year, prevYear, byYear])
 
-  if (st.state === 'loading') return <Loading what="แดชบอร์ด" />
+  if (st.state === 'loading') return <Loading what="สถิติ" />
   if (st.state === 'error') return <ErrorBox error={st.error} />
-  const { years, tax, bk, trends, meta } = st.data
+  const { bk, trends, meta, agencyName } = st.data
 
   const complete = completeYears(trends.years, meta.latest_date)
-  const lastComplete = complete[complete.length - 1] ?? trends.years[trends.years.length - 1] ?? ''
-  const focus = year ?? lastComplete
-  const ytd = yearToDate(years, meta.latest_date)
-  const topicMoves = movers(trends.topics, trends.years, complete)
-  const rising = topicMoves.filter((m) => m.change > 0).slice(0, 6)
-  const falling = topicMoves.filter((m) => m.change < 0).slice(0, 6)
-  const months = monthProfile(years)
-  const busiest = months.reduce((a, b) => (b.n > a.n ? b : a), months[0] ?? { month: 1, n: 0 })
-  const rules = sumAt(trends, 'actions', RULE_ACTIONS, focus)
+  const partialYear = meta.latest_date?.slice(0, 4) ?? ''
+  const focusLabel = year ? `ปี ${beYear(year)}` : 'ทุกปีรวมกัน'
+  const focusIsPartial = year !== null && year === partialYear
   const window = complete.slice(-3)
+  const prior = complete.slice(-6, -3)
+
+  // Every metric is a pair: the number, and the number it is being compared against.
+  const total = now?.total ?? 0
+  const prevTotal = before?.total ?? 0
+  const ruleNow = RULE_ACTIONS.reduce((s, a) => s + (now?.actions.get(a) ?? 0), 0)
+  const rulePrev = RULE_ACTIONS.reduce((s, a) => s + (before?.actions.get(a) ?? 0), 0)
+  const agenciesNow = now?.agencies.size ?? 0
+  const agenciesPrev = before?.agencies.size ?? 0
+  const monthRows: [string, number][] = Array.from({ length: 12 }, (_, i) => {
+    const mm = String(i + 1).padStart(2, '0')
+    const n = year
+      ? (now?.months.get(`${year}-${mm}`) ?? 0)
+      : [...(now?.months.entries() ?? [])]
+          .filter(([k]) => k.endsWith(`-${mm}`))
+          .reduce((s, [, v]) => s + v, 0)
+    return [String(i + 1), n]
+  })
+  const busiest = monthRows.reduce((a, b) => (b[1] > a[1] ? b : a), monthRows[0] ?? ['1', 0])
+
+  // "มาแรง" compared against what? A chosen year is compared with the year before it; with no
+  // year chosen it is the last three complete years against the three before them.
+  const moves = year
+    ? yearOverYear(trends.topics, trends.years, year)
+    : movers(trends.topics, trends.years, complete)
+  const movesAgainst = year
+    ? prevYear
+      ? `ปี ${beYear(year)} เทียบปี ${beYear(prevYear)}`
+      : 'ไม่มีปีก่อนหน้าให้เทียบ'
+    : `${beYear(window[0] ?? '')}–${beYear(window[window.length - 1] ?? '')} เทียบ ${beYear(prior[0] ?? '')}–${beYear(prior[prior.length - 1] ?? '')}`
+
+  // A focused year with no year before it has nothing to compare against, and saying "ทั้งคลัง"
+  // there would describe the wrong population entirely.
+  const baseline = (all: string): string | undefined =>
+    year ? (prevYear ? undefined : `ปี ${beYear(year)} เป็นปีแรกของคลัง ไม่มีปีก่อนหน้าให้เทียบ`) : all
+
+  const link = (patch: Record<string, string>) =>
+    href.explore({ ...(year ? { scope: 'year', year } : { scope: 'all' }), ...patch })
 
   return (
     <>
       <Kicker>
-        แดชบอร์ด · {meta.docs.toLocaleString('th-TH')} ฉบับ · พ.ศ. {beYear(trends.years[0] ?? '')}–
+        สถิติ · {meta.docs.toLocaleString('th-TH')} ฉบับ · พ.ศ. {beYear(trends.years[0] ?? '')}–
         {beYear(trends.years[trends.years.length - 1] ?? '')}
       </Kicker>
       <h1 style="margin:6px 0 6px">ราชกิจจานุเบกษาในตัวเลข</h1>
-      <p class="muted" style="margin-bottom:18px">
-        ตัวเลขทั้งหมดนับเฉพาะหมวดที่ยืนยันแล้ว · ปี {beYear(trends.years[trends.years.length - 1] ?? '')}{' '}
-        ยังไม่จบปี จึงไม่ถูกนำไปเทียบแนวโน้ม
+      <p class="muted" style="margin-bottom:6px;max-width:78ch">
+        เลือกปีจากแท่งด้านล่าง แล้วทั้งหน้านี้จะตอบเฉพาะปีนั้น — ทุกตัวเลขที่เทียบ จะบอกด้วยว่าเทียบกับอะไร ·
+        หมวด สิ่งที่ทำ และระดับผู้ออก นับเฉพาะที่ยืนยันแล้ว ส่วนจังหวัด หน่วยงาน และประเภทเอกสาร
+        อ่านจากตัวเอกสารโดยตรง
+      </p>
+      <p class="muted" style="font-size:.85rem;margin-bottom:18px;max-width:78ch">
+        <b>อ่านตัวเลขให้ถูก</b> จำนวนฉบับต่อปีต่างกันมากตามจริง ({beYear(allYears[0] ?? '')}:{' '}
+        {(byYear?.[allYears[0] ?? ''] ?? 0).toLocaleString('th-TH')} ฉบับ ·{' '}
+        {beYear(allYears[allYears.length - 2] ?? '')}:{' '}
+        {(byYear?.[allYears[allYears.length - 2] ?? ''] ?? 0).toLocaleString('th-TH')} ฉบับ)
+        การเทียบสัดส่วนจึงบอกเรื่องได้ดีกว่าการเทียบจำนวน · ปี {beYear(partialYear)} ยังไม่จบปี
+        จึงไม่ถูกนำไปคิดแนวโน้ม
       </p>
 
-      <div class="grid metrics" style="margin-bottom:26px">
-        {ytd && (
-          <Metric
-            label={`ปี ${beYear(ytd.year)} ถึงวันนี้`}
-            value={ytd.now}
-            hint={
-              ytd.then
-                ? `${pct(ytd.now, ytd.then)} เทียบ ${ytd.months} เดือนแรกของปี ${beYear(String(Number(ytd.year) - 1))}`
-                : undefined
-            }
-          />
-        )}
-        <Metric
-          label={`กฎ ระเบียบ ข้อบังคับ ปี ${beYear(focus)}`}
-          value={rules}
-          hint="ออกกฎ แก้ไข หรือยกเลิก"
-        />
-        <Metric
-          label="ยืนยันหมวดได้"
-          value={percent(meta.corroborated_any, meta.docs)}
-          hint={`${meta.corroborated_any.toLocaleString('th-TH')} ฉบับมีหลักฐานรองรับ`}
-        />
-        <Metric
-          label="เดือนที่ออกมากที่สุด"
-          value={TH_MONTH_SHORT[busiest.month - 1] ?? '—'}
-          hint={`${busiest.n.toLocaleString('th-TH')} ฉบับ รวมทุกปี`}
-        />
-      </div>
-
-      <div class="two">
-        <section>
-          <h2 class="sec">ฉบับต่อปี</h2>
-          <p class="muted" style="font-size:.85rem;margin-bottom:8px">
-            คลิกแท่งเพื่อเจาะดูปีนั้นในตารางด้านขวา
-            {year && (
+      <div class="yearpick">
+        <div class="yearpick-head">
+          <h2 class="sec" style="margin:0">
+            ฉบับต่อปี
+          </h2>
+          <p class="muted" style="margin:0;font-size:.85rem">
+            {year ? (
               <>
-                {' · '}
+                กำลังดู <b>ปี {beYear(year)}</b>
+                {prevYear && <> · เทียบกับปี {beYear(prevYear)}</>}{' '}
                 <button
                   class="chip"
                   onClick={() => {
@@ -185,43 +236,93 @@ export function Dashboard() {
                   ล้างการเลือก ({beYear(year)}) ×
                 </button>
               </>
+            ) : (
+              'คลิกแท่งหรือกดปีด้านล่างเพื่อให้ทั้งหน้าตอบเฉพาะปีนั้น'
             )}
           </p>
-          <div
-            ref={yearsRef}
-            style="height:260px"
-            data-testid="chart-years"
-            role="img"
-            aria-label={`ฉบับต่อปี พ.ศ. ${beYear(trends.years[0] ?? '')} ถึง ${beYear(
-              trends.years[trends.years.length - 1] ?? '',
-            )}`}
-          />
-          {/* the chart is mouse-only; this is the same choice, reachable by keyboard */}
-          <p class="chips" style="margin-top:10px" aria-label="เลือกปี">
-            {[...Object.keys(years.by_year)].sort().map((y) => (
-              <button
-                key={y}
-                class="chip"
-                aria-pressed={year === y}
-                onClick={() => {
-                  setYear((cur) => (cur === y ? null : y))
-                }}
-              >
-                {beYear(y)}
-              </button>
-            ))}
-          </p>
+        </div>
+        <div
+          ref={yearsRef}
+          style="height:230px"
+          data-testid="chart-years"
+          role="img"
+          aria-label={`ฉบับต่อปี พ.ศ. ${beYear(trends.years[0] ?? '')} ถึง ${beYear(
+            trends.years[trends.years.length - 1] ?? '',
+          )}`}
+        />
+        {/* the chart is mouse-only; this is the same choice, reachable by keyboard */}
+        <p class="chips" style="margin-top:10px" aria-label="เลือกปี">
+          <button
+            class="chip"
+            aria-pressed={year === null}
+            onClick={() => {
+              setYear(null)
+            }}
+          >
+            ทุกปี
+          </button>
+          {allYears.map((y) => (
+            <button
+              key={y}
+              class="chip"
+              aria-pressed={year === y}
+              onClick={() => {
+                setYear((cur) => (cur === y ? null : y))
+              }}
+            >
+              {beYear(y)}
+            </button>
+          ))}
+        </p>
+      </div>
 
-          <h2 class="sec" style="margin-top:28px">
-            ช่วงเวลาในรอบปี
-          </h2>
+      {focusIsPartial && (
+        <p class="emptyhint" style="margin:14px 0">
+          ปี {beYear(partialYear)} มีข้อมูลถึง {meta.latest_date ? thaiDate(meta.latest_date) : '—'} เท่านั้น
+          — ตัวเลขด้านล่างเป็นของช่วงนั้น ไม่ใช่ทั้งปี
+        </p>
+      )}
+
+      <div class="grid metrics" style="margin:18px 0 26px">
+        <Metric
+          label={`ฉบับ · ${focusLabel}`}
+          value={total}
+          hint={prevYear ? against(total, prevTotal, `ปี ${beYear(prevYear)}`) : baseline('ทั้งคลัง')}
+        />
+        <Metric
+          label={`กฎ ระเบียบ ข้อบังคับ · ${focusLabel}`}
+          value={ruleNow}
+          hint={
+            prevYear
+              ? against(ruleNow, rulePrev, `ปี ${beYear(prevYear)}`)
+              : baseline('ออกกฎ แก้ไข หรือยกเลิก · ทั้งคลัง')
+          }
+        />
+        <Metric
+          label={`หน่วยงานที่ออกเอกสาร · ${focusLabel}`}
+          value={agenciesNow}
+          hint={
+            prevYear ? against(agenciesNow, agenciesPrev, `ปี ${beYear(prevYear)}`) : baseline('ทั้งคลัง')
+          }
+        />
+        <Metric
+          label="ยืนยันหมวดได้"
+          value={percent(meta.corroborated_any, meta.docs)}
+          hint={`${meta.corroborated_any.toLocaleString('th-TH')} ฉบับมีหลักฐานรองรับ · ทั้งคลัง`}
+        />
+      </div>
+
+      <div class="two">
+        <section>
+          <h2 class="sec">ช่วงเวลาในรอบปี · {focusLabel}</h2>
           <p class="muted" style="font-size:.85rem;margin-bottom:10px">
-            รวมทุกปีเข้าด้วยกัน เห็นจังหวะของงานราชการ — สิ้นปีงบประมาณและปลายปีปฏิทินหนาแน่นที่สุด
+            {year
+              ? `เดือนไหนของปี ${beYear(year)} ที่งานหนาแน่นที่สุด`
+              : 'ทุกปีซ้อนกัน เห็นจังหวะของงานราชการ — สิ้นปีงบประมาณและปลายปีปฏิทินหนาแน่นที่สุด'}{' '}
+            · เดือนที่มากที่สุดคือ <b>{TH_MONTH_SHORT[Number(busiest[0]) - 1]}</b> (
+            {busiest[1].toLocaleString('th-TH')} ฉบับ)
           </p>
-          <Bars
-            rows={months.map((m) => [String(m.month), m.n] as [string, number])}
-            nameOf={(k) => TH_MONTH_SHORT[Number(k) - 1] ?? k}
-          />
+          <Bars rows={monthRows} nameOf={(k) => TH_MONTH_SHORT[Number(k) - 1] ?? k} />
 
           <h2 class="sec" style="margin-top:28px">
             คดีล้มละลายตามขั้นตอน
@@ -234,54 +335,127 @@ export function Dashboard() {
             หมวดที่มาแรง
             <span class="muted" style="font-weight:400;font-size:.85rem">
               {' '}
-              · {beYear(window[0] ?? '')}–{beYear(window[window.length - 1] ?? '')} เทียบสามปีก่อนหน้า
-              เรียงตามจำนวนฉบับที่เปลี่ยนไป
+              · {movesAgainst}
             </span>
           </h2>
-          <MoveTable moves={rising} tax={tax} />
+          <MoveTable moves={moves.filter((m) => m.change > 0).slice(0, 6)} tax={st.data.tax} />
           <h2 class="sec" style="margin-top:26px">
             หมวดที่เงียบลง
+            <span class="muted" style="font-weight:400;font-size:.85rem">
+              {' '}
+              · {movesAgainst}
+            </span>
           </h2>
-          <MoveTable moves={falling} tax={tax} />
-
-          <h2 class="sec" style="margin-top:26px">
-            หมวดหลักของปี {beYear(focus)}
-          </h2>
-          <TopicsOfYear trends={trends} tax={tax} year={focus} />
-
-          <h2 class="sec" style="margin-top:26px">
-            สิ่งที่เอกสารทำ · ปี {beYear(focus)}
-          </h2>
-          <Series trends={trends} group="actions" tax={tax} year={focus} nameOf={actionName} />
-
-          <h2 class="sec" style="margin-top:26px">
-            ระดับผู้ออก · ปี {beYear(focus)}
-          </h2>
-          <Series trends={trends} group="govlevels" tax={tax} year={focus} nameOf={govName} />
-
-          <p class="muted" style="margin-top:22px;font-size:.9rem">
-            อยากดูรายจังหวัด? <a href={href.provinces()}>ท้องถิ่นฉัน →</a> · อยากดูว่าหมวดไหนมาคู่กัน?{' '}
-            <a href={href.graph()}>ความสัมพันธ์ของหมวด →</a>
-          </p>
-          {meta.latest_date && (
-            <p class="muted" style="font-size:.8rem">
-              ข้อมูลถึงวันที่ {thaiDate(meta.latest_date)}
-            </p>
-          )}
+          <MoveTable moves={moves.filter((m) => m.change < 0).slice(0, 6)} tax={st.data.tax} />
         </section>
       </div>
+
+      <h2 class="sec" style="margin:30px 0 4px">
+        {focusLabel} แยกตามด้านต่าง ๆ
+      </h2>
+      <p class="muted" style="font-size:.85rem;margin-bottom:14px">
+        คลิกแถบใดก็ได้เพื่อเปิดรายการฉบับจริงในหน้าสำรวจ โดยยังคง
+        {year ? `ปี ${beYear(year)}` : 'ช่วงทั้งคลัง'}ไว้
+      </p>
+      <div class="statgrid">
+        <Panel title="หมวด" total={now?.topicTotal}>
+          <Bars
+            rows={topRows(now?.topics, (s) => !st.data.tax.topics[s]?.parent)}
+            nameOf={(k) => topicName(st.data.tax, k)}
+            hrefOf={(k) => link({ topic: k })}
+          />
+        </Panel>
+        <Panel title="สิ่งที่เอกสารทำ">
+          <Bars
+            rows={topRows(now?.actions)}
+            nameOf={(k) => actionName(st.data.tax, k)}
+            hrefOf={(k) => link({ action: k })}
+          />
+        </Panel>
+        <Panel title="ระดับผู้ออก">
+          <Bars
+            rows={topRows(now?.govs)}
+            nameOf={(k) => govName(st.data.tax, k)}
+            hrefOf={(k) => link({ govlevel: k })}
+          />
+        </Panel>
+        <Panel title="ประเภทเอกสาร">
+          <Bars rows={topRows(now?.dtypes)} nameOf={(k) => k} hrefOf={(k) => link({ dtype: k })} />
+        </Panel>
+        <Panel title="จังหวัด" note="เฉพาะฉบับที่ระบุจังหวัดได้จากชื่อหน่วยงาน">
+          <Bars rows={topRows(now?.provinces)} nameOf={(k) => k} hrefOf={(k) => link({ province: k })} />
+        </Panel>
+        <Panel title="หน่วยงานที่ออกมากที่สุด">
+          <Bars
+            rows={topRows(now?.agencies)}
+            nameOf={(k) => agencyName.get(k) ?? k}
+            hrefOf={(k) => link({ agency: k })}
+          />
+        </Panel>
+      </div>
+
+      <p class="muted" style="margin-top:22px;font-size:.9rem">
+        อยากดูรายจังหวัดบนแผนที่? <a href={href.provinces()}>ท้องถิ่นฉัน →</a> · อยากดูว่าหมวดไหนมาคู่กัน?{' '}
+        <a href={href.graph()}>ความสัมพันธ์ของหมวด →</a> · อยากไล่ดูฉบับจริง?{' '}
+        <a href={link({})}>สำรวจ{year ? ` ปี ${beYear(year)}` : ''} →</a>
+      </p>
+      {meta.latest_date && (
+        <p class="muted" style="font-size:.8rem">
+          ข้อมูลถึงวันที่ {thaiDate(meta.latest_date)}
+        </p>
+      )}
     </>
   )
 }
 
-const pct = (now: number, then: number) => {
+/** "+12% จากปี 2567 (38,864)" — a change is only a fact when its baseline is on screen. */
+function against(now: number, then: number, label: string): string {
+  if (!then) return `${label}: ไม่มีข้อมูลให้เทียบ`
   const d = Math.round((100 * (now - then)) / then)
-  return d >= 0 ? `มากขึ้น ${d}%` : `น้อยลง ${Math.abs(d)}%`
+  const dir = d > 0 ? 'มากขึ้น' : d < 0 ? 'น้อยลง' : 'เท่ากับ'
+  return `${dir} ${Math.abs(d)}% จาก${label} (${then.toLocaleString('th-TH')})`
+}
+
+/** The biggest few of a counted dimension, as Bars wants them. */
+function topRows(counts: Map<string, number> | undefined, keep?: (k: string) => boolean): [string, number][] {
+  return [...(counts ?? new Map<string, number>()).entries()]
+    .filter(([k, n]) => n > 0 && (!keep || keep(k)))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+}
+
+function Panel({
+  title,
+  total,
+  note,
+  children,
+}: {
+  title: string
+  total?: number
+  note?: string
+  children: preact.ComponentChildren
+}) {
+  return (
+    <section class="statpanel">
+      <h3>
+        {title}
+        {total !== undefined && total > 0 && (
+          <span class="muted"> · {total.toLocaleString('th-TH')} ฉบับ</span>
+        )}
+      </h3>
+      {note && (
+        <p class="muted" style="font-size:.8rem;margin:-4px 0 8px">
+          {note}
+        </p>
+      )}
+      {children}
+    </section>
+  )
 }
 
 function MoveTable({ moves, tax }: { moves: Move[]; tax: Taxonomy }) {
   const href = useHref()
-  if (!moves.length) return <p class="muted">ยังเทียบไม่ได้ — ต้องมีอย่างน้อยหกปีที่จบแล้ว</p>
+  if (!moves.length) return <p class="muted">ยังเทียบไม่ได้ — ต้องมีปีก่อนหน้าที่จบแล้วอย่างน้อยหนึ่งปี</p>
   const widest = Math.max(...moves.map((m) => Math.abs(m.change)))
   return (
     <table class="movers">
@@ -316,42 +490,6 @@ function MoveTable({ moves, tax }: { moves: Move[]; tax: Taxonomy }) {
   )
 }
 
-function TopicsOfYear({ trends, tax, year }: { trends: Trends; tax: Taxonomy; year: string }) {
-  const href = useHref()
-  const i = trends.years.indexOf(year)
-  const rows = Object.entries(trends.topics)
-    .filter(([slug]) => !tax.topics[slug]?.parent)
-    .map(([slug, xs]) => [slug, xs[i] ?? 0] as [string, number])
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-  if (!rows.length) return <p class="muted">ยังไม่มีข้อมูลของปีนี้</p>
-  return <Bars rows={rows} nameOf={(k) => topicName(tax, k)} hrefOf={(k) => href.topic(k)} />
-}
-
-function Series({
-  trends,
-  group,
-  tax,
-  year,
-  nameOf,
-}: {
-  trends: Trends
-  group: 'actions' | 'govlevels'
-  tax: Taxonomy
-  year: string
-  nameOf: (t: Taxonomy | undefined, slug: string | null) => string
-}) {
-  const i = trends.years.indexOf(year)
-  const rows = Object.entries(trends[group])
-    .map(([slug, xs]) => [slug, xs[i] ?? 0] as [string, number])
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1])
-  const total = rows.reduce((s, [, n]) => s + n, 0)
-  if (!rows.length) return <p class="muted">ยังไม่มีข้อมูลของปีนี้</p>
-  return <Bars rows={rows} total={total} nameOf={(k) => nameOf(tax, k)} />
-}
-
 function StageBars({ bk }: { bk: { by_court_stage: { court: string; stage: string; n: number }[] } }) {
   const href = useHref()
   const byStage = new Map<string, number>()
@@ -368,8 +506,9 @@ function StageBars({ bk }: { bk: { by_court_stage: { court: string; stage: strin
         hrefOf={() => href.explore({ topic: 'bankruptcy', scope: 'all' })}
       />
       <p class="muted" style="font-size:.85rem;margin-top:10px">
-        นับจากข้อมูลที่สกัดได้ในตัวประกาศ {bk.by_court_stage.length.toLocaleString('th-TH')}{' '}
-        คู่ของศาลกับขั้นตอน · ประกาศหนึ่งฉบับคือหนึ่งเหตุการณ์ ไม่ใช่หนึ่งคดี
+        <b>ทั้งคลัง ไม่แยกตามปี</b> — ขั้นตอนสกัดจากตัวประกาศ ไม่ได้อยู่ในดัชนีรายปี ·{' '}
+        {bk.by_court_stage.length.toLocaleString('th-TH')} คู่ของศาลกับขั้นตอน ·
+        ประกาศหนึ่งฉบับคือหนึ่งเหตุการณ์ ไม่ใช่หนึ่งคดี
       </p>
     </>
   )

@@ -98,3 +98,34 @@ export const sumAt = (t: Trends, group: keyof Omit<Trends, 'years'>, keys: strin
   if (i < 0) return 0
   return keys.reduce((s, k) => s + (t[group][k]?.[i] ?? 0), 0)
 }
+
+/** One year against the year before it, ranked by how many documents moved.
+ *
+ *  `movers` compares three years against three, which is the right window for "what is changing
+ *  in the gazette" but the wrong answer to "what changed in 2568" — and a page that lets a reader
+ *  pick a year has to answer the second. The floor is lower here because one year holds a third
+ *  of the documents three do.
+ */
+export function yearOverYear(
+  series: Record<string, number[]>,
+  years: string[],
+  year: string,
+  floor = 60,
+): Move[] {
+  const i = years.indexOf(year)
+  if (i < 1) return []
+  const out: Move[] = []
+  for (const [key, xs] of Object.entries(series)) {
+    const after = xs[i] ?? 0
+    const before = xs[i - 1] ?? 0
+    if (before < floor && after < floor) continue
+    out.push({
+      key,
+      before,
+      after,
+      change: after - before,
+      ratio: before >= RATIO_FLOOR ? (after - before) / before : null,
+    })
+  }
+  return out.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+}

@@ -72,7 +72,7 @@ test.describe('every route', () => {
       [`#/ratchakitcha/agency/${withPage.id}`, /หน่วยงาน/],
       ['#/ratchakitcha/topic/environment', /หมวด/],
       [`#/ratchakitcha/doc/${docs[0]?.id ?? ''}`, /Thai Legal Watch/],
-      ['#/ratchakitcha/dashboard', /แดชบอร์ด/],
+      ['#/ratchakitcha/dashboard', /สถิติ/],
       ['#/ratchakitcha/graph', /ความสัมพันธ์ของหมวด/],
       ['#/about', /เกี่ยวกับ/],
     ]
@@ -532,7 +532,9 @@ test.describe('dashboard, graph and about', () => {
     await expect(page.getByRole('heading', { name: /ช่วงเวลาในรอบปี/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: /หมวดที่มาแรง/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: /คดีล้มละลายตามขั้นตอน/ })).toBeVisible()
-    const heading = page.getByRole('heading', { name: /^หมวดหลักของปี/ })
+    // every breakdown on the page is titled by the focused year, so this is the one to watch
+    const heading = page.getByRole('heading', { name: /แยกตามด้านต่าง ๆ$/ })
+    await expect(heading).toHaveText(/ทุกปีรวมกัน/)
     // Click the middle of an actual drawn bar rather than a fraction of the chart: a fixed
     // fraction lands between bars as soon as the number of years changes. ECharts also emits
     // full-size clip and background paths, so the narrow tall ones are the bars.
@@ -545,7 +547,9 @@ test.describe('dashboard, graph and about', () => {
         .filter((r) => r.width > 2 && r.width < 200 && r.height > 8)
         .map((r) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 })),
     )
-    const bar = bars[0]
+    // the last bar, not the first: the earliest year has no year before it to compare against,
+    // and this test is about the comparison being named
+    const bar = bars[bars.length - 1]
     if (!bar) throw new Error('the year chart drew no bars')
     await page.mouse.click(bar.x, bar.y)
     // the chip names the year that was picked, and the per-year sections follow it
@@ -553,9 +557,15 @@ test.describe('dashboard, graph and about', () => {
     await expect(chip).toBeVisible()
     const picked = /\((\d{4})\)/.exec((await chip.textContent()) ?? '')?.[1]
     expect(picked, 'the chip should name the selected year').toBeTruthy()
-    await expect(heading).toHaveText(new RegExp(`${picked as string}$`))
+    // and the whole page follows it: the heading, every metric, and the breakdown panels
+    await expect(heading).toHaveText(new RegExp(`ปี ${picked as string} `))
+    await expect(page.locator('.grid.metrics .metric').first()).toContainText(`ปี ${picked as string}`)
+    await expect(page.locator('.statpanel')).not.toHaveCount(0)
+    // a comparison without its baseline named is a decoration, not a statistic
+    await expect(page.locator('.grid.metrics .metric').first()).toContainText(/จากปี \d{4} \(/)
     await chip.click()
     await expect(chip).toHaveCount(0)
+    await expect(heading).toHaveText(/ทุกปีรวมกัน/)
     await sane(page)
     await a11y(page)
   })
@@ -654,11 +664,16 @@ test.describe('keyboard and screen reader', () => {
 
   test('the dashboard year can be chosen without a mouse', async ({ page }) => {
     await page.goto('/#/ratchakitcha/dashboard')
+    // the first chip is "ทุกปี"; the years follow it
     const years = page.locator('[aria-label="เลือกปี"] .chip')
-    await expect(years.first()).toBeVisible()
-    await years.first().click()
-    await expect(years.first()).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByRole('heading', { name: /^หมวดหลักของปี/ })).toBeVisible()
+    await expect(years.first()).toHaveText('ทุกปี')
+    const one = years.nth(1)
+    const label = (await one.textContent())?.trim() ?? ''
+    await one.click()
+    await expect(one).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('heading', { name: /แยกตามด้านต่าง ๆ$/ })).toHaveText(
+      new RegExp(`ปี ${label} `),
+    )
   })
 })
 
