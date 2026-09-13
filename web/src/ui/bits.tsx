@@ -4,9 +4,9 @@ import { useCountUp } from '../lib/motion'
 import { highlight } from '../lib/highlight'
 import { familyColor, tint } from '../lib/family'
 import { DataError } from '../data/client'
+import { useClient, useHref } from '../data/context'
 import type { RecentDoc, SlimDoc, Taxonomy } from '../data/types'
 import { thaiDate } from '../lib/thai'
-import { href } from '../router'
 
 export function Kicker({ children }: { children: ComponentChildren }) {
   return <div class="kicker">{children}</div>
@@ -26,6 +26,7 @@ export function Metric({ label, value, hint }: { label: string; value: string | 
 }
 
 export function ErrorBox({ error, what }: { error: unknown; what?: string }) {
+  const href = useHref()
   const msg = error instanceof Error ? error.message : 'ข้อผิดพลาดที่ไม่รู้จัก'
   // A 404 is not a failure, it is an answer: that thing does not exist. Saying "โหลดไม่สำเร็จ"
   // and printing an internal path sends the reader looking for a problem that is not theirs.
@@ -108,6 +109,7 @@ export function LabelPills({
   tax?: Taxonomy
   agencyName?: string | null
 }) {
+  const href = useHref()
   const gov = 'gc' in d ? d.gc : true
   return (
     <>
@@ -166,6 +168,7 @@ export function DocRow({
   agencyName?: string | null
   q?: string
 }) {
+  const href = useHref()
   return (
     <article class="doc">
       <a class="title" href={href.doc(d.id, month ?? d.d?.slice(0, 7))}>
@@ -226,6 +229,7 @@ export function Bars({
 /** One bar per day. Each bar is a link into สำรวจ filtered to that day, so "what came out on
  *  the 3rd?" is one click rather than a date-picker hunt. */
 export function Sparkline({ points }: { points: { d: string; n: number }[] }) {
+  const href = useHref()
   const max = Math.max(1, ...points.map((p) => p.n))
   const [at, setAt] = useState<number | null>(null)
   const shown = at !== null ? points[at] : null
@@ -270,8 +274,9 @@ export function Sparkline({ points }: { points: { d: string; n: number }[] }) {
 }
 
 export function FeedLink({ path }: { path: string }) {
+  const client = useClient()
   return (
-    <a class="btn" href={`/data/ratchakitcha/feeds/${path}.xml`} title="ติดตามด้วย RSS reader">
+    <a class="btn" href={client.feedUrl(path)} title="ติดตามด้วย RSS reader">
       <span aria-hidden="true">◌ </span>RSS
     </a>
   )

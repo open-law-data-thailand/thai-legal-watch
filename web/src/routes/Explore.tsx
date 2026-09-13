@@ -3,7 +3,8 @@ import { useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
 import { beMonth, beYear, thaiDate } from '../lib/thai'
 import { rememberExplore } from '../lib/title'
-import { href } from '../router'
+import { useHref } from '../data/context'
+import { DEFAULT_SOURCE, hrefFor } from '../router'
 import { Bars, DocRow, Empty, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 
 const PAGE = 50
@@ -62,6 +63,7 @@ export function matches(d: SlimDoc, f: Filters, tax: Taxonomy | undefined, excep
 }
 
 export function Explore({ q }: { q: URLSearchParams }) {
+  const href = useHref()
   // one object per navigation, not per render: every memo below keys off it
   const f = useMemo(() => filtersFrom(q), [q])
   const base = useLoad(async (c) => {
@@ -151,12 +153,16 @@ export function Explore({ q }: { q: URLSearchParams }) {
   }, [loaded, f, tax])
   if (base.state === 'loading') return <Loading />
   if (base.state === 'error') return <ErrorBox error={base.error} />
-  const set = (patch: Partial<Record<keyof Filters, string>>) => {
+  const set = (patch: Partial<Record<keyof Filters, string>>, replace = false) => {
     const cur = Object.fromEntries(Object.entries(f).filter(([, x]) => x)) as Record<string, string>
     // a day belongs to one month; changing the month or the scope must not leave a stale one
     // behind, which looks exactly like "the search is broken, it finds nothing"
     if (('month' in patch || 'scope' in patch || 'year' in patch) && !('day' in patch)) delete cur.day
-    location.hash = href.explore({ ...cur, ...patch })
+    const to = href.explore({ ...cur, ...patch })
+    // typing in the title box used to push a history entry per keystroke, so Back stopped being
+    // a way out of the page
+    if (replace) location.replace(to)
+    else location.hash = to
     setPage(0)
   }
   const roots = Object.entries(tax?.topics ?? {})
@@ -307,7 +313,9 @@ export function Explore({ q }: { q: URLSearchParams }) {
             value={f.q ?? ''}
             placeholder="ขยะ, พิทักษ์ทรัพย์, แต่งตั้ง…"
             disabled={scope === 'all'}
-            onInput={(e) => set({ q: (e.target as HTMLInputElement).value })}
+            onInput={(e) => {
+              set({ q: (e.target as HTMLInputElement).value }, true)
+            }}
           />
         </label>
       </div>
@@ -416,7 +424,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
             <p style="margin-top:16px">
               <button
                 onClick={() => {
-                  downloadCsv(hits, scope === 'month' ? month : year, tax)
+                  downloadCsv(hits, scope === 'month' ? month : year, tax, href.doc)
                 }}
                 disabled={!hits.length}
               >
@@ -482,7 +490,12 @@ function count(docs: SlimDoc[], key: (d: SlimDoc) => string | null): [string, nu
 /** The BOM is not decoration: without it Excel on Windows reads the Thai as mojibake.
  *  Slugs stay for anyone processing the file; the Thai names and the link are for the far more
  *  common case of somebody reading it in a spreadsheet. */
-export function toCsv(docs: SlimDoc[], tax?: Taxonomy, origin = ''): string {
+export function toCsv(
+  docs: SlimDoc[],
+  tax?: Taxonomy,
+  origin = '',
+  link: (id: string, month?: string) => string = hrefFor(DEFAULT_SOURCE).doc,
+): string {
   const esc = (v: string | number | boolean | null | undefined) =>
     `"${(v ?? '').toString().replace(/"/g, '""')}"`
   const head = [
@@ -507,7 +520,7 @@ export function toCsv(docs: SlimDoc[], tax?: Taxonomy, origin = ''): string {
   const rows = docs.map((d) =>
     [
       d.id,
-      `${origin}${href.doc(d.id, d.d?.slice(0, 7))}`,
+      `${origin}${link(d.id, d.d?.slice(0, 7))}`,
       d.t,
       d.d,
       d.v,
@@ -530,9 +543,14 @@ export function toCsv(docs: SlimDoc[], tax?: Taxonomy, origin = ''): string {
   return `\uFEFF${head.join(',')}\n${rows.join('\n')}\n`
 }
 
-function downloadCsv(docs: SlimDoc[], label: string | undefined, tax?: Taxonomy) {
+function downloadCsv(
+  docs: SlimDoc[],
+  label: string | undefined,
+  tax: Taxonomy | undefined,
+  link: (id: string, month?: string) => string,
+) {
   const origin = typeof location === 'undefined' ? '' : `${location.origin}${location.pathname}`
-  const blob = new Blob([toCsv(docs, tax, origin)], { type: 'text/csv;charset=utf-8' })
+  const blob = new Blob([toCsv(docs, tax, origin, link)], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

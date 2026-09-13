@@ -5,13 +5,14 @@ import type { ProvinceIndexItem } from '../data/types'
 import { PROVINCES, REGIONS, type Region } from '../lib/provinces'
 import { binOf, loadProvinceMap, quantileBins } from '../lib/thaimap'
 import { percent } from '../lib/thai'
-import { href } from '../router'
+import { useHref } from '../data/context'
 import { Crumbs } from '../ui/Crumbs'
 import { ErrorBox, Kicker, Loading, Metric } from '../ui/bits'
 
 const BANDS = 5
 
 export function Provinces() {
+  const href = useHref()
   const st = useLoad(
     async (c) => ({ list: await c.provinces(), meta: await c.meta(), map: await loadProvinceMap() }),
     [],
@@ -108,6 +109,7 @@ function Choropleth({
   onHover: (name: string | null) => void
   filtering: boolean
 }) {
+  const href = useHref()
   const cuts = useMemo(
     () =>
       quantileBins(
@@ -211,6 +213,7 @@ function RegionBlock({
   max: number
   onHover: (name: string | null) => void
 }) {
+  const href = useHref()
   const total = rows.reduce((s, p) => s + p.n, 0)
   return (
     <>

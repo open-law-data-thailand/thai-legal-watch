@@ -12,7 +12,7 @@ import { useLoad } from '../data/context'
 import type { Graph as GraphData } from '../data/types'
 import { FAMILY_PALETTE, rootOf } from '../lib/family'
 import { beYear } from '../lib/thai'
-import { href } from '../router'
+import { useHref } from '../data/context'
 import { ErrorBox, Kicker, Loading } from '../ui/bits'
 
 export interface YearGraph {
@@ -122,6 +122,7 @@ export function focusOf(node: GraphNode, focus: { families: Set<string>; q: stri
 }
 
 export function Graph() {
+  const href = useHref()
   const base = useLoad(
     async (c) => ({
       g: await c.graph(),
@@ -183,7 +184,7 @@ export function Graph() {
       chartRef.current = null
       delete el.dataset['ready']
     }
-  }, [mounted])
+  }, [mounted, href])
 
   useEffect(() => {
     const el = ref.current

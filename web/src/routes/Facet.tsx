@@ -3,7 +3,7 @@ import { useLoad } from '../data/context'
 import type { AgencyPage, Facet, ProvincePage, Taxonomy } from '../data/types'
 import { beRange, percent } from '../lib/thai'
 import { useTitle } from '../lib/title'
-import { href } from '../router'
+import { useHref } from '../data/context'
 import { Crumbs } from '../ui/Crumbs'
 import {
   Bars,
@@ -60,6 +60,7 @@ function FacetBody({
   feed?: string
   explore: Record<string, string>
 }) {
+  const href = useHref()
   const tax = useLoad((c) => c.taxonomy(), [])
   const agencies = useLoad(async (c) => new Map((await c.agencies()).map((a) => [a.id, a.name])), [])
   const t = tax.state === 'ok' ? tax.data : undefined
@@ -152,6 +153,7 @@ function FacetBody({
 }
 
 export function Topic({ slug }: { slug: string }) {
+  const href = useHref()
   const st = useLoad(
     async (c) => {
       const [page, tax] = await Promise.all([c.topic(slug), c.taxonomy()])
@@ -199,6 +201,7 @@ export function Topic({ slug }: { slug: string }) {
 }
 
 export function Agency({ id }: { id: string }) {
+  const href = useHref()
   const st = useLoad((c) => c.agency(id), [id])
   useTitle(st.state === 'ok' ? st.data.name : null, 'หน่วยงาน')
   if (st.state === 'loading') return <Loading what="หน่วยงาน" />
@@ -226,6 +229,7 @@ export function Agency({ id }: { id: string }) {
 }
 
 export function Province({ file }: { file: string }) {
+  const href = useHref()
   const st = useLoad((c) => c.province(file), [file])
   useTitle(st.state === 'ok' ? st.data.name : null, 'จังหวัด')
   if (st.state === 'loading') return <Loading what="จังหวัด" />

@@ -167,6 +167,11 @@ export class DataClient {
   topics(): Promise<TopicIndexItem[]> {
     return this.get('index/topics.json')
   }
+  /** Where a feed lives for this source. Built here because it is a data URL, not a route, so
+   *  it has to follow the same base as everything else the client fetches. */
+  feedUrl(path: string): string {
+    return `${this.base}/feeds/${path}.xml`
+  }
   month(year: string, month: string): Promise<SlimDoc[]> {
     return this.get(`docs/${year}/${month}.json`)
   }

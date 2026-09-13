@@ -1,6 +1,6 @@
 import { useLoad } from '../data/context'
 import { beRange, beYear, percent, thaiDate } from '../lib/thai'
-import { href } from '../router'
+import { useHref } from '../data/context'
 import {
   Bars,
   DocRow,
@@ -19,6 +19,7 @@ import { QuickSearch } from '../ui/QuickSearch'
 import { STAGE } from './Doc'
 
 export function Home() {
+  const href = useHref()
   const st = useLoad(async (c) => {
     const [home, tax, meta] = await Promise.all([c.home(), c.taxonomy(), c.meta()])
     return { home, tax, meta }

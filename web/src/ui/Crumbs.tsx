@@ -1,4 +1,4 @@
-import { href } from '../router'
+import { useHref } from '../data/context'
 
 export interface Crumb {
   label: string
@@ -7,6 +7,7 @@ export interface Crumb {
 
 /** Breadcrumb trail; the last item is the current page and is not a link. */
 export function Crumbs({ items }: { items: Crumb[] }) {
+  const href = useHref()
   const all: Crumb[] = [{ label: 'วันนี้', to: href.home() }, ...items]
   return (
     <nav class="crumbs" aria-label="ตำแหน่งหน้า">

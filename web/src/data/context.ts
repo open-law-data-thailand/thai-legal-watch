@@ -1,9 +1,19 @@
 import { createContext } from 'preact'
-import { useContext, useEffect, useState } from 'preact/hooks'
+import { useContext, useEffect, useMemo, useState } from 'preact/hooks'
 import { DataClient } from './client'
+import { hrefFor } from '../router'
 
 export const ClientContext = createContext<DataClient>(new DataClient())
 export const useClient = () => useContext(ClientContext)
+
+/** Links for the source currently being read. Shared components used the default-source `href`,
+ *  so on any second data source every topic pill, document link, feed button and filter change
+ *  would have thrown the reader back to ratchakitcha — the one thing the source-scoped URL scheme
+ *  exists to prevent. */
+export function useHref(): ReturnType<typeof hrefFor> {
+  const c = useClient()
+  return useMemo(() => hrefFor(c.source), [c.source])
+}
 
 export type Loaded<T> = { state: 'loading' } | { state: 'ok'; data: T } | { state: 'error'; error: unknown }
 

@@ -4,7 +4,7 @@ import { useLoad } from '../data/context'
 import { CITE_FORMATS, formatCitation, permalink, type CiteFormat } from '../lib/cite'
 import { coordinates, thaiDate } from '../lib/thai'
 import { lastExplore, useTitle } from '../lib/title'
-import { DEFAULT_SOURCE, href } from '../router'
+import { useClient, useHref } from '../data/context'
 import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 import { Crumbs } from '../ui/Crumbs'
 
@@ -70,6 +70,8 @@ export function docLinks(id: string, month: string | undefined): DocLinks {
 }
 
 export function Doc({ id, month }: { id: string; month?: string }) {
+  const href = useHref()
+  const client = useClient()
   const st = useLoad(
     async (c) => {
       if (!docIdOk(id)) throw new Error(`รหัสเอกสารไม่ถูกต้อง: ${id}`)
@@ -242,7 +244,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
               </button>
               <button
                 onClick={() => {
-                  copy('link', permalink(d.id, st.data.month, DEFAULT_SOURCE))
+                  copy('link', permalink(d.id, st.data.month, client.source))
                 }}
                 data-testid="copy-link"
               >

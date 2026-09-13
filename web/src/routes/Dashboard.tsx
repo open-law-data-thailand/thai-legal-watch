@@ -5,7 +5,7 @@ import { useLoad } from '../data/context'
 import type { Taxonomy, Trends } from '../data/types'
 import { completeYears, monthProfile, movers, sumAt, yearToDate, type Move } from '../lib/trends'
 import { beYear, percent, thaiDate } from '../lib/thai'
-import { href } from '../router'
+import { useHref } from '../data/context'
 import { Bars, ErrorBox, Kicker, Loading, Metric, actionName, govName, topicName } from '../ui/bits'
 import { STAGE } from './Doc'
 
@@ -26,6 +26,7 @@ const TH_MONTH_SHORT = [
 ]
 
 export function Dashboard() {
+  const href = useHref()
   const st = useLoad(async (c) => {
     const [years, tax, bk, trends, meta] = await Promise.all([
       c.years(),
@@ -271,6 +272,7 @@ const pct = (now: number, then: number) => {
 }
 
 function MoveTable({ moves, tax }: { moves: Move[]; tax: Taxonomy }) {
+  const href = useHref()
   if (!moves.length) return <p class="muted">ยังเทียบไม่ได้ — ต้องมีอย่างน้อยหกปีที่จบแล้ว</p>
   const widest = Math.max(...moves.map((m) => Math.abs(m.change)))
   return (
@@ -307,6 +309,7 @@ function MoveTable({ moves, tax }: { moves: Move[]; tax: Taxonomy }) {
 }
 
 function TopicsOfYear({ trends, tax, year }: { trends: Trends; tax: Taxonomy; year: string }) {
+  const href = useHref()
   const i = trends.years.indexOf(year)
   const rows = Object.entries(trends.topics)
     .filter(([slug]) => !tax.topics[slug]?.parent)
@@ -342,6 +345,7 @@ function Series({
 }
 
 function StageBars({ bk }: { bk: { by_court_stage: { court: string; stage: string; n: number }[] } }) {
+  const href = useHref()
   const byStage = new Map<string, number>()
   for (const r of bk.by_court_stage) byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + r.n)
   const rows = [...byStage.entries()].sort((a, b) => b[1] - a[1])

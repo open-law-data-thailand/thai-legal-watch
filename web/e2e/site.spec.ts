@@ -487,6 +487,31 @@ test.describe('dead ends', () => {
   })
 })
 
+test.describe('a second data source', () => {
+  // The URL scheme is source-scoped so another OpenLawData dataset can sit beside the gazette.
+  // Only one source exists today, so the guarantee is checked the only way it can be: that every
+  // link a page builds keeps the source it was reached under, rather than falling back to the
+  // default. Before this, one keystroke in สำรวจ threw you back to #/ratchakitcha/.
+  const OTHER = 'krisdika'
+
+  test('every link on a page keeps the source it was reached under', async ({ page }) => {
+    // the data 404s under an unknown source; the links are still built from the route
+    await page.goto(`/#/${OTHER}/explore`)
+    await expect(page.getByRole('alert')).toBeVisible()
+    const hrefs = await page
+      .locator('main a[href^="#/"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))
+    for (const h of hrefs)
+      expect(h, 'a link must not fall back to the default source').not.toMatch(/^#\/ratchakitcha\//)
+  })
+
+  test('the feed button follows the data client, not a hardcoded path', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/topic/environment')
+    const feed = page.getByRole('link', { name: /RSS/ }).first()
+    await expect(feed).toHaveAttribute('href', '/data/ratchakitcha/feeds/topic/environment.xml')
+  })
+})
+
 test('the site tells a crawler and a link preview what it is', async ({ page, request }) => {
   await page.goto('/#/')
   for (const [selector, attr] of [
