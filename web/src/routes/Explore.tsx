@@ -261,10 +261,13 @@ export function Explore({ q }: { q: URLSearchParams }) {
   // an option, and "(0)" beside every one of them reads as "nothing matches" — which is what this
   // page showed for a second on every month change.
   const countsReady = across !== null
+  const countsFailed = cubeSt.state === 'error'
   const fmt = (n: number | undefined) => (countsReady ? ` (${(n ?? 0).toLocaleString('th-TH')})` : '')
   // In a month or a year the list is the answer, so its length is the headline — the two agree
-  // unless a title search is narrowing the list, which the index cannot see.
-  const total = scope === 'all' ? (across?.total ?? 0) : f.q ? hits.length : (across?.total ?? 0)
+  // unless a title search is narrowing the list, which the index cannot see. And if the index
+  // never arrived, the list is the only thing that knows: saying "0 ฉบับ" above fifty documents
+  // is worse than saying nothing, because it is said with confidence.
+  const total = scope === 'all' ? (across?.total ?? 0) : across && !f.q ? across.total : hits.length
   const scopeLabel = f.day
     ? thaiDate(f.day)
     : scope === 'month'
@@ -308,10 +311,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
     <>
       <Kicker>
         <span role="status">
-          {countsReady ? (
+          {countsReady || (scope !== 'all' && docs.state === 'ok') ? (
             <>
               สำรวจ · ตรงเงื่อนไข {total.toLocaleString('th-TH')} ฉบับ ใน{scopeLabel}
             </>
+          ) : countsFailed ? (
+            <>สำรวจ · ใน{scopeLabel}</>
           ) : (
             <>สำรวจ · กำลังนับใน{scopeLabel}</>
           )}
@@ -475,6 +480,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
       {/* Somebody who has built a filter they care about wants to be told when it changes. The
           feeds are per facet, so a filter that *is* one facet can be followed today; a crossed
           one cannot, and saying which is which beats leaving them to guess. */}
+      {countsFailed && (
+        <p class="emptyhint" style="margin:0 0 14px">
+          โหลดดัชนีทั้งคลังไม่สำเร็จ — ตัวเลขในวงเล็บและมุมมอง "ทั้งหมด" จึงใช้ไม่ได้ชั่วคราว
+          ส่วนรายการรายเดือนและรายปียังใช้ได้ตามปกติ
+        </p>
+      )}
       <p class="feedrow">
         {follow ? (
           <>

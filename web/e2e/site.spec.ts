@@ -263,6 +263,25 @@ test.describe('explore', () => {
     await expect(page.getByLabel('ค้นในชื่อเรื่อง')).toBeDisabled()
   })
 
+  test('losing the archive index costs the counts, not the page', async ({ page }) => {
+    // The index is one file. If it never arrives, every count on the page is unknown — and the
+    // list is still right there. Saying "0 ฉบับ" above fifty documents is worse than saying
+    // nothing, because it is said with confidence.
+    await page.route('**/agg/cube.bin', (r) => r.abort())
+    await page.goto('/#/ratchakitcha/explore')
+    const results = page.getByTestId('results')
+    await expect(results.locator('.doc').first()).toBeVisible()
+    const listed = await results.locator('.doc').count()
+    expect(listed).toBeGreaterThan(0)
+
+    await expect(page.locator('.emptyhint')).toContainText('โหลดดัชนีทั้งคลังไม่สำเร็จ')
+    const status = await page.getByRole('status').first().textContent()
+    expect(status).not.toContain('ตรงเงื่อนไข 0 ฉบับ')
+    // and the month list still works, because it never needed the index
+    await expect(page.getByLabel('เดือน')).toBeVisible()
+    await sane(page)
+  })
+
   test('the whole archive cross-filters, and the numbers beside the options follow', async ({
     page,
     request,
