@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks'
 import { docIdOk } from '../data/client'
 import { useLoad } from '../data/context'
+import type { AgencyPage, SlimDoc, Taxonomy } from '../data/types'
 import { CITE_FORMATS, formatCitation, permalink, type CiteFormat } from '../lib/cite'
 import { coordinates, thaiDate } from '../lib/thai'
 import { lastExplore, useTitle } from '../lib/title'
@@ -92,14 +93,12 @@ export function Doc({ id, month }: { id: string; month?: string }) {
       const siblings = (await c.month(id.slice(0, 4), hit.month))
         .filter((d) => d.v === hit.doc.v && d.p === hit.doc.p && d.id !== id)
         .sort((a, b) => (a.pg ?? 0) - (b.pg ?? 0))
-      return {
-        ...hit,
-        tax,
-        provinces,
-        meta,
-        agency: agencies.find((a) => a.id === hit.doc.a) ?? null,
-        siblings,
-      }
+      const agency = agencies.find((a) => a.id === hit.doc.a) ?? null
+      // The agency's own page already counts its documents per topic and per province, so the
+      // precise "where do I go from here" numbers cost one small file rather than the whole
+      // archive index — which matters, because a shared link lands here first.
+      const facet = agency ? await c.agency(agency.id).catch(() => null) : null
+      return { ...hit, tax, provinces, meta, agency, facet, siblings }
     },
     [id, month],
   )
@@ -111,7 +110,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   useTitle(st.state === 'ok' ? st.data.doc.t : null, st.state === 'ok' ? st.data.doc.id : undefined)
   if (st.state === 'loading') return <Loading what="เอกสาร" />
   if (st.state === 'error') return <ErrorBox error={st.error} what="เอกสารฉบับนี้" />
-  const { doc: d, tax, agency, siblings, provinces } = st.data
+  const { doc: d, tax, agency, facet, siblings, provinces } = st.data
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
   const links = docLinks(d.id, st.data.month)
@@ -158,6 +157,10 @@ export function Doc({ id, month }: { id: string; month?: string }) {
       <h1 style="margin:8px 0 18px;font-size:1.6rem" data-testid="doc-title">
         {d.t}
       </h1>
+      {/* on paper there is no address bar, so the printout carries its own way back */}
+      <p class="printback">
+        {permalink(d.id, st.data.month, client.source)} · พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH')}
+      </p>
       <div class="two">
         <section>
           <div class="card">
@@ -335,6 +338,76 @@ export function Doc({ id, month }: { id: string; month?: string }) {
         </section>
       </div>
       {st.data.meta.text?.base && <FullText base={st.data.meta.text.base} id={d.id} month={st.data.month} />}
+      <Next d={d} tax={tax} agency={agency} facet={facet} provinces={provinces} />
     </article>
+  )
+}
+
+/** Where to go from one document. A reader who arrived from a search engine has no context at
+ *  all, and "this issuer has published 412 more in this subject" is a better next step than a
+ *  bare link, because it says whether the step is worth taking. Every number comes from the
+ *  agency's own page, which is a small file — the archive index would be the wrong price to pay
+ *  on the page people reach from a shared link. */
+function Next({
+  d,
+  tax,
+  agency,
+  facet,
+  provinces,
+}: {
+  d: SlimDoc
+  tax: Taxonomy
+  agency: { id: string; name: string } | null
+  facet: AgencyPage | null
+  provinces: { name: string; file: string }[]
+}) {
+  const href = useHref()
+  const topicN = d.topic && d.tc ? (facet?.by_topic[d.topic] ?? 0) : 0
+  const provN = d.pr ? (facet?.provinces[d.pr] ?? 0) : 0
+  const steps: { to: string; label: string; n?: number; why: string }[] = []
+  if (agency && d.topic && topicN > 1)
+    steps.push({
+      to: href.explore({ scope: 'all', agency: agency.id, topic: d.topic }),
+      label: `${agency.name} · ${topicName(tax, d.topic)}`,
+      n: topicN,
+      why: 'หน่วยงานเดียวกัน หมวดเดียวกัน',
+    })
+  if (agency && facet)
+    steps.push({
+      to: href.agency(agency.id),
+      label: agency.name,
+      n: facet.total,
+      why: 'ทุกฉบับของหน่วยงานนี้',
+    })
+  if (d.topic && d.tc)
+    steps.push({
+      to: href.topic(d.topic),
+      label: topicName(tax, d.topic),
+      n: tax.topics[d.topic]?.n,
+      why: 'ทั้งคลัง',
+    })
+  if (d.pr && provN > 0)
+    steps.push({
+      to: href.province(provinces.find((p) => p.name === d.pr)?.file ?? d.pr),
+      label: d.pr,
+      n: provN,
+      why: 'จังหวัดนี้ จากหน่วยงานนี้',
+    })
+  if (!steps.length) return null
+  return (
+    <section class="nextsteps">
+      <h2 class="sec">ไปต่อจากฉบับนี้</h2>
+      <div class="doors">
+        {steps.map((s) => (
+          <a key={s.to} class="door" href={s.to}>
+            <span class="nm">{s.label}</span>
+            <span class="muted">
+              {s.why}
+              {s.n ? ` · ${s.n.toLocaleString('th-TH')} ฉบับ` : ''}
+            </span>
+          </a>
+        ))}
+      </div>
+    </section>
   )
 }

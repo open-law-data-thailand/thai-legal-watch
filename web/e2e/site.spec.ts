@@ -494,6 +494,46 @@ test.describe('document', () => {
     expect(outside.filter((u) => u.includes('huggingface'))).toEqual([])
   })
 
+  test('a document says where to go next, with the number that makes it worth going', async ({
+    page,
+    request,
+  }) => {
+    // most people reach a document from a link with no context at all
+    const months = await data.months(request)
+    const last = months[months.length - 1] as string
+    const docs = await data.docs(request, last)
+    await page.goto(`/#/ratchakitcha/doc/${docs[0]?.id ?? ''}?m=${last}`)
+    const next = page.locator('.nextsteps')
+    await expect(next).toBeVisible()
+    const steps = next.locator('.door')
+    expect(await steps.count()).toBeGreaterThan(0)
+    await expect(steps.first()).toContainText(/\d[\d,]* ฉบับ/)
+    const href = await steps.first().getAttribute('href')
+    expect(href).toMatch(/#\/ratchakitcha\//)
+    await steps.first().click()
+    await sane(page)
+  })
+
+  test('a printed document is the document, with a way back on it', async ({ page, request }) => {
+    // people print these and hand them to somebody. What comes out has to be the document and its
+    // coordinates, not the navigation — and paper has no address bar.
+    const months = await data.months(request)
+    const last = months[months.length - 1] as string
+    const docs = await data.docs(request, last)
+    await page.goto(`/#/ratchakitcha/doc/${docs[0]?.id ?? ''}?m=${last}`)
+    await expect(page.getByTestId('doc-title')).toBeVisible()
+    await page.emulateMedia({ media: 'print' })
+    await expect(page.locator('header.topbar')).toBeHidden()
+    await expect(page.locator('footer')).toBeHidden()
+    await expect(page.getByTestId('doc-title')).toBeVisible()
+    await expect(page.getByTestId('citation')).toBeVisible()
+    const back = page.locator('.printback')
+    await expect(back).toBeVisible()
+    await expect(back).toContainText(docs[0]?.id ?? '')
+    await page.emulateMedia({ media: 'screen' })
+    await expect(page.locator('.printback')).toBeHidden()
+  })
+
   test('unknown id is an error, not a blank page', async ({ page }) => {
     await page.goto('/#/ratchakitcha/doc/2024-999999')
     await expect(page.getByRole('alert')).toContainText('ไม่พบเอกสาร')

@@ -1629,3 +1629,115 @@ body {
   margin: -4px 0 14px;
   font-size: 0.85rem;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Print. A lawyer prints a document page and hands it to somebody, so what comes out has to be
+   the document and its coordinates — not the navigation, and not a page of purple. Anything that
+   only works by being clicked is furniture on paper and goes. */
+@media print {
+  :root {
+    --paper: #fff;
+    --paper-2: #fff;
+    --ink: #000;
+    --ink-2: #333;
+    --ink-3: #555;
+    --line: #bbb;
+    --accent: #000;
+    --accent-2: #000;
+    --accent-ink: #000;
+    --accent-bg: #fff;
+  }
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+  .topbar,
+  footer,
+  .skip,
+  .chips,
+  .toolbar,
+  .pager,
+  .feedrow,
+  .graphnav,
+  .graphhelp,
+  .doors,
+  .hero-links,
+  .hero-search,
+  .hero-cite,
+  .scope,
+  .emptyhint,
+  .crumbs,
+  .provmap,
+  .sparkwrap,
+  [data-testid='chart-years'],
+  [data-testid='graph'],
+  .nodepanel-links,
+  .citebox .toolbar {
+    display: none !important;
+  }
+  /* a button is a thing you press; on paper it is a dead rectangle — except the one that says how
+     much of the document is still unprinted, which is information */
+  button:not(.morebtn) {
+    display: none !important;
+  }
+  main.wrap {
+    max-width: none;
+    padding: 0;
+  }
+  .two,
+  .statgrid,
+  .grid {
+    display: block !important;
+  }
+  .card,
+  .statpanel,
+  .docfacts,
+  .nodepanel {
+    border: 1px solid #bbb;
+    break-inside: avoid;
+  }
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+  /* the reader has paper, not a cursor: a document has to carry its own way back */
+  .printback {
+    display: block !important;
+    font-size: 9pt;
+    color: #333;
+    margin: 0 0 10pt;
+    word-break: break-all;
+  }
+  .doc,
+  .lab,
+  tr {
+    break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  .doctext {
+    font-size: 11pt;
+    line-height: 1.85;
+    max-width: none;
+  }
+  .pill {
+    background: none !important;
+    color: #000 !important;
+    border: 1px solid #999;
+  }
+  .bar,
+  .trend i {
+    border: 1px solid #999;
+  }
+}
+.printback {
+  display: none;
+}
+
+.nextsteps {
+  margin-top: 30px;
+}

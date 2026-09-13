@@ -229,7 +229,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
       {hidden > 0 && (
         <p style="margin-top:10px">
           <button
-            class="btn"
+            class="btn morebtn"
             onClick={() => {
               setAll(true)
             }}
