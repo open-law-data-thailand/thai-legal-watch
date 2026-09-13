@@ -18,12 +18,12 @@ import {
 
 export function mainAction(f: Facet, t: Taxonomy | undefined): string {
   const [slug, n] = Object.entries(f.by_action)[0] ?? []
-  if (!slug || !n || n < f.total * 0.2) return 'ยืนยันได้น้อยเกินไป'
+  if (!slug || !n || n < f.total * 0.2) return 'ยืนยันได้ไม่พอจะสรุป'
   return actionName(t, slug)
 }
 export function mainActionHint(f: Facet): string | undefined {
   const n = Object.values(f.by_action).reduce((s, x) => s + x, 0)
-  return f.total ? `ยืนยันแล้ว ${Math.round((100 * n) / f.total)}% ของฉบับ` : undefined
+  return f.total ? `ยืนยันแล้ว ${Math.round((100 * n) / f.total)}% ของฉบับทั้งหมด` : undefined
 }
 
 function YearBars({ f }: { f: Facet }) {
@@ -73,7 +73,7 @@ function FacetBody({
           <Metric label="หน่วยงานที่ออก" value={f.agencies.length >= 50 ? '50+' : f.agencies.length} />
         )}
         <Metric label="จังหวัด" value={Object.keys(f.provinces).length} />
-        <Metric label="การกระทำหลัก" value={mainAction(f, t)} hint={mainActionHint(f)} />
+        <Metric label="ส่วนใหญ่ทำอะไร" value={mainAction(f, t)} hint={mainActionHint(f)} />
       </div>
       <YearBars f={f} />
       <div class="muted" style="font-size:.8rem;margin-bottom:24px">
@@ -83,7 +83,7 @@ function FacetBody({
         <section>
           {kind !== 'topic' && (
             <>
-              <h2 style="font-size:1.05rem;margin-bottom:8px">หัวข้อ</h2>
+              <h2 style="font-size:1.05rem;margin-bottom:8px">หมวด</h2>
               <Bars
                 rows={Object.entries(f.by_topic).slice(0, 10)}
                 total={f.total}
@@ -92,13 +92,13 @@ function FacetBody({
               />
             </>
           )}
-          <h2 style="font-size:1.05rem;margin:18px 0 8px">การกระทำ</h2>
+          <h2 style="font-size:1.05rem;margin:18px 0 8px">สิ่งที่เอกสารทำ</h2>
           <Bars rows={Object.entries(f.by_action)} total={f.total} nameOf={(k) => actionName(t, k)} />
           <h2 style="font-size:1.05rem;margin:18px 0 8px">ระดับผู้ออก</h2>
           <Bars rows={Object.entries(f.by_govlevel)} total={f.total} nameOf={(k) => govName(t, k)} />
           {kind !== 'agency' && f.agencies.length > 0 && (
             <>
-              <h2 style="font-size:1.05rem;margin:18px 0 8px">หน่วยงานที่ออกมากสุด</h2>
+              <h2 style="font-size:1.05rem;margin:18px 0 8px">หน่วยงานที่ออกมากที่สุด</h2>
               <Bars
                 rows={f.agencies.slice(0, 12).map((a) => [a.id, a.n] as [string, number])}
                 nameOf={(k) => f.agencies.find((a) => a.id === k)?.name ?? k}
@@ -221,7 +221,7 @@ export function Province({ file }: { file: string }) {
       <Crumbs
         items={[
           { label: 'สำรวจ', to: href.explore({ scope: 'all' }) },
-          { label: 'จังหวัด' },
+          { label: 'ท้องถิ่นฉัน', to: href.provinces() },
           { label: page.name },
         ]}
       />

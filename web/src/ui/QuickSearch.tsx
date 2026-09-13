@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { docIdOk } from '../data/client'
 import { parseCitation } from '../lib/coords'
+import { partLabel } from '../lib/thai'
 import { useClient } from '../data/context'
 import { useLoad } from '../data/context'
 import { href } from '../router'
@@ -31,27 +32,54 @@ export function search(
   if (cite)
     out.push({
       kind: 'อ้างอิง',
-      name: `เล่ม ${cite.volume} ตอน ${cite.part}${cite.page ? ` หน้า ${cite.page}` : ''} → เปิดเอกสาร`,
+      name: `เล่ม ${cite.volume} ${partLabel(cite.part)}${cite.page ? ` หน้า ${cite.page}` : ''} → เปิดฉบับนี้`,
       to: '',
       citation: cite,
     })
+  // rank: what starts with what you typed first, then the bigger thing of the same kind —
+  // otherwise a one-letter query buries "ไฟฟ้า" under every name that merely contains ไ
+  const KIND_ORDER: Record<Hit['kind'], number> = {
+    เอกสาร: 0,
+    อ้างอิง: 0,
+    หมวด: 1,
+    จังหวัด: 2,
+    หน่วยงาน: 3,
+  }
+  const scored: { hit: Hit; prefix: number }[] = []
+  const add = (hit: Hit, haystacks: string[]) => {
+    const flat = haystacks.map((h) => h.replace(/\s+/g, ''))
+    if (!flat.some((h) => h.includes(needle))) return
+    scored.push({ hit, prefix: flat.some((h) => h.startsWith(needle)) ? 0 : 1 })
+  }
   for (const t of idx.topics)
-    if ((t.thai ?? t.slug).replace(/\s+/g, '').includes(needle) || t.slug.includes(needle))
-      out.push({ kind: 'หมวด', name: t.thai ?? t.slug, to: href.topic(t.slug), n: t.n })
+    add({ kind: 'หมวด', name: t.thai ?? t.slug, to: href.topic(t.slug), n: t.n }, [t.thai ?? t.slug, t.slug])
   for (const p of idx.provinces)
-    if (p.name.includes(needle))
-      out.push({ kind: 'จังหวัด', name: p.name, to: href.province(p.file), n: p.n })
-  const ag = idx.agencies
-    .filter((a) => a.name.replace(/\s+/g, '').includes(needle))
-    .sort((a, b) => b.n - a.n)
-    .slice(0, limit)
-  for (const a of ag)
-    out.push({
-      kind: 'หน่วยงาน',
-      name: a.name,
-      to: a.page === false ? href.explore({ agency: a.id, scope: 'all' }) : href.agency(a.id),
-      n: a.n,
-    })
+    add({ kind: 'จังหวัด', name: p.name, to: href.province(p.file), n: p.n }, [p.name])
+  for (const a of idx.agencies)
+    add(
+      {
+        kind: 'หน่วยงาน',
+        name: a.name,
+        to: a.page === false ? href.explore({ agency: a.id, scope: 'all' }) : href.agency(a.id),
+        n: a.n,
+      },
+      [a.name],
+    )
+  scored.sort(
+    (x, y) =>
+      x.prefix - y.prefix ||
+      KIND_ORDER[x.hit.kind] - KIND_ORDER[y.hit.kind] ||
+      (y.hit.n ?? 0) - (x.hit.n ?? 0),
+  )
+  // one kind must not crowd the others out of a short list
+  const perKind = new Map<Hit['kind'], number>()
+  for (const { hit } of scored) {
+    const seen = perKind.get(hit.kind) ?? 0
+    if (seen >= 4) continue
+    perKind.set(hit.kind, seen + 1)
+    out.push(hit)
+    if (out.length >= limit) break
+  }
   return out.slice(0, limit)
 }
 
@@ -68,6 +96,9 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
   const input = useRef<HTMLInputElement>(null)
   const hits = useMemo(() => (idx.state === 'ok' ? search(q, idx.data) : []), [q, idx])
   useEffect(() => {
+    // the header box is on every page, so it owns "/" — otherwise two instances race on the
+    // home page and the shortcut lands wherever the last one mounted
+    if (big) return
     const onKey = (e: KeyboardEvent) => {
       if (
         e.key === '/' &&
@@ -82,17 +113,17 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
     return () => {
       removeEventListener('keydown', onKey)
     }
-  }, [])
+  }, [big])
   const go = (h: Hit) => {
     if (h.citation) {
-      setNote('กำลังหาเอกสารตามพิกัด…')
+      setNote('กำลังเปิดฉบับตามเลขอ้างอิง…')
       void client.byCitation(h.citation).then((hit) => {
         if (hit) {
           location.hash = href.doc(hit.doc.id, hit.month)
           setQ('')
           setOpen(false)
           setNote('')
-        } else setNote('ไม่พบเอกสารที่พิกัดนี้ในคลัง')
+        } else setNote('ไม่พบฉบับตามเลขอ้างอิงนี้')
       })
       return
     }
@@ -109,7 +140,7 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
         value={q}
         placeholder={
           big
-            ? 'หมวด จังหวัด หน่วยงาน รหัสเอกสาร หรือพิกัด เช่น ขยะ · ตรัง · เล่ม 143 ตอนพิเศษ 219 ง หน้า 23'
+            ? 'ค้นหมวด จังหวัด หน่วยงาน หรือใส่เลขอ้างอิง เช่น เล่ม 143 ตอนพิเศษ 219 ง หน้า 23'
             : 'ค้นด่วน  ( / )'
         }
         aria-label="ค้นหาด่วน"

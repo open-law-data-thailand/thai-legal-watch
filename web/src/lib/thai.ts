@@ -52,6 +52,12 @@ export function beYear(gregorian: number | string): number {
   return Number(gregorian) + 543
 }
 
+/** "2026-09" → "2569-09" — the same shard name, in the year Thai readers actually use. */
+export function beMonth(month: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month)
+  return m ? `${Number(m[1]) + 543}-${m[2]}` : month
+}
+
 /** Arabic → Thai numerals, for the citation format lawyers expect. */
 export function thaiDigits(n: number | string): string {
   return String(n).replace(/\d/g, (c) => '๐๑๒๓๔๕๖๗๘๙'[Number(c)] ?? c)

@@ -8,12 +8,14 @@ import { Doc } from './routes/Doc'
 import { Explore } from './routes/Explore'
 import { Agency, Province, Topic } from './routes/Facet'
 import { Home } from './routes/Home'
+import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
 import { QuickSearch } from './ui/QuickSearch'
 
 const NAV: [string, () => string, Route['name'][]][] = [
   ['วันนี้', href.home, ['home']],
-  ['สำรวจ', () => href.explore(), ['explore', 'topic', 'agency', 'province', 'doc']],
+  ['สำรวจ', () => href.explore(), ['explore', 'topic', 'agency', 'doc']],
+  ['ท้องถิ่นฉัน', href.provinces, ['provinces', 'province']],
   ['แดชบอร์ด', href.dashboard, ['dashboard']],
   ['ความสัมพันธ์', href.graph, ['graph']],
   ['เกี่ยวกับ', href.about, ['about']],
@@ -43,7 +45,7 @@ export function App({ client }: { client?: DataClient }) {
         <div class="wrap">
           <a class="brand" href={href.home()}>
             <span class="name">Thai Legal Watch</span>
-            <span class="sub">ราชกิจจานุเบกษา จัดหมวดทุกวัน</span>
+            <span class="sub">ราชกิจจานุเบกษา จำแนกหมวดทุกวัน</span>
           </a>
           <QuickSearch />
           <nav class="main" aria-label="หลัก">
@@ -65,7 +67,7 @@ export function App({ client }: { client?: DataClient }) {
               <span class="name">Thai Legal Watch</span>
             </div>
             <p>
-              ราชกิจจานุเบกษา จำแนกหมวดทุกวัน อ่านง่าย ติดตามได้ — โครงการในเครือ{' '}
+              อ่านราชกิจจานุเบกษาเป็นหมวด ติดตามเป็นเรื่อง — โครงการในเครือ{' '}
               <a href="https://huggingface.co/open-law-data-thailand">OpenLawData</a>
             </p>
           </div>
@@ -81,8 +83,8 @@ export function App({ client }: { client?: DataClient }) {
               <a href="https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha">
                 OpenLawData — soc-ratchakitcha
               </a>{' '}
-              (ชั้น meta และ taxonomy) · จำแนกหมวดด้วย rule ตรวจสอบที่มาได้ทุกฉบับ ·{' '}
-              <a href={href.about()}>วิธีวัดความแม่นและข้อจำกัด</a>
+              (ชั้น meta และ taxonomy) · จำแนกหมวดด้วยกฎเกณฑ์ที่เปิดให้ตรวจสอบได้ทุกฉบับ ·{' '}
+              <a href={href.about()}>ความแม่นยำและข้อจำกัด</a>
             </p>
           </div>
         </div>
@@ -103,6 +105,8 @@ function Page({ route }: { route: Route }) {
       return <Agency id={route.id} />
     case 'province':
       return <Province file={route.file} />
+    case 'provinces':
+      return <Provinces />
     case 'doc':
       return <Doc id={route.id} month={route.month} />
     case 'dashboard':
@@ -128,17 +132,19 @@ export function titleFor(route: Route): string {
     case 'explore':
       return `สำรวจ — ${base}`
     case 'topic':
-      return `หมวด ${route.slug} — ${base}`
+      return `หมวด — ${base}`
     case 'agency':
       return `หน่วยงาน — ${base}`
     case 'province':
       return `จังหวัด${route.file} — ${base}`
+    case 'provinces':
+      return `ท้องถิ่นฉัน — ${base}`
     case 'doc':
       return `${route.id} — ${base}`
     case 'dashboard':
       return `แดชบอร์ด — ${base}`
     case 'graph':
-      return `ความสัมพันธ์ระหว่างหมวด — ${base}`
+      return `ความสัมพันธ์ของหมวด — ${base}`
     case 'about':
       return `เกี่ยวกับ — ${base}`
     case 'notfound':

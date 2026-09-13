@@ -23,6 +23,20 @@ it('finds topics by Thai or slug ignoring spaces, provinces, agencies by size, a
   expect(search('   ', idx)).toEqual([])
 })
 
+it('puts what starts with the query above what merely contains it', () => {
+  const wide = {
+    topics: [
+      { slug: 'forest', thai: 'อนุรักษ์ทรัพยากร ป่าไม้ อุทยาน', n: 1152 },
+      { slug: 'electricity', thai: 'ไฟฟ้า', n: 832 },
+    ],
+    provinces: [],
+    agencies: [{ id: 'a1', name: 'กระทรวงมหาดไทย', n: 5361, page: true }],
+  }
+  const hits = search('ไ', wide)
+  expect(hits[0]?.name).toBe('ไฟฟ้า')
+  expect(hits.map((h) => h.name)).toContain('กระทรวงมหาดไทย')
+})
+
 it('recognises a gazette citation as a resolvable hit', () => {
   const h = search('เล่ม 143 ตอนพิเศษ 219 ง หน้า 23', idx)[0]
   expect(h?.kind).toBe('อ้างอิง')

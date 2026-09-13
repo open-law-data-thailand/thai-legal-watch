@@ -1,8 +1,9 @@
 import { useState } from 'preact/hooks'
 import { docIdOk } from '../data/client'
 import { useLoad } from '../data/context'
-import { citation, coordinates, thaiDate } from '../lib/thai'
-import { href } from '../router'
+import { CITE_FORMATS, formatCitation, permalink, type CiteFormat } from '../lib/cite'
+import { coordinates, thaiDate } from '../lib/thai'
+import { DEFAULT_SOURCE, href } from '../router'
 import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 import { Crumbs } from '../ui/Crumbs'
 
@@ -23,28 +24,47 @@ export const STAGE: Record<string, string> = {
 export const xLabel = (k: string) => XKEY[k] ?? k
 export const xValue = (k: string, v: string) => (k === 'stage' ? (STAGE[v] ?? v) : v)
 const EVIDENCE: Record<string, string> = {
-  auth: 'ผู้ออก',
+  auth: 'ชื่อผู้ออก',
   title: 'ชื่อเรื่อง',
-  head: 'ข้อความต้น',
+  head: 'ข้อความขึ้นต้น',
   dtype: 'ประเภทเอกสาร',
-  partclass: 'ตอนของราชกิจจาฯ',
-  prov: 'จังหวัด',
+  partclass: 'ประเภทตอน (ก ข ค ง)',
+  prov: 'ชื่อจังหวัด',
 }
-export const evidenceLabel = (m: string) => EVIDENCE[m] ?? `กฎ ${m.replace(/^\^/, '')}`
+export const evidenceLabel = (m: string) => EVIDENCE[m] ?? `เกณฑ์ ${m.replace(/^\^/, '')}`
 const HF = 'https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha'
 
-/** Where the PDF is: modern ids resolve at the source; legacy years live in the dataset's monthly zips. */
-export function pdfLink(id: string, month: string | undefined): { href: string; label: string } {
+const GAZETTE = 'https://ratchakitcha.soc.go.th'
+
+export interface DocLinks {
+  primary: { href: string; label: string }
+  secondary?: { href: string; label: string }
+  fromSource: boolean
+}
+
+/** Modern ids carry the gazette's own document number, so the PDF opens straight from the source.
+ *  Older years do not: the published dataset keeps only a per-year sequence, and the only copy is
+ *  inside a monthly archive of several hundred megabytes — far too big to hand someone who wants
+ *  one page. Those get sent to the gazette's own site to look the citation up, with the dataset's
+ *  file *page* (not the download) as a second-best. */
+export function docLinks(id: string, month: string | undefined): DocLinks {
   const modern = /^\d{4}-\d{2}-\d{2}-(\d{8})$/.exec(id)
   if (modern)
     return {
-      href: `https://ratchakitcha.soc.go.th/documents/${modern[1].replace(/^0+/, '')}.pdf`,
-      label: 'PDF ต้นทาง (ราชกิจจานุเบกษา)',
+      primary: {
+        href: `${GAZETTE}/documents/${modern[1].replace(/^0+/, '')}.pdf`,
+        label: 'เปิด PDF ต้นฉบับ',
+      },
+      fromSource: true,
     }
   const m = month ?? `${id.slice(0, 4)}-01`
   return {
-    href: `${HF}/resolve/main/zip/${id.slice(0, 4)}/${m}.zip`,
-    label: `PDF ใน zip รายเดือน ${m} (OpenLawData)`,
+    primary: { href: `${GAZETTE}/`, label: 'ค้นฉบับนี้ที่เว็บราชกิจจานุเบกษา' },
+    secondary: {
+      href: `${HF}/blob/main/zip/${id.slice(0, 4)}/${m}.zip`,
+      label: `ไฟล์รวมเดือน ${m} ที่ OpenLawData`,
+    },
+    fromSource: false,
   }
 }
 
@@ -61,18 +81,19 @@ export function Doc({ id, month }: { id: string; month?: string }) {
     },
     [id, month],
   )
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState('')
+  const [fmt, setFmt] = useState<CiteFormat>('standard')
   if (st.state === 'loading') return <Loading what="เอกสาร" />
   if (st.state === 'error') return <ErrorBox error={st.error} />
   const { doc: d, tax, agency, siblings } = st.data
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
-  const cite = citation(d.t, coords)
-  const pdf = pdfLink(d.id, st.data.month)
-  const copy = () => {
-    void navigator.clipboard?.writeText(cite).then(() => {
-      setCopied(true)
+  const cite = formatCitation(fmt, d.t, coords)
+  const links = docLinks(d.id, st.data.month)
+  const copy = (what: string, text: string) => {
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(what)
       setTimeout(() => {
-        setCopied(false)
+        setCopied('')
       }, 1500)
     })
   }
@@ -90,7 +111,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
       {sessionStorage.getItem('tlw:lastExplore') && (
         <p style="margin:0 0 8px">
           <a class="btn" href={sessionStorage.getItem('tlw:lastExplore') ?? '#/explore'}>
-            ← กลับไปผลลัพธ์ที่ค้นไว้
+            ← กลับไปผลการค้นหา
           </a>
         </p>
       )}
@@ -159,28 +180,69 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                   ))}
               </tbody>
             </table>
-            <p style="margin:14px 0 0;display:flex;gap:8px;flex-wrap:wrap">
-              <a class="btn" href={pdf.href} target="_blank" rel="noopener">
-                {pdf.label} ↗
+            <p class="doclinks">
+              <a class="btn primary big" href={links.primary.href} target="_blank" rel="noopener">
+                <span aria-hidden="true">↗</span> {links.primary.label}
               </a>
-              <button onClick={copy} data-testid="cite">
-                {copied ? 'คัดลอกแล้ว ✓' : 'คัดลอกการอ้างอิง'}
+              {links.secondary && (
+                <a class="btn" href={links.secondary.href} target="_blank" rel="noopener">
+                  {links.secondary.label} ↗
+                </a>
+              )}
+            </p>
+            {!links.fromSource && (
+              <p class="muted" style="font-size:.8rem;margin:10px 0 0">
+                ฉบับก่อน พ.ศ. 2566 เว็บราชกิจจานุเบกษาไม่มีลิงก์ตรงรายฉบับ ให้ค้นด้วยเล่ม ตอน และหน้า ด้านบน
+                (กดคัดลอกการอ้างอิงไปวางได้เลย) · สำเนาในชุดข้อมูลเปิดอยู่รวมกันทั้งเดือน จึงมีขนาดใหญ่มาก
+                และของปีเก่าบางส่วนยังจับคู่กับเลขที่เอกสารผิดฉบับ <a href={href.about()}>(ดูข้อจำกัด)</a>
+              </p>
+            )}
+          </div>
+          <div class="card citebox" style="margin-top:12px">
+            <div class="toolbar" style="gap:8px">
+              <label class="check">
+                <span>รูปแบบการอ้างอิง</span>
+                <select
+                  value={fmt}
+                  aria-label="รูปแบบการอ้างอิง"
+                  onChange={(e) => {
+                    setFmt((e.target as HTMLSelectElement).value as CiteFormat)
+                  }}
+                >
+                  {CITE_FORMATS.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={() => {
+                  copy('cite', cite)
+                }}
+                data-testid="cite"
+              >
+                {copied === 'cite' ? 'คัดลอกแล้ว ✓' : 'คัดลอกการอ้างอิง'}
               </button>
+              <button
+                onClick={() => {
+                  copy('link', permalink(d.id, st.data.month, DEFAULT_SOURCE))
+                }}
+                data-testid="copy-link"
+              >
+                {copied === 'link' ? 'คัดลอกแล้ว ✓' : 'คัดลอกลิงก์'}
+              </button>
+            </div>
+            <p style="font-size:.9rem;margin:10px 0 0;font-family:var(--serif)" data-testid="citation">
+              {cite}
             </p>
           </div>
-          <p
-            class="muted"
-            style="font-size:.85rem;margin-top:10px;font-family:var(--serif)"
-            data-testid="citation"
-          >
-            {cite}
-          </p>
         </section>
         <section>
-          <h2 style="font-size:1.05rem;margin-bottom:8px">ระบบจำแนกหมวดนี้จากอะไร</h2>
+          <h2 style="font-size:1.05rem;margin-bottom:8px">จำแนกหมวดนี้จากอะไร</h2>
           <div class="evidence" data-testid="evidence">
             {d.labels.length === 0 && (
-              <p class="muted">ยังจำแนกไม่ได้ — เอกสารนี้ไม่เข้ากับหมวดใดที่ rule รู้จัก</p>
+              <p class="muted">ฉบับนี้ยังจำแนกหมวดไม่ได้ — ไม่เข้าเกณฑ์ของหมวดใดเลย</p>
             )}
             {d.labels.map((l) => (
               <div class="lab" key={`${l.x}-${l.s}`}>
@@ -193,14 +255,16 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                   <span class="muted">({l.x})</span>
                 </span>
                 <span class="muted">
-                  {l.m.map(evidenceLabel).join(' + ')} · น้ำหนัก {l.w.toFixed(2)} {l.c ? '· ยืนยัน ✓' : ''}
+                  ดูจาก{l.m.map(evidenceLabel).join(' + ')} · น้ำหนัก {l.w.toFixed(2)}{' '}
+                  {l.c ? '· ยืนยันแล้ว ✓' : '· ยังไม่ยืนยัน'}
                 </span>
               </div>
             ))}
           </div>
           <p class="muted" style="font-size:.85rem">
-            ป้ายมาจาก rule (ไม่ใช่ ML): "ยืนยัน" = มีหลักฐานเชิงโครงสร้างหรือสองแหล่งอิสระ
-            ความแม่นของหมวดที่ยืนยัน ≈ 98–100% · <a href={href.about()}>วิธีวัด</a>
+            การจำแนกใช้เกณฑ์ที่เขียนไว้ชัดเจน ไม่ได้ใช้ปัญญาประดิษฐ์ · "ยืนยันแล้ว"
+            คือหมวดที่มีหลักฐานจากโครงสร้างเอกสาร หรือจากข้อมูลสองแหล่งที่เป็นอิสระต่อกัน
+            ซึ่งวัดความแม่นยำได้ราว 98–100% · <a href={href.about()}>ดูวิธีวัด</a>
           </p>
           {(before || after) && (
             <>

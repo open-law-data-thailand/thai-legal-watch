@@ -55,3 +55,29 @@ def test_bankruptcy_funnel_counts_every_extracted_stage(dataset):
     with_stage = sum(1 for y in src.years() for d in src.iter_docs(y) if d.extracted.get("stage"))
     assert agg.extracted_stage[("ศาลล้มละลายกลาง", "absolute_receivership")] == with_stage
     assert with_stage >= agg.topics["bankruptcy"].total
+
+
+def test_trends_series_line_up_with_the_year_axis(tmp_path):
+    """Every series in agg/trends.json is one number per year, in the same order as `years`."""
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2023", "2024"), per_month=20)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2023-2024"]) == 0
+
+    t = json.loads((out / "ratchakitcha" / "agg" / "trends.json").read_text(encoding="utf-8"))
+    assert t["years"] == ["2023", "2024"]
+    for group in ("topics", "actions", "govlevels"):
+        assert t[group], f"{group} is empty"
+        for slug, series in t[group].items():
+            assert len(series) == len(t["years"]), f"{group}/{slug}"
+            assert any(series), f"{group}/{slug} is all zeroes"
+    years = json.loads((out / "ratchakitcha" / "agg" / "years.json").read_text(encoding="utf-8"))
+    # a document can carry several topics once roll-up is applied, but never more than the corpus
+    for series in t["actions"].values():
+        for y, n in zip(t["years"], series, strict=False):
+            assert n <= years["by_year"][y]

@@ -88,6 +88,8 @@ class Aggregator:
         self.topic_pairs_year: dict[str, Counter] = defaultdict(Counter)
         self.volume_parts: dict[int, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))  # volume → part → months
         self.topic_agency_year: dict[str, Counter] = defaultdict(Counter)   # (topic, agency) per year, corroborated topics
+        self.action_year: dict[str, Counter] = defaultdict(Counter)   # action  → year → n, corroborated only
+        self.gov_year: dict[str, Counter] = defaultdict(Counter)      # govlevel → year → n, corroborated only
         self.parents = {s: v.get("parent") for s, v in taxonomy.get("topics", {}).items()}
         self._newest_day = ""
 
@@ -109,6 +111,10 @@ class Aggregator:
         if d.topic and d.topic_c:
             for slug in self.ancestors(d.topic):          # a waste rule counts for pollution and environment too
                 self.topics[slug].add(d)
+        if d.action and d.action_c:
+            self.action_year[d.action][d.year] += 1
+        if d.govlevel and d.govlevel_c:
+            self.gov_year[d.govlevel][d.year] += 1
         if d.agency:
             self.agencies[d.agency].add(d)
             if d.agency_type:

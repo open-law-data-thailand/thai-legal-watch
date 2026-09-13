@@ -1,2 +1,0 @@
-[console_scripts]
-tlw-build = tlw_pipeline.cli:main

@@ -150,8 +150,8 @@ export function Dashboard() {
       </Kicker>
       <h1 style="margin:6px 0 6px">ราชกิจจานุเบกษาในตัวเลข</h1>
       <p class="muted" style="margin:0 0 20px">
-        คลิกแท่งปีเพื่อโฟกัสตารางด้านขวา · คลิกชื่อหมวดในกราฟเพื่อเข้าหน้าหมวด · คลิก funnel
-        เพื่อสำรวจคดีล้มละลาย
+        คลิกแท่งปีเพื่อดูเฉพาะปีนั้นในตารางด้านขวา · คลิกชื่อหมวดในกราฟเพื่อเปิดหน้าหมวด ·
+        คลิกแถบคดีล้มละลายเพื่อไปสำรวจต่อ
       </p>
       <div class="two">
         <section>
@@ -210,9 +210,9 @@ export function Dashboard() {
           <h2 style="font-size:1.05rem;margin:22px 0 8px">คดีล้มละลายตามขั้น</h2>
           <div ref={funnelRef} style="height:260px" data-testid="chart-funnel" />
           <p class="muted" style="font-size:.85rem">
-            {bk.by_court_stage.length} คู่ศาล×ขั้น จาก field ที่สกัดได้
+            {bk.by_court_stage.length} คู่ของศาลกับขั้นตอนคดี จากข้อมูลที่สกัดได้ในตัวประกาศ
           </p>
-          <h2 style="font-size:1.05rem;margin:22px 0 8px">จังหวัดที่ออกเอกสารมากสุด</h2>
+          <h2 style="font-size:1.05rem;margin:22px 0 8px">จังหวัดที่มีเอกสารมากที่สุด</h2>
           <table>
             <tbody>
               {provinces.slice(0, 12).map((p) => (

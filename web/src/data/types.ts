@@ -136,6 +136,14 @@ export interface TopicIndexItem {
   parent: string | null
   n: number
 }
+/** One number per year for every topic, action and govlevel — the dashboard's whole data set. */
+export interface Trends {
+  years: string[]
+  topics: Record<string, number[]>
+  actions: Record<string, number[]>
+  govlevels: Record<string, number[]>
+}
+
 export interface Years {
   by_year: Record<string, number>
   by_month: Record<string, number>

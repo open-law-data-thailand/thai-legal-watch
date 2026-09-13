@@ -12,6 +12,7 @@ import type {
   Taxonomy,
   TopicIndexItem,
   TopicPage,
+  Trends,
   Years,
 } from './types'
 import { CONTRACT } from './types'
@@ -101,6 +102,9 @@ export class DataClient {
   years(): Promise<Years> {
     return this.get('agg/years.json')
   }
+  trends(): Promise<Trends> {
+    return this.get('agg/trends.json')
+  }
   volume(volume: number): Promise<{ volume: number; parts: Record<string, string[]> }> {
     return this.get(`index/volumes/${volume}.json`)
   }
@@ -151,9 +155,6 @@ export class DataClient {
   }
   month(year: string, month: string): Promise<SlimDoc[]> {
     return this.get(`docs/${year}/${month}.json`)
-  }
-  titles(year: string): Promise<[string, string][]> {
-    return this.get(`titles/${year}.json`)
   }
 
   /** A document lives in the shard of its month; the id alone tells the year, the meta tells the month. */

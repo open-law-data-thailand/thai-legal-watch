@@ -1,6 +1,6 @@
-# Thai Legal Watch — progress and plan (handoff, 2026-09-13 16:30)
+# Thai Legal Watch — progress and plan (handoff, 2026-09-13 17:45)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, 14 commits, all checks green: pytest 22 · Vitest 39 · Playwright 20 (desktop+mobile, axe WCAG 2A/AA on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, all checks green: pytest 23 · Vitest 55 · Playwright 42 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -37,22 +37,26 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/DATA_CONTRACT.md` first.
 Routes (hash, source-scoped): `#/` home (hero + quick search + today's numbers) ·
 `#/ratchakitcha/explore` (scope month/year/all, chips and dropdowns with live counts, title search
 with `<mark>` highlights, sub-topic chips, CSV) · `topic/<slug>`, `agency/<id>`, `province/<name>`
-(shared `Facet.tsx`, breadcrumbs, RSS) · `doc/<id>?m=` (coordinates, labels with evidence, citation
-copy button, PDF link — modern → source, legacy → HF monthly zip —, prev/next in the same ตอน,
+(shared `Facet.tsx`, breadcrumbs, RSS) · `provinces` ("ท้องถิ่นฉัน": dot map of the 77 seats +
+region-grouped list) · `doc/<id>?m=` (coordinates, labels with evidence, four citation formats and a
+permalink, PDF link — modern → source, legacy → HF monthly zip —, prev/next in the same ตอน,
 "back to results") · `dashboard` (click a year to focus; stacked topic trend; funnel) ·
 `graph` (force graph; year selector; family chips + text focus that dim instead of remove) · `#/about`.
 Header: sticky indigo band, **QuickSearch** (topics, provinces, agencies, doc ids, and gazette
 citations "เล่ม 143 ตอนพิเศษ 219 ง หน้า 23" resolved via `index/volumes` → month shard → page), `/` focuses it.
+Home hero also carries **CiteLookup** — the same resolution with เล่ม / ตอน / หน้า as separate fields.
 Footer: OpenLawData credit + disclaimer (verify against the original gazette).
 Theme: light default, dark via `data-theme="dark"`; family colours (`lib/family.ts`) shared by
 pills and graph; entrance/growth animations honouring `prefers-reduced-motion`.
 Wording: "จำแนกหมวด / หมวดที่ยืนยัน / คาดว่า" — never "ติดป้าย".
 
-Local preview with real data:
+Local preview with real data (`.claude/launch.json` runs the same thing as `tlw-preview`):
 ```bash
-cd web && npm run build && rm -rf dist/data && ln -s ~/olw-build/tlw-dist dist/data && npx vite preview --host 127.0.0.1 --port 4174
+cd web && npm run build && rm -rf dist/data public/data && ln -s ~/olw-build/tlw-dist dist/data && npx vite preview --host 127.0.0.1 --port 4174
 ```
-(`npm run e2e` rebuilds `dist` with fixture data — re-link afterwards. Kill a stale preview on 4173 before e2e: `lsof -ti tcp:4173 | xargs kill`.)
+`npm run e2e` rebuilds `dist` **and** leaves fixture data in `public/data`, which every later
+`vite build` copies back into `dist/data` — so remove both, not just `dist/data`, before re-linking.
+Kill a stale preview on 4173 before e2e: `lsof -ti tcp:4173 | xargs kill`.
 
 ### infra/ and CI
 `infra/deploy.sh <dist-data>` (build → copy data → `wrangler pages deploy`), `_headers`
@@ -64,8 +68,113 @@ cd web && npm run build && rm -rf dist/data && ln -s ~/olw-build/tlw-dist dist/d
 ### Data on the Mac
 `~/olw-build/data/{taxonomy,meta}` — rsync from the box (`spicydog@192.168.21.124:olw-build/ontology/`
 and `/mnt/soc-ratchakitcha/huggingface/soc-ratchakitcha/meta/`), last synced 2026-09-13 14:28.
-Re-sync when the taxonomy changes (it will when 2002–2004 publish tonight). Built output in
-`~/olw-build/tlw-dist`.
+Re-sync when the taxonomy changes. 2002–2004 are already complete locally but not yet on Hugging
+Face, so the build stays at `--years 2005-2026`. Built output in `~/olw-build/tlw-dist`.
+
+## Session 2 (2026-09-13 16:30–17:00) — what changed
+
+Plan items 2, 3 and 4 are done; item 1 (deploy) is still blocked on credentials that live on the
+build box, not on this Mac (`~/src/.env` does not exist here).
+
+- **Content correctness (item 2).** `#/about` now matches the dataset README exactly: the human-read
+  set is **450 ฉบับ = 300 สุ่มทั่วคลัง (100% [98.6–100]) + 150 หมวดที่ประชาชนค้นบ่อย (97.9%)** — it
+  previously said "สุ่มทั่วคลัง 150 ฉบับ", which was wrong — plus the 95.5% coverage figure and a line
+  saying the site does not measure or adjust any of it. Two new sections: **ช่วงปีที่มี และสิ่งที่ยังไม่มี**
+  (2548–2569 only, why the pre-2005 years are absent, and that legacy PDFs were mis-paired upstream)
+  and **การอ้างอิง**. Both PDF link shapes were checked against the live hosts: modern →
+  `ratchakitcha.soc.go.th/documents/<n>.pdf` (200, application/pdf); legacy →
+  `…/resolve/main/zip/<year>/<year-month>.zip` (200, ~160 MB for 2014-03). The doc page now says so
+  next to the legacy link instead of letting a lawyer click a 160 MB zip unwarned.
+- **Citation formats (item 3).** `lib/cite.ts`: มาตรฐาน · เชิงอรรถ (เลขไทย) · APA · พิกัดอย่างเดียว,
+  picked with a `<select>` on the doc page, plus a **คัดลอกลิงก์** button (permalink). The title is
+  quoted verbatim in every format, so a title containing Arabic digits keeps them even in the
+  Thai-numeral footnote — deliberate, do not "fix" it.
+- **Coordinate lookup on the hero (item 3).** `ui/CiteLookup.tsx` — เล่ม / ตอนที่ / ประเภทตอน /
+  ตอนพิเศษ / หน้า as real fields, behind a `<details>` on the home hero. Resolves through the same
+  `client.byCitation` path as quick search. Verified against real data: 143 / 219 ง พิเศษ / 23 →
+  `2026-09-10-00125805`.
+- **ท้องถิ่นฉัน (item 4).** New route `#/<source>/provinces` + a nav entry. A proportional-symbol
+  **dot map**, not a choropleth: `lib/provinces.ts` holds the 77 provincial seats (lat/lon to ~0.1°)
+  and a dependency-free equirectangular projection, because no province boundary geometry exists in
+  any repo here and fetching one would add a licence and a megabyte to a static site. Dots are
+  `<a>` with `aria-label`, so the map is keyboard- and screen-reader-navigable; a region-grouped list
+  with a filter box sits beside it. The page states the real limitation: only 15,562 of 732,143
+  documents (2.1%) carry a province, because many local agencies have `province: null` upstream.
+- **Housekeeping.** `web/README.md` written (run, check, layout, conventions); the dead
+  `DataClient.titles()` (no `titles/` in the contract) removed.
+- **Tests.** 51 Vitest (was 39) · 24 Playwright across desktop+mobile with axe on every new page
+  (was 20) · pytest 22 unchanged · ESLint and Prettier clean.
+
+### Known, deliberate, not bugs
+- **2002–2004 are not on the site.** They are complete locally (`~/olw-build/data/taxonomy/200{2,3,4}`,
+  12 files each, sizes in line with 2005) but `taxonomy/openlawdata-taxonomy/` on Hugging Face still
+  starts at 2005 — checked via the HF tree API this session. The site credits the *published*
+  dataset, so it stays at 2005–2026 until `pub2002` lands. Then: `tlw-build --years 2002-2026`.
+  2000–2001 remain sparse (awaiting OCR) and should stay out.
+- **Dark theme is unreachable.** `:root[data-theme='dark']` is defined but nothing sets the attribute
+  and nothing honours `prefers-color-scheme`. Several rules also hard-code `#fff` (`.card`, `.metric`,
+  `.qs.big input`), so enabling it today would ship an unverified theme. Either finish it or drop it.
+- **Preview trap, again.** `npm run build:fixtures` writes `web/public/data`, and every later
+  `vite build` copies `public/` into `dist/` — so a plain `npm run build` after an e2e run silently
+  replaces real data with fixtures. Delete both before re-linking:
+  `rm -rf web/dist/data web/public/data && ln -s ~/olw-build/tlw-dist web/dist/data`.
+
+## Session 3 (2026-09-13 17:00–17:45) — review fixes and the deploy pipeline
+
+Everything here came out of the owner reading the running site.
+
+- **Quick search was painted over** by the next section. `main > *` carries a filling entrance
+  animation, which makes every direct child of `main` its own stacking context, so the dropdown's
+  `z-index: 30` could not escape the hero. The hero now has `position: relative; z-index: 2`.
+  Ranking changed too: prefix matches first, then kind, then size — typing one Thai vowel used to
+  bury `ไฟฟ้า` under every name that merely contained it. Only the header box owns the `/` shortcut
+  now; two instances used to race for it on the home page.
+- **The hero on a wide screen** is a full-bleed band (`margin-inline: calc(50% - 50vw)` with the
+  page gutter re-created as padding, `body { overflow-x: clip }`), `--maxw` grows to 1280px at
+  1400px, the h1 is `text-wrap: balance` and no longer orphans a word, and the hero metrics are
+  pinned to two columns.
+- **A real map.** The dot map was not reading as a map. `web/scripts/build_provinces_map.py` turns
+  Natural Earth 1:10m Admin 1 (public domain) into `web/public/map/thailand-provinces.json` — 77
+  projected SVG paths, 70 KB raw / 26 KB gzipped, committed. Natural Earth's `name_local` is wrong
+  for six Thai provinces (Bangkok is labelled จังหวัดเชียงใหม่), so the script maps the reliable
+  English `name` through its own table. The page is now a quantile choropleth with a legend.
+- **Typography and contrast.** `html` no longer pins 16px; body is 1.0625rem at line-height 1.75
+  and paragraphs 1.8, because Thai stacks marks above and below the line. `--ink-3` went from
+  #8a8a94 (3.5:1) to #66666f (5.5:1) and the band greys went up with it. Underlines now appear only
+  in running text — the header, buttons, chips, pills and breadcrumbs no longer twitch on hover.
+  **axe now checks colour-contrast** in e2e; it passes because the scan runs with reduced motion, so
+  it no longer measures elements mid-fade and reports white-on-white.
+- **PDF links never hand anyone a 160 MB zip.** `docLinks()` replaces `pdfLink()`: a modern id opens
+  the gazette's own PDF (prominent `.btn.primary.big`); an older id, whose source document number
+  the published dataset does not carry, goes to the gazette site to look the citation up, with the
+  dataset's file *page* on Hugging Face as the second-best link.
+- **The sparkline is interactive** — each bar is a link, hovering names the day and the count,
+  clicking opens สำรวจ filtered to that day. Explore grew a `day` filter with a visible day
+  selector (computed from the month shard already loaded), a province dropdown, and months shown in
+  พ.ศ. Changing month/scope clears a stale day instead of silently returning nothing.
+- **Wording pass over every page.** No untranslated jargon left in the UI (`rule`, `ML`, `field`,
+  `funnel`, `โฟกัส`), "หัวข้อ" and "หมวด" unified on หมวด, evidence labels renamed
+  (`head` → ข้อความขึ้นต้น, `partclass` → ประเภทตอน (ก ข ค ง)), and the About page rewritten.
+- **e2e now covers every page**: 42 tests (was 24), including a route sweep that asserts every route
+  titles itself and renders no error box, header search by keyboard, the sparkline day filter, the
+  Explore province filter and pagination, the choropleth's 77 paths and legend, all four citation
+  formats, and a test that no page anywhere links a `/resolve/…zip` download.
+- **Deploy pipeline.** `infra/deploy.sh` now copies `_headers` (it never did), checks the Pages
+  file-count and file-size limits before uploading, supports `--dry-run`, and prints the data's
+  `generated_at`. `infra/nightly.sh` is the whole nightly in one cron entry: build to `tlw-dist.new`,
+  swap only after the contract test passes, keep `tlw-dist.prev`, run the checks, then deploy.
+  **`docs/DEPLOY.md` is the Cloudflare runbook** — project creation, the exact API-token scope,
+  credentials on the build box, verification curls, custom domain, limits and rollback.
+- **`agg/trends.json`** (8 KB): one number per year for every topic, action and govlevel, so the
+  dashboard can show what is growing without fetching 22 year-graphs. `web/src/lib/trends.ts` has
+  the maths (movers, month profile, year-to-date) and excludes the always-partial current year.
+  **The dashboard redesign that consumes it is not written yet** — that is the next task.
+
+### Fixture data has bitten twice
+`npm run e2e` writes fixtures to `web/public/data`, and every later `vite build` copies `public/`
+into `dist/` — so a plain rebuild silently replaced the real 732k-document preview with 40 synthetic
+ones, which looked exactly like "the province page is broken". Fixed at the root: `prebuild` removes
+`public/data`, and `npm run link:data` (or `npm run preview:real`) removes both and re-links.
 
 ## Plan (in order)
 
@@ -73,23 +182,22 @@ Re-sync when the taxonomy changes (it will when 2002–2004 publish tonight). Bu
    verify `/data/ratchakitcha/agg/meta.json`, a feed URL, deep links. Then wire the nightly on the
    build box: after the dataset's nightly finishes, `tlw-build` (years 2002–2026 once published) →
    deploy. Keep `_headers` (data cached 1 h).
-2. **Content correctness pass** (owner asked): every number and sentence on `#/about` must match the
-   dataset README (accuracy 100% [98.6–100] random, 97.9% citizen topics, ~61% for uncorroborated);
-   PDF links for legacy years point at the right monthly zip; the disclaimer stays in the footer.
-3. **Lawyer features**: coordinate lookup exists in quick search — surface it as its own form on the
-   home hero ("เล่ม / ตอน / หน้า" fields); "cite this" formats beyond the standard one (เชิงอรรถ / APA);
-   full-text search is out of scope for static — consider DuckDB-WASM over HF parquet as a
-   separate power-user page.
-4. **"ท้องถิ่นฉัน"**: choropleth of 77 provinces (SVG map) feeding `province/<name>`; needs the
-   province facet (exists) — many local agencies have `province: null` (dataset limitation; note it).
+2. ~~Content correctness pass~~ — done, see Session 2. Re-check `#/about` against the dataset README
+   whenever the sieve version changes; the numbers there are the dataset's, never ours.
+3. ~~Lawyer features~~ — coordinate form and four citation formats done. Still open: **full-text
+   search**, which a static host cannot do — the idea on the table is DuckDB-WASM over the HF parquet
+   as a separate power-user page, not part of the main site.
+4. ~~"ท้องถิ่นฉัน"~~ — done as a dot map. If real boundaries are ever wanted, that needs a licensed,
+   simplified province GeoJSON committed to the repo; the dot map needs nothing.
 5. **Phase 2 (Cloudflare Functions + D1, all free tier)**: watches with magic-link accounts and a
    nightly Cron → Telegram/email digest; feedback on labels ("หมวดผิด") → review queue → gold set;
    juristic-person bankruptcy tracker (D1 FTS5 over names; never aggregate natural persons).
 6. **Second data source**: implement `pipeline/tlw_pipeline/sources/<id>.py`, add its credit,
    run `tlw-build`; routes `#/<id>/…` and `data/<id>/…` already work; add a source switcher on home
    (reads `sources.json`).
-7. Housekeeping: `web/README` usage; Lighthouse budget in CI; visual regression (Playwright
-   screenshots) once the design settles; move the family palette into CSS variables.
+7. Housekeeping: ~~`web/README` usage~~ done; Lighthouse budget in CI; visual regression (Playwright
+   screenshots) once the design settles; move the family palette into CSS variables; finish or drop
+   the dark theme; code-split ECharts (the bundle warns at 1.1 MB).
 
 ## Traps met today (don't repeat)
 - Python `re.sub` with a replacement string containing `\d` → use a lambda; Prettier reformats

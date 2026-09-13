@@ -33,6 +33,7 @@ describe('parseHash', () => {
       id: '2024-001232',
       month: undefined,
     })
+    expect(parseHash(href.provinces())).toEqual({ name: 'provinces', source: 'ratchakitcha' })
     expect(parseHash(href.dashboard())).toEqual({ name: 'dashboard', source: 'ratchakitcha' })
     expect(parseHash(href.graph())).toEqual({ name: 'graph', source: 'ratchakitcha' })
     expect(parseHash('#/ratchakitcha')).toMatchObject({ name: 'explore', source: 'ratchakitcha' })

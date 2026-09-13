@@ -94,6 +94,18 @@ class Emitter:
         self.sizes["agg/years.json"] = dump(os.path.join(self.out, "agg/years.json"),
             {"by_year": dict(agg.all.by_year), "by_month": dict(agg.all.by_month)})
         self.sizes["agg/home.json"] = dump(os.path.join(self.out, "agg/home.json"), agg.home())
+        # one small file with every series the dashboard draws, so it never fetches 22 year graphs
+        years = sorted(agg.all.by_year)
+
+        def series(by: dict) -> dict:
+            return {k: [c.get(y, 0) for y in years] for k, c in by.items() if any(c.values())}
+
+        self.sizes["agg/trends.json"] = dump(os.path.join(self.out, "agg/trends.json"), {
+            "years": years,
+            "topics": {s: [f.by_year.get(y, 0) for y in years] for s, f in agg.topics.items() if f.total},
+            "actions": series(agg.action_year),
+            "govlevels": series(agg.gov_year),
+        })
         top_agencies = {a for f in agg.topics.values() for a, _ in f.agencies.most_common(6)}
         graph = {
             "topics": [{"slug": s, "thai": v["thai"], "parent": v["parent"], "n": v["n"]}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   beYear,
+  beMonth,
   citation,
   coordinates,
   parseISODate,
@@ -19,6 +20,17 @@ describe('thaiDate', () => {
     expect(thaiDate(null)).toBe('—')
     expect(thaiDate('not a date')).toBe('—')
     expect(parseISODate('2024-13-01')).toBeNull()
+  })
+})
+
+describe('Buddhist-era months', () => {
+  it('keeps the shard shape but shows the year Thai readers use', () => {
+    expect(beMonth('2026-09')).toBe('2569-09')
+    expect(beMonth('2005-01')).toBe('2548-01')
+  })
+  it('leaves anything that is not a month alone', () => {
+    expect(beMonth('2026')).toBe('2026')
+    expect(beMonth('')).toBe('')
   })
 })
 

@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "rm -rf public/data",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
     "build:fixtures": "node scripts/fixtures.mjs && vite build --outDir dist",
+    "link:data": "node scripts/link-data.mjs",
+    "preview": "vite preview",
+    "preview:real": "npm run build && npm run link:data && vite preview --host 127.0.0.1 --port 4174",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
     "format": "prettier --check .",

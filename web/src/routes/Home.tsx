@@ -13,6 +13,7 @@ import {
   govName,
   topicName,
 } from '../ui/bits'
+import { CiteLookup } from '../ui/CiteLookup'
 import { QuickSearch } from '../ui/QuickSearch'
 import { STAGE } from './Doc'
 
@@ -35,22 +36,25 @@ export function Home() {
     <>
       <section class="hero" aria-labelledby="hero-h">
         <div class="hero-text">
-          <div class="kicker light">สำหรับนักกฎหมายและผู้ที่ต้องตามราชกิจจานุเบกษาทุกวัน</div>
+          <div class="kicker light">สำหรับนักกฎหมายและคนทำงานที่ต้องตามราชกิจจานุเบกษาทุกวัน</div>
           <h1 id="hero-h">
             ราชกิจจานุเบกษา
             <br />
             อ่านเป็นหมวด ติดตามเป็นเรื่อง
           </h1>
           <p>
-            ทุกฉบับที่ประกาศถูกจำแนกอัตโนมัติว่า <em>เรื่องอะไร</em> · <em>ทำอะไร</em> · <em>ใครออก</em>{' '}
-            พร้อมเล่ม ตอน หน้า ให้อ้างอิงได้ทันที ค้นย้อนหลัง{' '}
-            {meta.years[0] ? Number(meta.years[0]) + 543 : ''}–
-            {Number(meta.years[meta.years.length - 1]) + 543} ได้ {meta.docs.toLocaleString('th-TH')} ฉบับ
-            และติดตามหมวด จังหวัด หรือหน่วยงานที่คุณดูแลผ่าน RSS
+            ทุกฉบับที่ประกาศ จะถูกจำแนกให้อัตโนมัติว่า <em>เรื่องอะไร</em> · <em>ทำอะไร</em> · <em>ใครออก</em>{' '}
+            พร้อมเล่ม ตอน หน้า ที่หยิบไปอ้างอิงได้ทันที ค้นย้อนหลังได้ถึง พ.ศ.{' '}
+            {meta.years[0] ? Number(meta.years[0]) + 543 : ''} รวม {meta.docs.toLocaleString('th-TH')} ฉบับ
+            และติดตามหมวด จังหวัด หรือหน่วยงานที่คุณรับผิดชอบผ่าน RSS ได้โดยไม่ต้องสมัครสมาชิก
           </p>
           <div class="hero-search">
             <QuickSearch big />
           </div>
+          <details class="hero-cite">
+            <summary>มีเลขอ้างอิงอยู่แล้ว — เปิดจากเล่ม ตอน หน้า</summary>
+            <CiteLookup light />
+          </details>
           <div class="hero-links">
             <a
               class="btn primary"
@@ -58,11 +62,14 @@ export function Home() {
             >
               สำรวจปีนี้ →
             </a>
+            <a class="btn" href={href.provinces()}>
+              ท้องถิ่นฉัน
+            </a>
             <a class="btn" href={href.graph()}>
-              แผนที่ความสัมพันธ์
+              ความสัมพันธ์ของหมวด
             </a>
             <a class="btn" href={href.dashboard()}>
-              ตัวเลข 22 ปี
+              ตัวเลขย้อนหลัง {meta.years.length} ปี
             </a>
           </div>
         </div>
@@ -84,15 +91,12 @@ export function Home() {
             />
           </div>
           <Sparkline points={home.sparkline} />
-          <div class="muted light" style="font-size:.8rem">
-            ฉบับต่อวัน 30 วันล่าสุด
-          </div>
         </div>
       </section>
       <div class="two" style="margin-top:36px">
         <section aria-labelledby="h-topics">
           <h2 id="h-topics" class="sec">
-            หัวข้อของวัน
+            หมวดของวันนี้
           </h2>
           {topics.length ? (
             <Bars
@@ -102,10 +106,10 @@ export function Home() {
               hrefOf={(k) => href.topic(k)}
             />
           ) : (
-            <p class="muted">ไม่มีหมวดที่ยืนยันได้ในวันนี้</p>
+            <p class="muted">วันนี้ยังไม่มีฉบับที่ยืนยันหมวดได้</p>
           )}
           <p style="margin-top:14px">
-            <a href={href.explore()}>สำรวจทั้ง {Object.keys(tax.topics).length} หมวด →</a>
+            <a href={href.explore()}>ดูทั้ง {Object.keys(tax.topics).length} หมวด →</a>
           </p>
           <h2 class="sec" style="margin-top:28px">
             ระดับผู้ออก
@@ -126,8 +130,8 @@ export function Home() {
           </div>
           {home.highlights.length === 0 && (
             <p class="muted">
-              วันนี้ไม่มีกฎ ระเบียบ หรือข้อบังคับใหม่ — มีแต่ประกาศและคำสั่ง
-              ด้านล่างคือฉบับเด่นที่ยืนยันหมวดได้
+              วันนี้ไม่มีกฎ ระเบียบ หรือข้อบังคับใหม่ มีแต่ประกาศและคำสั่ง
+              ด้านล่างคือฉบับที่จำแนกหมวดได้ชัดเจนที่สุดของวัน
             </p>
           )}
           <div class="doclist">
@@ -136,7 +140,7 @@ export function Home() {
             ))}
           </div>
           <p class="muted" style="margin-top:14px;font-size:.85rem">
-            ประเภทการกระทำที่พบวันนี้:{' '}
+            สิ่งที่เอกสารวันนี้ทำ:{' '}
             {Object.entries(home.by_action)
               .map(([k, n]) => `${actionName(tax, k)} ${n}`)
               .join(' · ')}
@@ -144,9 +148,10 @@ export function Home() {
         </section>
       </div>
       <p class="muted" style="margin-top:40px;font-size:.85rem">
-        คลังทั้งหมด {meta.docs.toLocaleString('th-TH')} ฉบับ ({meta.years[0]}–
-        {meta.years[meta.years.length - 1]}) · จำแนกหมวดแล้ว {Math.round((100 * meta.labelled) / meta.docs)}%
-        · สร้างเมื่อ {meta.generated_at.slice(0, 16).replace('T', ' ')}
+        ทั้งเว็บมี {meta.docs.toLocaleString('th-TH')} ฉบับ (พ.ศ. {Number(meta.years[0]) + 543}–
+        {Number(meta.years[meta.years.length - 1]) + 543}) · จำแนกหมวดได้{' '}
+        {Math.round((100 * meta.labelled) / meta.docs)}% · ปรับปรุงข้อมูลล่าสุด{' '}
+        {meta.generated_at.slice(0, 16).replace('T', ' ')} น.
       </p>
     </>
   )

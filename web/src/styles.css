@@ -1,7 +1,7 @@
 :root {
   --ink: #17171a;
-  --ink-2: #4a4a52;
-  --ink-3: #8a8a94;
+  --ink-2: #43434b;
+  --ink-3: #66666f;
   --paper: #fbfaf7;
   --paper-2: #f1efe9;
   --line: #e3e0d8;
@@ -19,8 +19,8 @@
 }
 :root[data-theme='dark'] {
   --ink: #ecebe6;
-  --ink-2: #b9b8b1;
-  --ink-3: #7f7e78;
+  --ink-2: #c3c2bb;
+  --ink-3: #9d9c94;
   --paper: #131316;
   --paper-2: #1c1c21;
   --line: #2a2a31;
@@ -36,15 +36,36 @@
   box-sizing: border-box;
 }
 html {
-  font-size: 16px;
+  font-size: 100%;
 }
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
-  line-height: 1.6;
+  /* Thai stacks สระบน and วรรณยุกต์ above the line and สระล่าง below it, so the same
+     type size needs more room than Latin does before lines start to collide */
+  font-size: 1.0625rem;
+  line-height: 1.75;
   -webkit-font-smoothing: antialiased;
+}
+p {
+  margin: 0 0 0.9em;
+  max-width: 78ch;
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+p:last-child {
+  margin-bottom: 0;
+}
+/* columns of numbers should line up, in a list or in a table */
+.metric .value,
+.provrow .n,
+.qs-list .n,
+.row span,
+td,
+th {
+  font-variant-numeric: tabular-nums;
 }
 a {
   color: inherit;
@@ -60,23 +81,51 @@ footer a,
   text-decoration-color: var(--accent);
   text-underline-offset: 2px;
 }
-a:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
+p a:hover,
+td a:hover,
+li a:hover,
+footer a:hover,
+.kicker a:hover,
+.muted a:hover {
+  text-decoration-thickness: 2px;
+}
+.topbar a,
+.topbar a:hover,
+.brand,
+.brand:hover,
+.btn,
+.btn:hover,
+.chip,
+.chip:hover,
+.pill,
+.pill:hover,
+.doc .title,
+.doc .title:hover,
+.provrow,
+.provrow:hover,
+.crumbs a:hover,
+.qs-list a {
+  text-decoration: none;
+}
+.doc .title:hover,
+.bar a:hover,
+.row a:hover {
+  color: var(--accent-ink);
 }
 h1,
 h2,
 h3 {
   font-family: var(--serif);
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.35;
   margin: 0;
+  text-wrap: balance;
 }
 h1 {
-  font-size: 1.9rem;
+  font-size: 1.95rem;
 }
 h2 {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
 }
 h3 {
   font-size: 1.1rem;
@@ -85,6 +134,14 @@ h3 {
   max-width: var(--maxw);
   margin: 0 auto;
   padding: 0 20px;
+}
+@media (min-width: 1400px) {
+  :root {
+    --maxw: 1280px;
+  }
+}
+body {
+  overflow-x: clip;
 }
 .topbar {
   border-bottom: 1px solid var(--line);
@@ -130,12 +187,16 @@ nav.main a:hover {
   text-decoration: none;
 }
 main {
-  padding: 28px 0 64px;
+  padding: 32px 0 72px;
+}
+/* a breadcrumb is the first thing on most pages; it should not touch the sticky band */
+main > *:first-child > .crumbs:first-child,
+main > .crumbs:first-child {
+  margin-top: 4px;
 }
 .kicker {
   color: var(--ink-3);
   font-size: 0.85rem;
-  letter-spacing: 0.02em;
 }
 .grid {
   display: grid;
@@ -183,28 +244,29 @@ main {
   border-top: 1px solid var(--line);
 }
 .doc {
-  padding: 12px 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--line);
 }
 .doc .title {
   font-size: 1rem;
-  line-height: 1.45;
+  line-height: 1.6;
 }
 .doc .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
+  gap: 7px 10px;
   align-items: center;
-  margin-top: 6px;
-  font-size: 0.8rem;
+  margin-top: 9px;
+  font-size: 0.82rem;
+  line-height: 1.5;
   color: var(--ink-3);
 }
 .pill {
   display: inline-block;
-  padding: 1px 9px;
+  padding: 2px 10px;
   border-radius: 999px;
-  font-size: 0.78rem;
-  line-height: 1.6;
+  font-size: 0.8rem;
+  line-height: 1.7;
   background: var(--paper-2);
   color: var(--ink-2);
   white-space: nowrap;
@@ -245,7 +307,7 @@ main {
 .card {
   background: var(--paper-2);
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 20px 22px;
 }
 button,
 .btn {
@@ -309,10 +371,64 @@ footer a {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
+  line-height: 1.6;
+  padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: var(--r);
   font-size: 0.9rem;
+}
+.sparkwrap {
+  margin-top: 20px;
+}
+.sparkhint {
+  font-size: 0.8rem;
+  color: rgba(239, 238, 251, 0.78);
+  margin-top: 6px;
+  min-height: 2.2em;
+  line-height: 1.4;
+}
+.sparkbar {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border-radius: 3px 3px 0 0;
+}
+.sparkbar:hover,
+.sparkbar.on {
+  background: rgba(255, 255, 255, 0.12);
+}
+.sparkbar:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 1px;
+}
+.sparkbar > i {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+.hero .sparkbar > i {
+  background: #a89cf0;
+}
+.hero .sparkbar:hover > i,
+.hero .sparkbar.on > i {
+  background: #fff;
+}
+/* the prominent action on a document page: people come here to read the PDF */
+.doclinks {
+  margin: 16px 0 0;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.btn.big {
+  padding: 11px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px -14px var(--accent-2);
 }
 .spark {
   display: flex;
@@ -344,12 +460,14 @@ footer a {
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
 }
 td,
 th {
   text-align: left;
-  padding: 8px 6px;
+  padding: 10px 8px 10px 0;
+  line-height: 1.65;
+  vertical-align: top;
   border-bottom: 1px solid var(--line);
 }
 th {
@@ -524,7 +642,7 @@ mark {
   color: #fff;
 }
 .topbar .brand .sub {
-  color: rgba(239, 238, 251, 0.6);
+  color: rgba(239, 238, 251, 0.78);
 }
 .topbar nav.main a {
   color: rgba(239, 238, 251, 0.78);
@@ -548,7 +666,7 @@ mark {
   color: #fff;
 }
 .qs input::placeholder {
-  color: rgba(239, 238, 251, 0.55);
+  color: rgba(239, 238, 251, 0.85);
 }
 .qs input:focus {
   outline: 2px solid var(--accent-2);
@@ -570,6 +688,8 @@ mark {
   border-radius: 12px;
   box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.35);
   animation: rise 0.18s both;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
 }
 .qs-list li {
   display: flex;
@@ -616,27 +736,41 @@ mark {
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 36px;
-  margin: -28px -20px 0;
-  padding: 48px 20px 40px;
+  gap: 36px 48px;
+  align-items: center;
+  /* full-bleed band: the page gutter is re-created as padding so the text still lines up */
+  margin: -28px calc(50% - 50vw) 0;
+  padding: 56px calc(50vw - 50% + 20px) 48px;
   background: radial-gradient(900px 420px at 15% 0%, #2b2757 0%, var(--ink-band) 60%);
   color: var(--band-text);
+  /* the quick-search dropdown hangs out of the hero; without this the next section covers it */
+  position: relative;
+  z-index: 2;
 }
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
+    align-items: start;
+    padding-top: 40px;
   }
 }
 .hero h1 {
   color: #fff;
-  font-size: clamp(2rem, 4.2vw, 3.1rem);
-  line-height: 1.15;
+  font-size: clamp(1.85rem, 3.2vw, 2.6rem);
+  line-height: 1.3;
   margin: 8px 0 14px;
+  text-wrap: balance;
 }
 .hero p {
-  color: rgba(239, 238, 251, 0.8);
-  max-width: 60ch;
+  color: rgba(239, 238, 251, 0.88);
+  max-width: 56ch;
   font-size: 1.02rem;
+}
+.hero-text {
+  min-width: 0;
+}
+.hero-side {
+  min-width: 0;
 }
 .hero em {
   color: #fff;
@@ -645,17 +779,20 @@ mark {
 }
 .hero .kicker.light,
 .hero .muted.light {
-  color: rgba(239, 238, 251, 0.6);
+  color: rgba(239, 238, 251, 0.78);
+}
+.hero .grid.metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .hero .metric {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
 .hero .metric .label {
-  color: rgba(239, 238, 251, 0.75);
+  color: rgba(239, 238, 251, 0.85);
 }
 .hero .metric .hint {
-  color: rgba(239, 238, 251, 0.55);
+  color: rgba(239, 238, 251, 0.85);
 }
 .hero .spark > i {
   background: #a89cf0;
@@ -686,11 +823,11 @@ mark {
   border-color: #b1431f;
 }
 h2.sec {
-  font-size: 1.1rem;
+  font-size: 1.12rem;
   padding-left: 12px;
   border-left: 3px solid var(--accent);
-  margin-bottom: 12px;
-  line-height: 1.3;
+  margin-bottom: 14px;
+  line-height: 1.45;
 }
 /* buttons and chips: obvious hover, focus and pressed states */
 button:hover,
@@ -765,7 +902,7 @@ select:focus-visible {
 .crumbs {
   font-size: 0.85rem;
   color: var(--ink-3);
-  margin-bottom: 8px;
+  margin-bottom: 14px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -779,7 +916,6 @@ select:focus-visible {
 }
 .crumbs a:hover {
   color: var(--accent-ink);
-  text-decoration: underline;
 }
 .crumbs [aria-current] {
   color: var(--ink);
@@ -802,7 +938,7 @@ select:focus-visible {
 }
 footer {
   background: var(--ink-band);
-  color: rgba(239, 238, 251, 0.7);
+  color: rgba(239, 238, 251, 0.82);
   border-top: 0;
   margin-top: 40px;
   padding: 36px 0 48px;
@@ -846,4 +982,204 @@ body {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 4px 10px;
+}
+
+/* citation lookup: เล่ม / ตอน / หน้า as fields, because that is how a citation arrives */
+.cite-lookup .fields {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.cite-lookup label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+.cite-lookup label.check.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 10px;
+}
+.cite-lookup input[type='text'],
+.cite-lookup input:not([type='checkbox']) {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+  width: 6ch;
+}
+.cite-lookup .note {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  margin: 8px 0 0;
+  max-width: 60ch;
+}
+.cite-lookup.light label,
+.cite-lookup.light .note {
+  color: rgba(239, 238, 251, 0.7);
+}
+.cite-lookup.light input:not([type='checkbox']),
+.cite-lookup.light select {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.cite-lookup.light input::placeholder {
+  color: rgba(239, 238, 251, 0.7);
+}
+.hero-cite {
+  margin: 0 0 16px;
+}
+.hero-cite > summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: rgba(239, 238, 251, 0.8);
+  width: fit-content;
+}
+.hero-cite > summary:hover {
+  color: #fff;
+}
+.hero-cite[open] > summary {
+  margin-bottom: 12px;
+}
+
+.citebox .check {
+  gap: 8px;
+}
+
+/* ท้องถิ่นฉัน */
+.provlayout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
+  gap: 32px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .provlayout {
+    grid-template-columns: 1fr;
+  }
+}
+.provmap svg {
+  display: block;
+  max-height: 76vh;
+  margin: 0 auto;
+}
+.provmap .pv {
+  stroke: var(--paper);
+  stroke-width: 0.6;
+  transition: fill 0.15s ease;
+}
+.provmap .pv.b0 {
+  fill: #ece9fb;
+}
+.provmap .pv.b1 {
+  fill: #d3cbf4;
+}
+.provmap .pv.b2 {
+  fill: #b3a4ea;
+}
+.provmap .pv.b3 {
+  fill: #8b77dd;
+}
+.provmap .pv.b4 {
+  fill: #6b4fd8;
+}
+.provmap .pv.none {
+  fill: var(--paper-2);
+}
+.provmap svg a:hover .pv,
+.provmap .pv.on {
+  fill: var(--accent-2);
+}
+.provmap svg a:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 1px;
+}
+.provmap .pv.dim {
+  fill: var(--paper-2);
+}
+.maplegend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+}
+.maplegend .sw {
+  width: 26px;
+  height: 10px;
+  border-radius: 2px;
+}
+.maplegend .sw.b0 {
+  background: #ece9fb;
+}
+.maplegend .sw.b1 {
+  background: #d3cbf4;
+}
+.maplegend .sw.b2 {
+  background: #b3a4ea;
+}
+.maplegend .sw.b3 {
+  background: #8b77dd;
+}
+.maplegend .sw.b4 {
+  background: #6b4fd8;
+}
+.maphint {
+  font-size: 0.8rem;
+  margin: 6px 0 0;
+  min-height: 2.4em;
+}
+.provfilter {
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+}
+.provgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px 14px;
+}
+.provrow {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  line-height: 1.7;
+  padding: 6px 6px 8px;
+  text-decoration: none;
+  color: var(--ink);
+  border-radius: 6px;
+}
+.provrow:hover {
+  background: var(--accent-bg);
+  color: var(--accent-ink);
+}
+.provrow .n {
+  color: var(--ink-3);
+  font-size: 0.85rem;
+}
+.provrow > i {
+  position: absolute;
+  left: 6px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.45;
+  border-radius: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .provmap .pv {
+    transition: none;
+  }
 }

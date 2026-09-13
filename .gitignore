@@ -9,6 +9,8 @@ __pycache__/
 .venv/
 playwright-report/
 test-results/
+coverage/
 .env
 .DS_Store
 web/public/data/
+*.egg-info/

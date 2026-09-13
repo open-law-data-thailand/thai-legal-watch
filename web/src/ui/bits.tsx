@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact'
+import { useState } from 'preact/hooks'
 import { useCountUp } from '../lib/motion'
 import { highlight } from '../lib/highlight'
 import { familyColor, tint } from '../lib/family'
@@ -165,17 +166,48 @@ export function Bars({
   )
 }
 
+/** One bar per day. Each bar is a link into สำรวจ filtered to that day, so "what came out on
+ *  the 3rd?" is one click rather than a date-picker hunt. */
 export function Sparkline({ points }: { points: { d: string; n: number }[] }) {
   const max = Math.max(1, ...points.map((p) => p.n))
+  const [at, setAt] = useState<number | null>(null)
+  const shown = at !== null ? points[at] : null
   return (
-    <div class="spark" role="img" aria-label={`จำนวนฉบับต่อวัน ${points.length} วันล่าสุด`}>
-      {points.map((p) => (
-        <i
-          key={p.d}
-          style={`height:${Math.round((100 * p.n) / max)}%`}
-          title={`${thaiDate(p.d, { short: true })}: ${p.n}`}
-        />
-      ))}
+    <div class="sparkwrap">
+      <div class="spark" role="group" aria-label={`จำนวนฉบับต่อวัน ${points.length} วันล่าสุด`}>
+        {points.map((p, i) => (
+          <a
+            key={p.d}
+            class={`sparkbar${at === i ? ' on' : ''}`}
+            href={href.explore({ scope: 'month', month: p.d.slice(0, 7), day: p.d })}
+            aria-label={`${thaiDate(p.d)} ${p.n.toLocaleString('th-TH')} ฉบับ`}
+            onMouseEnter={() => {
+              setAt(i)
+            }}
+            onMouseLeave={() => {
+              setAt(null)
+            }}
+            onFocus={() => {
+              setAt(i)
+            }}
+            onBlur={() => {
+              setAt(null)
+            }}
+          >
+            <i style={`height:${Math.max(2, Math.round((100 * p.n) / max))}%`} />
+          </a>
+        ))}
+      </div>
+      <div class="sparkhint" role="status">
+        {shown ? (
+          <>
+            {thaiDate(shown.d, { short: true })} · <b>{shown.n.toLocaleString('th-TH')}</b> ฉบับ —
+            คลิกเพื่อดูรายฉบับ
+          </>
+        ) : (
+          'ฉบับต่อวัน 30 วันล่าสุด — ชี้ที่แท่งเพื่อดูวันที่ คลิกเพื่อเปิดรายการของวันนั้น'
+        )}
+      </div>
     </div>
   )
 }

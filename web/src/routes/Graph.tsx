@@ -214,7 +214,7 @@ export function Graph() {
       disposed = true
     }
   }, [model, families, q])
-  if (base.state === 'loading') return <Loading what="กราฟความสัมพันธ์" />
+  if (base.state === 'loading') return <Loading what="ความสัมพันธ์ของหมวด" />
   if (base.state === 'error') return <ErrorBox error={base.error} />
   const g = base.data.g
   const toggle = (r: string) => {
@@ -233,11 +233,12 @@ export function Graph() {
         ความสัมพันธ์ · {year ? `ปี ${beYear(year)}` : 'ทั้งคลัง'} · {stats.topic_topic.length}{' '}
         คู่ที่ปรากฏร่วมกัน · {stats.agencies.length} หน่วยงานหลัก
       </Kicker>
-      <h1 style="margin:6px 0 12px">แผนที่ความสัมพันธ์ระหว่างหมวด</h1>
+      <h1 style="margin:6px 0 12px">หมวดไหนมักออกมาพร้อมกัน</h1>
       <p class="muted" style="margin:0 0 14px;max-width:72ch">
-        วงกลม = หมวด (ขนาดตามจำนวนฉบับ สีตามหมวดแม่) · เส้นหนา = สองหมวดที่ระบบจำแนกให้เอกสารเดียวกันบ่อย ·
-        จุดเทา = หน่วยงานที่ออกเอกสารในหมวดนั้นมากสุด · ตัวกรองไม่ลบจุดออก แค่ทำให้ที่เหลือจางลง · ลาก ซูม
-        คลิกเพื่อเข้าไปดู
+        วงกลมคือหมวด ขนาดตามจำนวนฉบับ สีตามหมวดแม่ · เส้นที่เชื่อมกันคือสองหมวดที่มักถูกจำแนกให้ฉบับเดียวกัน
+        ยิ่งหนายิ่งพบบ่อย · จุดสีเทาคือหน่วยงานที่ออกเอกสารในหมวดนั้นมากที่สุด ·
+        ตัวกรองจะทำให้ส่วนที่ไม่ตรงจางลงเฉย ๆ ไม่ได้ลบออก · ลากเพื่อเลื่อน หมุนล้อเพื่อซูม
+        คลิกเพื่อเปิดหน้านั้น
       </p>
       <div class="toolbar">
         <select
@@ -257,7 +258,7 @@ export function Graph() {
         <input
           type="search"
           aria-label="ค้นชื่อหมวดหรือหน่วยงาน"
-          placeholder="ค้นชื่อหมวด/หน่วยงาน เพื่อเน้น"
+          placeholder="พิมพ์ชื่อหมวดหรือหน่วยงานเพื่อเน้น"
           value={q}
           onInput={(e) => {
             setQ((e.target as HTMLInputElement).value)
@@ -275,7 +276,7 @@ export function Graph() {
           แสดงหน่วยงาน
         </label>
         <label class="check">
-          เส้นขั้นต่ำ{' '}
+          แสดงเส้นเมื่อพบร่วมกันอย่างน้อย{' '}
           <input
             type="range"
             min={20}

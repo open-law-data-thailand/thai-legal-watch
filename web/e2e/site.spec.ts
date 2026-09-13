@@ -1,20 +1,83 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type APIRequestContext } from '@playwright/test'
 
 async function a11y(page: Page) {
-  const r = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa'])
-    .disableRules(['color-contrast'])
-    .analyze()
+  // entrance animations fade elements in; scanning mid-fade reads white-on-white and reports
+  // contrast failures that never reach the screen, so settle the page first
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
   expect(
     r.violations,
-    JSON.stringify(
-      r.violations.map((v) => ({ id: v.id, nodes: v.nodes.length })),
-      null,
-      1,
-    ),
+    r.violations
+      .flatMap((v) => v.nodes.map((n) => `${v.id} :: ${n.target.join(' ')} :: ${n.failureSummary ?? ''}`))
+      .join('\n'),
   ).toEqual([])
 }
+
+/** Nothing on any page may render the error box, and every page needs exactly one h1. */
+async function sane(page: Page) {
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+  await expect(page.locator('.error')).toHaveCount(0)
+  await expect(page.locator('.skeleton')).toHaveCount(0)
+}
+
+const data = {
+  async months(request: APIRequestContext) {
+    const y = (await (await request.get('/data/ratchakitcha/agg/years.json')).json()) as {
+      by_month: Record<string, number>
+    }
+    return Object.keys(y.by_month).sort()
+  },
+  async docs(request: APIRequestContext, month: string) {
+    return (await (
+      await request.get(`/data/ratchakitcha/docs/${month.slice(0, 4)}/${month}.json`)
+    ).json()) as { id: string; t: string; v: number; p: string; pg: number; d: string; pr: string | null }[]
+  },
+  async provinces(request: APIRequestContext) {
+    return (await (await request.get('/data/ratchakitcha/index/provinces.json')).json()) as {
+      file: string
+      name: string
+      n: number
+    }[]
+  },
+  async agencies(request: APIRequestContext) {
+    return (await (await request.get('/data/ratchakitcha/index/agencies.json')).json()) as {
+      id: string
+      name: string
+      page: boolean
+    }[]
+  },
+}
+
+test.describe('every route', () => {
+  test('renders, titles itself, and never shows the error box', async ({ page, request }) => {
+    const provinces = await data.provinces(request)
+    const agencies = await data.agencies(request)
+    const withPage = agencies.find((a) => a.page)
+    if (!withPage) throw new Error('fixture has no agency page')
+    const months = await data.months(request)
+    const last = months[months.length - 1] as string
+    const docs = await data.docs(request, last)
+    const routes: [string, RegExp][] = [
+      ['#/', /วันนี้ในราชกิจจานุเบกษา/],
+      ['#/ratchakitcha/explore', /สำรวจ/],
+      ['#/ratchakitcha/explore?scope=all', /สำรวจ/],
+      ['#/ratchakitcha/provinces', /ท้องถิ่นฉัน/],
+      [`#/ratchakitcha/province/${encodeURIComponent(provinces[0]?.file ?? '')}`, /จังหวัด/],
+      [`#/ratchakitcha/agency/${withPage.id}`, /หน่วยงาน/],
+      ['#/ratchakitcha/topic/environment', /หมวด/],
+      [`#/ratchakitcha/doc/${docs[0]?.id ?? ''}`, /Thai Legal Watch/],
+      ['#/ratchakitcha/dashboard', /แดชบอร์ด/],
+      ['#/ratchakitcha/graph', /ความสัมพันธ์ของหมวด/],
+      ['#/about', /เกี่ยวกับ/],
+    ]
+    for (const [hash, title] of routes) {
+      await page.goto(`/${hash}`)
+      await expect(page, hash).toHaveTitle(title)
+      await sane(page)
+    }
+  })
+})
 
 test.describe('home', () => {
   test('shows the latest day, metrics, topic bars and a data credit', async ({ page }) => {
@@ -24,8 +87,60 @@ test.describe('home', () => {
     await expect(metrics.locator('.metric')).toHaveCount(4)
     await expect(metrics.locator('.value').first()).not.toHaveText('0')
     await expect(page.locator('footer')).toContainText('OpenLawData')
-    await expect(page).toHaveTitle(/Thai Legal Watch/)
     await a11y(page)
+  })
+
+  test('the sparkline names a day on hover and opens that day on click', async ({ page }) => {
+    await page.goto('/#/')
+    const bars = page.locator('.sparkbar')
+    await expect(bars.first()).toBeVisible()
+    const last = bars.last()
+    const label = (await last.getAttribute('aria-label')) ?? ''
+    expect(label).toMatch(/\d+ ฉบับ$/)
+    await last.hover()
+    await expect(page.locator('.sparkhint')).toContainText('คลิกเพื่อดูรายฉบับ')
+    await last.click()
+    await expect(page).toHaveURL(/day=\d{4}-\d{2}-\d{2}/)
+    await expect(page.locator('.pill', { hasText: 'เฉพาะวันที่' })).toBeVisible()
+    // the toolbar says which day, and clearing it returns the whole month
+    const day = page.getByLabel('วันที่', { exact: true })
+    await expect(day).not.toHaveValue('')
+    const oneDay = await page.getByTestId('results').locator('.doc').count()
+    await day.selectOption('')
+    await expect(page).not.toHaveURL(/day=/)
+    await expect
+      .poll(() => page.getByTestId('results').locator('.doc').count())
+      .toBeGreaterThanOrEqual(oneDay)
+    await sane(page)
+  })
+})
+
+test.describe('header search', () => {
+  test('finds a topic by name and the keyboard alone can reach it', async ({ page }) => {
+    await page.goto('/#/')
+    await page.keyboard.press('/')
+    const box = page.locator('.topbar').getByRole('combobox', { name: 'ค้นหาด่วน' })
+    await expect(box).toBeFocused()
+    await box.fill('ขยะ')
+    const list = page.locator('#qs-list li')
+    await expect(list.first()).toBeVisible()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/topic\/pollution_waste/)
+    await sane(page)
+  })
+
+  test('a gazette citation typed into the box opens that document', async ({ page, request }) => {
+    const months = await data.months(request)
+    const docs = await data.docs(request, months[months.length - 1] as string)
+    const target = docs.find((d) => d.v && d.p && d.pg)
+    if (!target) throw new Error('fixture has no document with coordinates')
+    const special = /พิเศษ/.test(target.p)
+    const [part, cls] = target.p.split(' ')
+    const typed = `เล่ม ${target.v} ตอน${special ? 'พิเศษ' : 'ที่'} ${part} ${cls} หน้า ${target.pg}`
+    await page.goto('/#/')
+    await page.locator('.topbar').getByRole('combobox', { name: 'ค้นหาด่วน' }).fill(typed)
+    await page.locator('.topbar').locator('#qs-list li', { hasText: 'เปิดฉบับนี้' }).click()
+    await expect(page.getByTestId('doc-title')).toHaveText(target.t)
   })
 })
 
@@ -46,24 +161,38 @@ test.describe('explore', () => {
     await expect(page.getByRole('button', { name: /ดาวน์โหลด CSV/ })).toBeDisabled()
     await a11y(page)
   })
-})
 
-test.describe('explore scopes', () => {
   test('year scope loads every month of the year and shows counts on chips and options', async ({ page }) => {
     await page.goto('/#/ratchakitcha/explore?scope=year&year=2024')
     const results = page.getByTestId('results')
     await expect(results.locator('.doc')).toHaveCount(50) // first page of 80
     await expect(page.locator('.pager')).toContainText('หน้า 1 / 2')
     await expect(page.getByRole('button', { name: /^ทุกหมวด \(80\)/ })).toBeVisible()
-    await expect(
-      page
-        .getByLabel('การกระทำ')
-        .locator('option', { hasText: /\(\d+\)/ })
-        .first(),
-    ).toBeAttached()
+    await page.getByRole('button', { name: /ถัดไป/ }).click()
+    await expect(page.locator('.pager')).toContainText('หน้า 2 / 2')
     await page.getByRole('button', { name: 'ทั้งหมด' }).click()
     await expect(page).toHaveURL(/scope=all/)
     await expect(page.getByPlaceholder(/ขยะ/)).toBeDisabled()
+  })
+
+  test('months are listed in Buddhist years and the province filter narrows the list', async ({
+    page,
+    request,
+  }) => {
+    await page.goto('/#/ratchakitcha/explore')
+    const monthSelect = page.getByLabel('เดือน')
+    await expect(monthSelect.locator('option').first()).toHaveText(/^25\d\d-\d\d /)
+    const provinces = await data.provinces(request)
+    const withDocs = provinces[0]
+    if (!withDocs) throw new Error('fixture has no provinces')
+    const results = page.getByTestId('results')
+    const before = await results.locator('.doc').count()
+    await page.getByLabel('จังหวัด').selectOption(withDocs.name)
+    await expect(page).toHaveURL(new RegExp(`province=${encodeURIComponent(withDocs.name)}`))
+    await expect.poll(() => results.locator('.doc').count()).toBeLessThanOrEqual(before)
+    for (const pill of await results.locator('.doc').first().locator('.pill').allTextContents())
+      expect(pill).toBeTruthy()
+    await sane(page)
   })
 })
 
@@ -78,18 +207,15 @@ test.describe('facet pages', () => {
     await expect(page.getByTestId('doc-title')).toBeVisible()
     await a11y(page)
   })
+
   test('province page and agency page render from the index', async ({ page, request }) => {
-    const provinces = (await (await request.get('/data/ratchakitcha/index/provinces.json')).json()) as {
-      file: string
-      name: string
-    }[]
-    await page.goto(`/#/ratchakitcha/province/${encodeURIComponent(provinces[0].file)}`)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(provinces[0].name)
-    const agencies = (await (await request.get('/data/ratchakitcha/index/agencies.json')).json()) as {
-      id: string
-      name: string
-      page: boolean
-    }[]
+    const provinces = await data.provinces(request)
+    const first = provinces[0]
+    if (!first) throw new Error('fixture has no provinces')
+    await page.goto(`/#/ratchakitcha/province/${encodeURIComponent(first.file)}`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(first.name)
+    await expect(page.locator('.crumbs a', { hasText: 'ท้องถิ่นฉัน' })).toBeVisible()
+    const agencies = await data.agencies(request)
     const withPage = agencies.find((a) => a.page)
     if (!withPage) throw new Error('fixture has no agency page')
     await page.goto(`/#/ratchakitcha/agency/${withPage.id}`)
@@ -99,30 +225,50 @@ test.describe('facet pages', () => {
 })
 
 test.describe('document', () => {
-  test('shows coordinates, evidence, citation, and a working copy button', async ({
+  test('shows coordinates, evidence, every citation format and a working copy button', async ({
     page,
     request,
     context,
   }) => {
-    const years = (await (await request.get('/data/ratchakitcha/agg/years.json')).json()) as {
-      by_month: Record<string, number>
-    }
-    const month = Object.keys(years.by_month).sort().pop() as string
-    const docs = (await (
-      await request.get(`/data/ratchakitcha/docs/${month.slice(0, 4)}/${month}.json`)
-    ).json()) as {
-      id: string
-      t: string
-    }[]
+    const months = await data.months(request)
+    const month = months[months.length - 1] as string
+    const docs = await data.docs(request, month)
+    const first = docs[0]
+    if (!first) throw new Error('fixture month is empty')
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-    await page.goto(`/#/ratchakitcha/doc/${docs[0].id}`)
-    await expect(page.getByTestId('doc-title')).toHaveText(docs[0].t)
+    await page.goto(`/#/ratchakitcha/doc/${first.id}`)
+    await expect(page.getByTestId('doc-title')).toHaveText(first.t)
     await expect(page.getByTestId('citation')).toContainText('ราชกิจจานุเบกษา เล่ม 141')
     await expect(page.getByTestId('evidence').locator('.lab')).not.toHaveCount(0)
     await page.getByTestId('cite').click()
     await expect(page.getByTestId('cite')).toHaveText(/คัดลอกแล้ว/)
+    await page.getByLabel('รูปแบบการอ้างอิง').selectOption('footnote')
+    await expect(page.getByTestId('citation')).toContainText('เล่ม ๑๔๑')
+    await page.getByLabel('รูปแบบการอ้างอิง').selectOption('apa')
+    await expect(page.getByTestId('citation')).toContainText('ราชกิจจานุเบกษา, 141')
+    await page.getByLabel('รูปแบบการอ้างอิง').selectOption('coords')
+    await expect(page.getByTestId('citation')).toHaveText(/^เล่ม 141/)
+    await page.getByTestId('copy-link').click()
+    await expect(page.getByTestId('copy-link')).toHaveText(/คัดลอกแล้ว/)
     await a11y(page)
   })
+
+  test('a legacy id is never handed a hundred-megabyte download', async ({ page, request }) => {
+    const months = await data.months(request)
+    const docs = await data.docs(request, months[months.length - 1] as string)
+    const legacy = docs.find((d) => /^\d{4}-\d{6}$/.test(d.id))
+    if (!legacy) return // a build of modern-only years has nothing to check
+    await page.goto(`/#/ratchakitcha/doc/${legacy.id}`)
+    const primary = page.locator('.doclinks a.btn.primary')
+    await expect(primary).toHaveAttribute('href', 'https://ratchakitcha.soc.go.th/')
+    const secondary = page.locator('.doclinks a').nth(1)
+    await expect(secondary).toHaveAttribute('href', /\/blob\/main\/zip\//)
+    for (const href of await page
+      .locator('a')
+      .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).href)))
+      expect(href, 'no direct archive download anywhere on the page').not.toMatch(/\/resolve\/.*\.zip$/)
+  })
+
   test('unknown id is an error, not a blank page', async ({ page }) => {
     await page.goto('/#/ratchakitcha/doc/2024-999999')
     await expect(page.getByRole('alert')).toContainText('ไม่พบเอกสาร')
@@ -131,13 +277,71 @@ test.describe('document', () => {
   })
 })
 
+test.describe('ท้องถิ่นฉัน', () => {
+  test('draws the country, keys the colours, and reaches a province page', async ({ page, request }) => {
+    await page.goto('/#/ratchakitcha/provinces')
+    const map = page.getByTestId('province-map')
+    // every one of the 77 provinces is drawn, whether or not it has documents
+    await expect(map.locator('svg path.pv')).toHaveCount(77)
+    await expect(map.locator('.maplegend .sw')).toHaveCount(5)
+    const provinces = await data.provinces(request)
+    const linked = map.locator('svg a')
+    await expect(linked).toHaveCount(provinces.length)
+    const first = linked.first()
+    const label = (await first.getAttribute('aria-label')) ?? ''
+    await first.click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(label.split(' ')[0] as string)
+    await a11y(page)
+  })
+
+  test('the filter narrows the list and says so when nothing matches', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/provinces')
+    const rows = page.getByTestId('province-list').locator('.provrow')
+    await expect(rows.first()).toBeVisible()
+    await page.getByPlaceholder(/ชื่อจังหวัด/).fill('ไม่มีจังหวัดนี้')
+    await expect(rows).toHaveCount(0)
+    await expect(page.getByText(/ไม่พบจังหวัดที่ตรงกับ/)).toBeVisible()
+  })
+})
+
+test.describe('citation lookup', () => {
+  test('เล่ม / ตอน / หน้า on the hero opens the document at those coordinates', async ({ page, request }) => {
+    const months = await data.months(request)
+    const docs = await data.docs(request, months[months.length - 1] as string)
+    const target = docs.find((d) => d.v && d.p && d.pg)
+    if (!target) throw new Error('fixture has no document with coordinates')
+    const [part, cls] = target.p.split(' ')
+    await page.goto('/#/')
+    await page.getByText(/เปิดจากเล่ม ตอน หน้า/).click()
+    await page.getByLabel('เล่ม', { exact: true }).fill(String(target.v))
+    await page.getByLabel('ตอนที่', { exact: true }).fill(part as string)
+    await page.getByLabel('ตอน ก/ข/ค/ง').selectOption(cls as string)
+    if (/พิเศษ/.test(target.p)) await page.getByLabel('ตอนพิเศษ').check()
+    await page.getByLabel('หน้า', { exact: true }).fill(String(target.pg))
+    await page.getByRole('button', { name: 'เปิดเอกสาร' }).click()
+    await expect(page.getByTestId('doc-title')).toHaveText(target.t)
+  })
+
+  test('coordinates that do not exist say so instead of hanging', async ({ page }) => {
+    await page.goto('/#/')
+    await page.getByText(/เปิดจากเล่ม ตอน หน้า/).click()
+    await page.getByLabel('เล่ม', { exact: true }).fill('99')
+    await page.getByLabel('ตอนที่', { exact: true }).fill('999')
+    await page.getByRole('button', { name: 'เปิดเอกสาร' }).click()
+    await expect(page.getByText(/ไม่พบฉบับที่ เล่ม 99/)).toBeVisible()
+  })
+})
+
 test.describe('dashboard, graph and about', () => {
-  test('the relationship graph mounts on a canvas', async ({ page }) => {
+  test('the relationship graph mounts and its filters stay usable', async ({ page }) => {
     await page.goto('/#/ratchakitcha/graph')
     await expect(page.getByTestId('graph').locator('canvas').first()).toBeVisible()
     await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')
+    await page.getByPlaceholder(/พิมพ์ชื่อหมวด/).fill('ขยะ')
+    await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')
     await a11y(page)
   })
+
   test('charts mount, a year click focuses the table, and the about page states the accuracy', async ({
     page,
   }) => {
@@ -147,6 +351,7 @@ test.describe('dashboard, graph and about', () => {
     await expect(page.getByTestId('chart-funnel').locator('svg')).toBeVisible()
     await page.goto('/#/about')
     await expect(page.getByText('100% (ช่วงเชื่อมั่น 98.6–100)')).toBeVisible()
+    await expect(page.getByText('สุ่มทั่วคลัง 300 ฉบับ')).toBeVisible()
     await a11y(page)
   })
 })
@@ -155,4 +360,13 @@ test('feeds are served as Atom', async ({ request }) => {
   const r = await request.get('/data/ratchakitcha/feeds/topic/pollution_waste.xml')
   expect(r.ok()).toBeTruthy()
   expect(await r.text()).toContain('<feed xmlns="http://www.w3.org/2005/Atom">')
+})
+
+test('the province map ships with the site and covers all 77 provinces', async ({ request }) => {
+  const r = await request.get('/map/thailand-provinces.json')
+  expect(r.ok()).toBeTruthy()
+  const m = (await r.json()) as { provinces: Record<string, string>; width: number; height: number }
+  expect(Object.keys(m.provinces)).toHaveLength(77)
+  expect(m.height).toBeGreaterThan(m.width)
+  for (const d of Object.values(m.provinces)) expect(d).toMatch(/^M[\d. LZM]+$/)
 })

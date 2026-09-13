@@ -16,7 +16,7 @@ const facet = (total: number, by_action: Record<string, number>): Facet => ({
 
 it('names the main action only when corroborated labels cover a fifth of the facet', () => {
   expect(mainAction(facet(1000, { registration: 357 }), undefined)).toBe('registration')
-  expect(mainAction(facet(444_029, { registration: 357 }), undefined)).toBe('ยืนยันได้น้อยเกินไป')
-  expect(mainAction(facet(0, {}), undefined)).toBe('ยืนยันได้น้อยเกินไป')
-  expect(mainActionHint(facet(200, { a: 50, b: 50 }))).toBe('ยืนยันแล้ว 50% ของฉบับ')
+  expect(mainAction(facet(444_029, { registration: 357 }), undefined)).toBe('ยืนยันได้ไม่พอจะสรุป')
+  expect(mainAction(facet(0, {}), undefined)).toBe('ยืนยันได้ไม่พอจะสรุป')
+  expect(mainActionHint(facet(200, { a: 50, b: 50 }))).toBe('ยืนยันแล้ว 50% ของฉบับทั้งหมด')
 })

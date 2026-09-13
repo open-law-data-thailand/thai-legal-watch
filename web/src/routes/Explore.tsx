@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
-import { beYear } from '../lib/thai'
+import { beMonth, beYear, thaiDate } from '../lib/thai'
 import { href } from '../router'
 import { Bars, DocRow, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 
@@ -18,6 +18,8 @@ export interface Filters {
   scope?: Scope
   month?: string
   year?: string
+  /** a single publication date, YYYY-MM-DD — how a click on the home sparkline arrives */
+  day?: string
 }
 
 export function filtersFrom(q: URLSearchParams): Filters {
@@ -32,6 +34,7 @@ export function filtersFrom(q: URLSearchParams): Filters {
     q: pick('q'),
     month: pick('month'),
     year: pick('year'),
+    day: /^\d{4}-\d{2}-\d{2}$/.test(pick('day') ?? '') ? pick('day') : undefined,
     scope: scope === 'year' || scope === 'all' ? scope : 'month',
   }
 }
@@ -51,14 +54,20 @@ export function matches(d: SlimDoc, f: Filters, tax: Taxonomy | undefined, excep
   if (f.province && except !== 'province' && d.pr !== f.province) return false
   if (f.agency && except !== 'agency' && d.a !== f.agency) return false
   if (f.q && except !== 'q' && !d.t.replace(/\s+/g, '').includes(f.q.replace(/\s+/g, ''))) return false
+  if (f.day && except !== 'day' && d.d !== f.day) return false
   return true
 }
 
 export function Explore({ q }: { q: URLSearchParams }) {
   const f = filtersFrom(q)
   const base = useLoad(async (c) => {
-    const [tax, years, agencies] = await Promise.all([c.taxonomy(), c.years(), c.agencies()])
-    return { tax, years, agencies: new Map(agencies.map((a) => [a.id, a.name])) }
+    const [tax, years, agencies, provinces] = await Promise.all([
+      c.taxonomy(),
+      c.years(),
+      c.agencies(),
+      c.provinces(),
+    ])
+    return { tax, years, agencies: new Map(agencies.map((a) => [a.id, a.name])), provinces }
   }, [])
   const months = base.state === 'ok' ? Object.keys(base.data.years.by_month).sort().reverse() : []
   const years = base.state === 'ok' ? Object.keys(base.data.years.by_year).sort().reverse() : []
@@ -122,10 +131,20 @@ export function Explore({ q }: { q: URLSearchParams }) {
         : countsFor('govlevel', (d) => (d.gc ? d.govlevel : null)),
     [loaded, f, tax, scope],
   )
+  const provinceCounts = useMemo(() => countsFor('province', (d) => d.pr), [loaded, f, tax, scope])
+  // the days of the loaded month, counted here rather than shipped: the shard already has them
+  const dayCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const d of loaded) if (d.d && matches(d, f, tax, 'day')) m.set(d.d, (m.get(d.d) ?? 0) + 1)
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }, [loaded, f, tax])
   if (base.state === 'loading') return <Loading />
   if (base.state === 'error') return <ErrorBox error={base.error} />
   const set = (patch: Partial<Record<keyof Filters, string>>) => {
     const cur = Object.fromEntries(Object.entries(f).filter(([, x]) => x)) as Record<string, string>
+    // a day belongs to one month; changing the month or the scope must not leave a stale one
+    // behind, which looks exactly like "the search is broken, it finds nothing"
+    if (('month' in patch || 'scope' in patch || 'year' in patch) && !('day' in patch)) delete cur.day
     location.hash = href.explore({ ...cur, ...patch })
     setPage(0)
   }
@@ -143,15 +162,20 @@ export function Explore({ q }: { q: URLSearchParams }) {
           : 0
         : Object.values(base.data.years.by_year).reduce((s, n) => s + n, 0)
       : hits.length
-  const scopeLabel =
-    scope === 'month' ? `เดือน ${month}` : scope === 'year' ? `ปี ${year ? beYear(year) : ''}` : 'ทั้งคลัง'
+  const scopeLabel = f.day
+    ? thaiDate(f.day)
+    : scope === 'month'
+      ? `เดือน ${month ? beMonth(month) : ''}`
+      : scope === 'year'
+        ? `ปี ${year ? beYear(year) : ''}`
+        : 'ทั้งคลัง'
   const list = scope === 'all' ? (agg.state === 'ok' && agg.data ? agg.data.recent : []) : hits
   return (
     <>
       <Kicker>
-        สำรวจ · {total.toLocaleString('th-TH')} ฉบับตรงเงื่อนไขใน{scopeLabel}
+        สำรวจ · ตรงเงื่อนไข {total.toLocaleString('th-TH')} ฉบับ ใน{scopeLabel}
       </Kicker>
-      <h1 style="margin:6px 0 16px">สำรวจตามหมวด การกระทำ ระดับ และพื้นที่</h1>
+      <h1 style="margin:6px 0 16px">สำรวจตามหมวด สิ่งที่ทำ ระดับผู้ออก และพื้นที่</h1>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
         <div class="scope" role="group" aria-label="ช่วงเวลา">
           {(['month', 'year', 'all'] as Scope[]).map((s) => (
@@ -169,7 +193,22 @@ export function Explore({ q }: { q: URLSearchParams }) {
           >
             {months.map((m) => (
               <option key={m} value={m}>
-                {m} ({(base.data.years.by_month[m] ?? 0).toLocaleString('th-TH')})
+                {beMonth(m)} ({(base.data.years.by_month[m] ?? 0).toLocaleString('th-TH')})
+              </option>
+            ))}
+          </select>
+        )}
+        {scope === 'month' && dayCounts.length > 0 && (
+          <select
+            aria-label="วันที่"
+            value={f.day ?? ''}
+            onChange={(e) => set({ day: (e.target as HTMLSelectElement).value })}
+            style="padding:8px"
+          >
+            <option value="">ทุกวันในเดือนนี้</option>
+            {dayCounts.map(([d, n]) => (
+              <option key={d} value={d}>
+                {thaiDate(d)} ({n.toLocaleString('th-TH')})
               </option>
             ))}
           </select>
@@ -190,13 +229,13 @@ export function Explore({ q }: { q: URLSearchParams }) {
         )}
         {scope === 'all' && (
           <span class="muted" style="font-size:.85rem">
-            โหมดภาพรวม: ตัวเลขจากทั้งคลัง รายการแสดง 30 ฉบับล่าสุดของหมวดที่เลือก
+            มุมมองทั้งคลัง: ตัวเลขนับจากทุกปี ส่วนรายการด้านล่างแสดง 30 ฉบับล่าสุดของหมวดที่เลือก
           </span>
         )}
       </div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:16px">
         <label>
-          การกระทำ
+          สิ่งที่เอกสารทำ
           <br />
           <select
             value={f.action ?? ''}
@@ -225,6 +264,26 @@ export function Explore({ q }: { q: URLSearchParams }) {
               <option key={k} value={k}>
                 {v}
                 {fmt(govCounts.get(k))}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          จังหวัด
+          <br />
+          <select
+            value={f.province ?? ''}
+            onChange={(e) => set({ province: (e.target as HTMLSelectElement).value })}
+            style="width:100%;padding:8px"
+          >
+            <option value="">ทุกจังหวัด</option>
+            {(scope === 'all'
+              ? base.data.provinces
+              : base.data.provinces.filter((p) => provinceCounts.has(p.name))
+            ).map((p) => (
+              <option key={p.file} value={p.name}>
+                {p.name}
+                {scope === 'all' ? ` (${p.n.toLocaleString('th-TH')})` : fmt(provinceCounts.get(p.name))}
               </option>
             ))}
           </select>
@@ -276,9 +335,17 @@ export function Explore({ q }: { q: URLSearchParams }) {
           · <a href={href.topic(f.topic)}>หน้าหมวด →</a>
         </p>
       )}
-      {(f.province || f.agency) && (
+      {(f.province || f.agency || f.day) && (
         <p class="muted">
           กรองเพิ่ม:{' '}
+          {f.day && (
+            <span class="pill">
+              เฉพาะวันที่ {thaiDate(f.day)}{' '}
+              <button class="chip" onClick={() => set({ day: '' })} aria-label="ลบตัวกรองวันที่">
+                ×
+              </button>
+            </span>
+          )}{' '}
           {f.province && (
             <span class="pill">
               {f.province}{' '}
@@ -299,7 +366,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
       )}
       <div class="two">
         <section>
-          <h2 style="font-size:1rem;margin-bottom:10px">ในผลลัพธ์นี้</h2>
+          <h2 style="font-size:1rem;margin-bottom:10px">สรุปผลที่ได้</h2>
           {scope === 'all' ? (
             <Bars
               rows={[...topicCounts.entries()]
@@ -316,7 +383,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
               hrefOf={(k) => href.topic(k)}
             />
           )}
-          <h3 style="font-size:.95rem;margin:18px 0 8px">การกระทำ</h3>
+          <h3 style="font-size:.95rem;margin:18px 0 8px">สิ่งที่เอกสารทำ</h3>
           <Bars
             rows={
               scope === 'all'
@@ -325,7 +392,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
             }
             nameOf={(k) => actionName(tax, k)}
           />
-          <h3 style="font-size:.95rem;margin:18px 0 8px">ระดับ</h3>
+          <h3 style="font-size:.95rem;margin:18px 0 8px">ระดับผู้ออก</h3>
           <Bars
             rows={
               scope === 'all'
@@ -350,7 +417,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
           {docs.state === 'error' && <ErrorBox error={docs.error} />}
           {scope === 'all' && !f.topic && (
             <p class="muted">
-              เลือกหมวดเพื่อดูฉบับล่าสุดของหมวดนั้น หรือสลับเป็นรายปี/รายเดือนเพื่อไล่ดูทุกฉบับ
+              เลือกหมวดเพื่อดูฉบับล่าสุดของหมวดนั้น หรือสลับไปรายปี/รายเดือนเพื่อไล่ดูทีละฉบับ
             </p>
           )}
           <div class="doclist" data-testid="results">
