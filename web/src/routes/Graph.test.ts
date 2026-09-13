@@ -1,6 +1,17 @@
-import { expect, it } from 'vitest'
-import type { Graph } from '../data/types'
-import { buildModel, focusOf, type GraphNode, type YearGraph } from './Graph'
+import { describe, expect, it } from 'vitest'
+import type { Graph, Taxonomy } from '../data/types'
+import { familyColor, FAMILY_PALETTE } from '../lib/family'
+import { buildModel, categoryColors, focusOf, type GraphNode, type YearGraph } from './Graph'
+
+/** roots sorted alphabetically, which is the order both the graph and `familyColor` use */
+const taxOf = (roots: string[]) =>
+  ({
+    topics: Object.fromEntries(roots.map((s) => [s, { thai: s, parent: null, n: 1, children: [] }])),
+    actions: {},
+    govlevels: {},
+    action_counts: {},
+    govlevel_counts: {},
+  }) as unknown as Taxonomy
 
 const g: Graph = {
   topics: [
@@ -69,4 +80,32 @@ it('focus dims rather than removes: family and text filters', () => {
   expect(focusOf(ag, { families: new Set(['environment']), q: '' })).toBe(false)
   expect(focusOf(env, { families: new Set(), q: 'สิ่ง แวด' })).toBe(true)
   expect(focusOf(env, { families: new Set(), q: 'ล้ม' })).toBe(false)
+})
+
+describe('categoryColors', () => {
+  it('gives every family a colour, however many families there are', () => {
+    // the taxonomy has 22 roots and the palette has 11 entries; slicing left half of them blank
+    const colours = categoryColors(22)
+    expect(colours).toHaveLength(23)
+    expect(colours.filter(Boolean)).toHaveLength(23)
+  })
+
+  it('keeps the last slot for agencies, distinct from any family colour', () => {
+    const colours = categoryColors(22)
+    const agency = colours[colours.length - 1]
+    expect(colours.slice(0, -1)).not.toContain(agency)
+  })
+
+  it('never uses the palette entry reserved for "no family"', () => {
+    const reserved = FAMILY_PALETTE[FAMILY_PALETTE.length - 1]
+    expect(categoryColors(40).slice(0, -1)).not.toContain(reserved)
+  })
+
+  it('paints a topic the same colour the graph does and its pill does', () => {
+    // a family palette that disagrees with itself between two views is worse than no palette
+    const roots = Array.from({ length: 22 }, (_, i) => `r${String(i).padStart(2, '0')}`)
+    const tax = taxOf(roots)
+    const colours = categoryColors(roots.length)
+    for (const [i, slug] of roots.entries()) expect(colours[i], slug).toBe(familyColor(slug, tax))
+  })
 })

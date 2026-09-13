@@ -147,6 +147,19 @@ export function neighboursOf(
   return [...best.values()].sort((a, b) => b.n - a.n).slice(0, limit)
 }
 
+/** One colour per category, plus the grey that means "agency" at the end.
+ *
+ *  `FAMILY_PALETTE.slice(0, roots)` was wrong twice over: the palette has eleven entries and the
+ *  taxonomy has twenty-two roots, so half the families came out with no colour at all — and the
+ *  last entry is the grey reserved for "not a family", which is also what the legend calls
+ *  agencies. Cycling the palette the way `familyColor` does means a topic is the same colour here
+ *  as on its pill, which is the whole point of having a family palette.
+ */
+export function categoryColors(roots: number): string[] {
+  const wheel = FAMILY_PALETTE.length - 1
+  return [...Array.from({ length: roots }, (_, i) => FAMILY_PALETTE[i % wheel] ?? '#6b6b73'), '#8a8a94']
+}
+
 /** Focus never removes a node: matching nodes stay vivid, the rest fade to the background. */
 export function focusOf(node: GraphNode, focus: { families: Set<string>; q: string }): boolean {
   if (focus.families.size && node.kind === 'topic' && !focus.families.has(node.root)) return false
@@ -167,7 +180,10 @@ export function Graph() {
   )
   const [year, setYear] = useState<string>('')
   const yg = useLoad(async (c) => (year ? c.get<YearGraph>(`agg/graph/${year}.json`) : null), [year])
-  const [agencies, setAgencies] = useState(true)
+  // Agencies off to begin with. With them on, the first view is several hundred grey dots over
+  // the topics and the page reads as "look how complex" rather than as an answer to anything —
+  // they are an overlay you add once you know what you are looking at, not the starting picture.
+  const [agencies, setAgencies] = useState(false)
   const [minEdge, setMinEdge] = useState(200)
   const [families, setFamilies] = useState<Set<string>>(new Set())
   const [q, setQ] = useState('')
@@ -261,7 +277,7 @@ export function Graph() {
       chart.setOption({
         backgroundColor: 'transparent',
         animation: !reducedMotion(),
-        color: [...FAMILY_PALETTE.slice(0, model.roots.length), '#8a8a94'],
+        color: categoryColors(model.roots.length),
         tooltip: {
           formatter: (p: {
             dataType?: string
@@ -331,7 +347,7 @@ export function Graph() {
       <h1 style="margin:6px 0 12px">หมวดไหนมักออกมาพร้อมกัน</h1>
       <p class="muted" style="margin:0 0 14px;max-width:72ch">
         วงกลมคือหมวด ขนาดตามจำนวนฉบับ สีตามหมวดแม่ · เส้นที่เชื่อมกันคือสองหมวดที่มักถูกจำแนกให้ฉบับเดียวกัน
-        ยิ่งหนายิ่งพบบ่อย · จุดสีเทาคือหน่วยงานที่ออกเอกสารในหมวดนั้นมากที่สุด ·
+        ยิ่งหนายิ่งพบบ่อย · ติ๊ก "แสดงหน่วยงาน" เพื่อซ้อนจุดสีเทาของหน่วยงานที่ออกเอกสารในหมวดนั้นมากที่สุด ·
         ตัวกรองจะทำให้ส่วนที่ไม่ตรงจางลงเฉย ๆ ไม่ได้ลบออก · คลิกวงกลมเพื่อดูว่ามันคืออะไร อยู่ติดกับอะไร
         และเปิดฉบับจริงได้จากตรงนั้น
       </p>
