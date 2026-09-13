@@ -14,7 +14,7 @@ fetch yourself.
 **Data credit:** every document and label comes from
 [OpenLawData — soc-ratchakitcha](https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha).
 This site is a reader of that dataset, not a source. It is built to take other OpenLawData
-datasets as additional *sources* without moving anything already published.
+datasets as additional _sources_ without moving anything already published.
 
 ---
 
@@ -22,11 +22,10 @@ datasets as additional *sources* without moving anything already published.
 
 **A columnar index of the whole archive, in the browser.** Pre-computing a file per facet means
 only the questions somebody anticipated have answers, and every new pairing is another file. The
-build instead ships every document's *dimensions* — topic, action, government level, province,
+build instead ships every document's _dimensions_ — topic, action, government level, province,
 agency, document type, date — as small integer codes in typed arrays: **about 550 KB over the
 wire for 773,162 documents**, 7.7 MB of memory, and **under a millisecond** for a filtered count
-with a group-by. So any
-combination of filters is instant, including ones nobody thought of, and every number on the site
+with a group-by. So any combination of filters is instant, including ones nobody thought of, and every number on the site
 comes from the same place. Titles stay out of it — 306 MB — and are read from month files only for
 the documents actually shown. (`pipeline/tlw_pipeline/cube.py`, `web/src/lib/cube.ts`.)
 
@@ -34,7 +33,7 @@ the documents actually shown. (`pipeline/tlw_pipeline/cube.py`, `web/src/lib/cub
 one JSON object per line, sorted by `doc_id`, and Hugging Face answers HTTP range requests with
 CORS open — which makes the file a sorted array you are allowed to seek in. A parallel k-way
 search finds one record in about a dozen range requests. No index to build, no backend: the sort
-order the publisher already maintains *is* the index. (`web/src/lib/ocr.ts`.)
+order the publisher already maintains _is_ the index. (`web/src/lib/ocr.ts`.)
 
 ## Layout
 
@@ -64,7 +63,7 @@ TLW_DATA=<dist-data> npm run preview:real             # the site against a real 
 
 - **pipeline** — pytest + ruff. A contract test validates a real build against
   `docs/DATA_CONTRACT.md`: every file present, every byte budget, and the invariants the site
-  depends on — including that row *i* of the archive index and offset *i* of the month file are
+  depends on — including that row _i_ of the archive index and offset _i_ of the month file are
   the same document, checked exhaustively.
 - **web** — TypeScript strict, ESLint type-checked, Vitest, and Playwright on desktop **and**
   mobile with an axe WCAG 2A/AA scan (colour-contrast included) on every page.
