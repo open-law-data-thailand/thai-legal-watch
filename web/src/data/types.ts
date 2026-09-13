@@ -1,0 +1,144 @@
+/** Types for DATA_CONTRACT.md v1. Fields may be added upstream; never rely on absence. */
+export const CONTRACT = 1
+
+export interface SlimLabel {
+  s: string
+  x: 'topic' | 'action' | 'govlevel'
+  w: number
+  c: boolean
+  m: string[]
+}
+
+export interface SlimDoc {
+  id: string
+  t: string
+  d: string | null
+  v: number | null
+  p: string | null
+  pg: number | null
+  dt: string | null
+  a: string | null
+  pr: string | null
+  topic: string | null
+  action: string | null
+  govlevel: string | null
+  tc: boolean
+  ac: boolean
+  gc: boolean
+  labels: SlimLabel[]
+  x?: Record<string, string>
+}
+
+export interface RecentDoc {
+  id: string
+  t: string
+  d: string | null
+  a: string | null
+  pr: string | null
+  topic: string | null
+  action: string | null
+  govlevel: string | null
+  tc: boolean
+  ac: boolean
+}
+
+export interface SourceCredit {
+  name: string
+  url: string
+  layers?: string[]
+  license?: string
+  built_from_years?: string[]
+}
+
+export interface Meta {
+  contract: number
+  generated_at: string
+  sources: SourceCredit[]
+  years: string[]
+  docs: number
+  labelled: number
+  corroborated_any: number
+  latest_date: string | null
+  site: string
+  files: number
+  bytes: number
+}
+
+export interface TopicNode {
+  thai: string | null
+  parent: string | null
+  n: number
+  children: string[]
+}
+export interface Taxonomy {
+  topics: Record<string, TopicNode>
+  actions: Record<string, string>
+  govlevels: Record<string, string>
+  action_counts: Record<string, number>
+  govlevel_counts: Record<string, number>
+}
+
+export interface Facet {
+  total: number
+  by_year: Record<string, number>
+  by_month: Record<string, number>
+  by_topic: Record<string, number>
+  by_action: Record<string, number>
+  by_govlevel: Record<string, number>
+  agencies: { id: string; name: string; n: number }[]
+  provinces: Record<string, number>
+  recent: RecentDoc[]
+}
+export interface TopicPage extends Facet {
+  slug: string
+  thai: string | null
+  parent: string | null
+  children: string[]
+}
+export interface AgencyPage extends Facet {
+  id: string
+  name: string
+  type: string | null
+}
+export interface ProvincePage extends Facet {
+  name: string
+}
+
+export interface Home {
+  latest_date: string | null
+  count: number
+  parts: string[]
+  volume: number | null
+  by_topic: Record<string, number>
+  by_action: Record<string, number>
+  by_govlevel: Record<string, number>
+  provinces: number
+  bankruptcy_stages: Record<string, number>
+  highlights: SlimDoc[]
+  sparkline: { d: string; n: number }[]
+}
+
+export interface AgencyIndexItem {
+  id: string
+  name: string
+  type: string | null
+  n: number
+}
+export interface ProvinceIndexItem {
+  name: string
+  file: string
+  n: number
+}
+export interface TopicIndexItem {
+  slug: string
+  thai: string | null
+  parent: string | null
+  n: number
+}
+export interface Years {
+  by_year: Record<string, number>
+  by_month: Record<string, number>
+}
+export interface Bankruptcy {
+  by_court_stage: { court: string; stage: string; n: number }[]
+}

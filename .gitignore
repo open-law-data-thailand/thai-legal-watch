@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-data/
+.wrangler/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.venv/
+playwright-report/
+test-results/
+.env
+.DS_Store
+web/public/data/

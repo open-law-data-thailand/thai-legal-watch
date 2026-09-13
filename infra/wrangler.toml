@@ -1,0 +1,8 @@
+# Cloudflare Pages project for the static site. Deploy from the build box:
+#   wrangler pages deploy web/dist --project-name thai-legal-watch --branch main
+# dist-data/ is copied into web/dist/data before deploying (see infra/deploy.sh).
+name = "thai-legal-watch"
+pages_build_output_dir = "../web/dist"
+compatibility_date = "2026-06-01"
+
+# phase 2: [[d1_databases]] binding = "DB", database_name = "tlw", database_id = "<from wrangler d1 create tlw>"
