@@ -88,6 +88,11 @@ jobs:
           restore-keys: hfdata-
 
       - name: Fetch the dataset layers this site reads
+        # Optional. The dataset is public, so this is only about Hugging Face's per-IP rate
+        # limits, which CI runners share with the rest of the platform. A *read* token is the
+        # whole requirement — never the one that publishes the dataset.
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           infra/fetch-dataset.py --out hfdata --root hfroot --emit-years years.txt \
             ${{ inputs.years && format('--years {0}', inputs.years) || '' }}

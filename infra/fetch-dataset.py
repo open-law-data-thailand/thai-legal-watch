@@ -24,9 +24,32 @@ TAXONOMY = "taxonomy/openlawdata-taxonomy"
 API = f"https://huggingface.co/api/datasets/{REPO}/tree/main/"
 
 
-def published_years(prefix: str) -> set[str]:
+def hf_token() -> str | None:
+    """A *read* token if one is offered. The dataset is public, so this is only about rate limits:
+    Hugging Face limits anonymous requests per IP, and CI runners share their IPs with everyone
+    else on the platform, which makes a daily job the thing most likely to be throttled.
+
+    Read-only is the whole requirement. Never give this the token that publishes the dataset."""
+    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or None
+
+
+def verify(token: str) -> bool:
+    """Does this token actually authenticate? A wrong one is accepted silently for public files."""
+    req = urllib.request.Request("https://huggingface.co/api/whoami-v2")
+    req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r).get("name") is not None
+    except Exception:
+        return False
+
+
+def published_years(prefix: str, token: str | None) -> set[str]:
     """Year folders that actually exist under `prefix`, straight from the repository tree."""
-    with urllib.request.urlopen(API + prefix, timeout=60) as r:
+    req = urllib.request.Request(API + prefix)
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req, timeout=60) as r:
         tree = json.load(r)
     return {e["path"].rsplit("/", 1)[-1] for e in tree if e["path"].rsplit("/", 1)[-1].isdigit()}
 
@@ -55,7 +78,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # a year is only usable if BOTH layers have it: meta gives titles and dates, taxonomy gives
     # the classification, and a year with one and not the other would build to nothing useful
-    both = published_years("meta") & published_years(TAXONOMY)
+    token = hf_token()
+    if token and not verify(token):
+        # A rejected token still downloads fine — the dataset is public — but claiming
+        # "authenticated" in the log while being throttled as an anonymous caller is how a
+        # rate-limit failure months from now becomes impossible to explain.
+        print("hugging face: HF_TOKEN was rejected; continuing anonymously", file=sys.stderr)
+        token = None
+    print("hugging face:", "authenticated" if token else "anonymous (subject to per-IP rate limits)")
+    both = published_years("meta", token) & published_years(TAXONOMY, token)
     ask = wanted(a.years) if a.years else both
     years = sorted(ask & both)
     if not years:
@@ -74,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     patterns = [f"meta/{y}/*" for y in years] + [f"{TAXONOMY}/{y}/*" for y in years] + [f"{TAXONOMY}/taxonomy.json"]
     snapshot_download(
         repo_id=REPO, repo_type="dataset", local_dir=a.out, allow_patterns=patterns,
-        token=False, max_workers=8,
+        token=token or False, max_workers=8,
     )
 
     # tlw-build wants <root>/meta/<year>/ and <root>/taxonomy/<year>/; the repository nests the
