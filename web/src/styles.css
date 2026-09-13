@@ -1363,3 +1363,16 @@ body {
     top: 100px;
   }
 }
+
+/* A filter that finds nothing where the reader is standing, but something nearby. Warm rather
+   than alarming: it is a signpost, not an error. */
+.emptyhint {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+}
+.emptyhint .chip {
+  margin-left: 2px;
+}

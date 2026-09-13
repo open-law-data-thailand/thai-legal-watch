@@ -8,7 +8,7 @@ export interface Crumb {
 /** Breadcrumb trail; the last item is the current page and is not a link. */
 export function Crumbs({ items }: { items: Crumb[] }) {
   const href = useHref()
-  const all: Crumb[] = [{ label: 'วันนี้', to: href.home() }, ...items]
+  const all: Crumb[] = [{ label: 'หน้าแรก', to: href.home() }, ...items]
   return (
     <nav class="crumbs" aria-label="ตำแหน่งหน้า">
       {all.map((c, i) => (

@@ -38,6 +38,11 @@ export function Provinces() {
         และประกาศของผู้ว่าราชการจังหวัด ล้วนผูกกับพื้นที่ทั้งนั้น เลือกจังหวัดเพื่อดูว่ามีเรื่องอะไร
         หน่วยงานไหนออก และฉบับล่าสุดคืออะไร พร้อมติดตามต่อด้วย RSS
       </p>
+      <p style="margin:14px 0 0">
+        <a class="btn" href={href.explore({ scope: 'all' })}>
+          เปิดในหน้าสำรวจ — ไขว้จังหวัดกับหมวด ปี และหน่วยงาน →
+        </a>
+      </p>
       <div class="grid metrics" style="margin:18px 0 22px">
         <Metric
           label="จังหวัดที่มีเอกสาร"
@@ -166,7 +171,8 @@ function Choropleth({
       <p class="muted maphint" role="status">
         {shown ? (
           <>
-            <b>{shown.name}</b> {shown.n.toLocaleString('th-TH')} ฉบับ — คลิกเพื่อเปิด
+            <b>{shown.name}</b> {shown.n.toLocaleString('th-TH')} ฉบับ — คลิกเพื่อเปิดหน้าจังหวัด หรือ{' '}
+            <a href={href.explore({ scope: 'all', province: shown.name })}>กรองในหน้าสำรวจ</a>
           </>
         ) : (
           `เรียงทุกจังหวัดตามจำนวนฉบับ แล้วแบ่งเป็น ${BANDS} กลุ่มเท่า ๆ กัน สีจึงบอกลำดับ ไม่ได้บอกสัดส่วน`

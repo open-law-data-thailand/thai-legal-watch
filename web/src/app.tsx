@@ -14,12 +14,13 @@ import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router
 import { Boundary } from './ui/Boundary'
 import { QuickSearch } from './ui/QuickSearch'
 
+// "วันนี้" is gone: it was the same destination as the wordmark beside it, and a nav that
+// repeats the logo spends a phone's whole first row saying nothing.
 const NAV: [string, () => string, Route['name'][]][] = [
-  ['วันนี้', href.home, ['home']],
   ['ล่าสุด', () => href.latest(), ['latest']],
   ['สำรวจ', () => href.explore(), ['explore', 'topic', 'agency', 'doc']],
   ['ท้องถิ่นฉัน', href.provinces, ['provinces', 'province']],
-  ['แดชบอร์ด', href.dashboard, ['dashboard']],
+  ['สถิติ', href.dashboard, ['dashboard']],
   ['ความสัมพันธ์', href.graph, ['graph']],
   ['เกี่ยวกับ', href.about, ['about']],
 ]
@@ -56,9 +57,9 @@ export function App({ client }: { client?: DataClient }) {
       </a>
       <header class="topbar">
         <div class="wrap">
-          <a class="brand" href={href.home()}>
+          {/* the wordmark is the home link, so it carries home's "you are here" now */}
+          <a class="brand" href={href.home()} aria-current={route.name === 'home' ? 'page' : undefined}>
             <span class="name">Thai Legal Watch</span>
-            <span class="sub">ราชกิจจานุเบกษา จำแนกหมวดทุกวัน</span>
           </a>
           <QuickSearch />
           <nav class="main" aria-label="หลัก">

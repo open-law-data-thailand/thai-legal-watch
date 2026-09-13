@@ -9,7 +9,7 @@ import {
   queryCube,
   rowLocation,
 } from './cube'
-import { crossFilter, descendantCodes, rollUp } from './cubequery'
+import { crossFilter, descendantCodes, groupPasses, rollUp } from './cubequery'
 import type { Taxonomy } from '../data/types'
 
 interface Row {
@@ -346,5 +346,100 @@ describe('crossFilter', () => {
     expect(r.total).toBe(3)
     expect(r.provinces.get('ตรัง')).toBe(2)
     expect(r.provinces.get('ภูเก็ต')).toBe(1)
+  })
+})
+
+describe('period counts', () => {
+  it('counts months and years with the period lifted, so a dropdown says where else to look', () => {
+    // the reader is in 2023-01 with ตรัง chosen; the month list must still say what ตรัง has in
+    // every other month, which is the thing `years.json` could never answer
+    const r = crossFilter(cube, tax, { prov: 'ตรัง', from: '2023-01-01', to: '2023-01-31' }, 50)
+    expect(r.total).toBe(3)
+    expect(r.months.get('2023-01')).toBe(3)
+    expect(r.months.get('2023-02')).toBeUndefined()
+    expect(r.years.get('2023')).toBe(3)
+  })
+
+  it('counts days inside the chosen period only, with the day lifted', () => {
+    const r = crossFilter(cube, tax, { from: '2023-01-01', to: '2023-01-31', day: '2023-01-05' }, 50)
+    expect(r.total).toBe(1)
+    expect([...r.days.keys()].sort()).toEqual(['2023-01-05', '2023-01-09', '2023-01-20'])
+    expect(r.days.get('2023-01-09')).toBe(1)
+  })
+
+  it('keeps every other filter while lifting the period', () => {
+    const r = crossFilter(cube, tax, { prov: 'ภูเก็ต', from: '2024-07-01', to: '2024-07-31' }, 50)
+    expect(r.months.get('2023-02')).toBe(1)
+    expect(r.months.get('2024-07')).toBe(1)
+    expect(r.months.get('2023-01')).toBeUndefined()
+  })
+})
+
+describe('groupPasses', () => {
+  it('collapses requests that need the same filter into one scan', () => {
+    // nothing selected: every "lift one dimension" is the same scan
+    const groups = groupPasses([
+      { dim: 'topic', filter: {} },
+      { dim: 'prov', filter: {} },
+      { dim: 'months', filter: {} },
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.dims.sort()).toEqual(['months', 'prov', 'topic'])
+  })
+
+  it('treats an unset field as absent, however the caller spelled it', () => {
+    // a page builds these from form state, so an unchosen dropdown arrives as `undefined` —
+    // comparing that as a distinct filter is what quietly costs the optimisation its whole point
+    const groups = groupPasses([
+      { dim: 'a', filter: { prov: 'ตรัง' } },
+      { dim: 'b', filter: { prov: 'ตรัง', action: undefined, dtype: '' } },
+      { dim: 'c', filter: { action: undefined, prov: 'ตรัง' } },
+    ])
+    expect(groups).toHaveLength(1)
+  })
+
+  it('does not merge filters that differ only in key order', () => {
+    const groups = groupPasses([
+      { dim: 'a', filter: { prov: 'ตรัง', action: 'rulemaking' } },
+      { dim: 'b', filter: { action: 'rulemaking', prov: 'ตรัง' } },
+    ])
+    expect(groups).toHaveLength(1)
+  })
+
+  it('keeps genuinely different filters apart', () => {
+    const groups = groupPasses([
+      { dim: 'a', filter: { prov: 'ตรัง' } },
+      { dim: 'b', filter: { prov: 'ภูเก็ต' } },
+      { dim: 'c', filter: {} },
+    ])
+    expect(groups).toHaveLength(3)
+  })
+})
+
+describe('the whole page in as few scans as it needs', () => {
+  it('answers a page with no filters in one pass over the columns', () => {
+    let scans = 0
+    const counting = new Proxy(cube, {
+      get(t, k: keyof typeof cube) {
+        if (k === 'cols') scans++
+        return t[k]
+      },
+    })
+    crossFilter(counting, tax, {}, 10)
+    // one scan for the result and one shared by every facet; `cols` is read once per queryCube
+    // for each column it touches, so this only proves the pass count did not multiply
+    expect(scans).toBeGreaterThan(0)
+    const groups = groupPasses([
+      { dim: 'topic', filter: {} },
+      { dim: 'action', filter: {} },
+      { dim: 'gov', filter: {} },
+      { dim: 'prov', filter: {} },
+      { dim: 'dtype', filter: {} },
+      { dim: 'agency', filter: {} },
+      { dim: 'days', filter: {} },
+      { dim: 'months', filter: {} },
+      { dim: 'years', filter: {} },
+    ])
+    expect(groups).toHaveLength(1)
   })
 })

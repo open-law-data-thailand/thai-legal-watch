@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
 import { type CubeFilter, planFetch, rowLocation } from '../lib/cube'
@@ -114,11 +114,11 @@ export function Explore({ q }: { q: URLSearchParams }) {
     async (c) => (await Promise.all(wanted.map((m) => c.month(m.slice(0, 4), m)))).flat(),
     [wanted.join(',')],
   )
-  // The whole-archive view used to be able to show one pre-built topic page, so every question
-  // that crossed two dimensions — this topic in that province — had no answer. The cube carries
-  // every document's dimensions as typed arrays (~500 KB over the wire) and is filtered here, so
-  // the combinations nobody built a file for are the same speed as the ones somebody did.
-  const cubeSt = useLoad(async (c) => (scope === 'all' ? await c.cube() : null), [scope])
+  // Every number on this page comes from the archive index — in every scope, not just "ทั้งหมด".
+  // Before, the period dropdowns counted from `years.json`, which knows nothing about the other
+  // filters: choosing จังหวัดตรัง still offered "กันยายน 2569 (2,097)", the whole month. Now each
+  // option says what *this* filter would find there, so the dropdowns double as the statistic.
+  const cubeSt = useLoad(async (c) => await c.cube(), [])
   const cube = cubeSt.state === 'ok' ? cubeSt.data : null
   const [page, setPage] = useState(0)
   // so a document page can offer "back to the list you came from" — the key was read in three
@@ -128,6 +128,17 @@ export function Explore({ q }: { q: URLSearchParams }) {
   }, [q])
   const tax = base.state === 'ok' ? base.data.tax : undefined
   const loaded = useMemo(() => (docs.state === 'ok' ? docs.data : EMPTY), [docs])
+  // The scope is a date range like any other filter, which is what lets one code path answer
+  // "this month", "this year" and "everything".
+  const period = useMemo(
+    () =>
+      scope === 'month' && month
+        ? { from: `${month}-01`, to: `${month}-31` }
+        : scope === 'year' && year
+          ? { from: `${year}-01-01`, to: `${year}-12-31` }
+          : {},
+    [scope, month, year],
+  )
   const cubeFilter = useMemo<CubeFilter | null>(
     () =>
       cube && tax
@@ -139,9 +150,10 @@ export function Explore({ q }: { q: URLSearchParams }) {
             dtype: f.dtype,
             agency: f.agency,
             day: f.day,
+            ...period,
           }
         : null,
-    [cube, tax, f],
+    [cube, tax, f, period],
   )
   const across = useMemo(
     () => (cube && cubeFilter ? crossFilter(cube, tax, cubeFilter, CUBE_ROWS) : null),
@@ -186,60 +198,25 @@ export function Explore({ q }: { q: URLSearchParams }) {
   const cubeDocs = got.key === filterKey ? got.docs : EMPTY
   // `f` rather than a hand-written list of its fields: the list forgot `f.day`, so choosing a day
   // changed the heading and the count while the list below kept showing the whole month.
+  // The list in a month or a year still comes from the shards, because only they carry titles and
+  // so only they can answer the title search. The *numbers* never do.
   const hits = useMemo(() => loaded.filter((d) => matches(d, f, tax)).reverse(), [loaded, f, tax])
-  // option counts with that one dimension left open, so the UI can say "(n)" per choice
-  const countsFor = useCallback(
-    (key: keyof Filters, pick: (d: SlimDoc) => string | null) => {
-      const m = new Map<string, number>()
-      for (const d of loaded)
-        if (matches(d, f, tax, key)) {
-          const k = pick(d)
-          if (k) m.set(k, (m.get(k) ?? 0) + 1)
-        }
-      return m
-    },
-    [loaded, f, tax],
-  )
-  const topicCounts = useMemo(() => {
-    const m = new Map<string, number>()
-    // whole-archive counts used to come from the taxonomy totals, which ignore every other filter
-    // on the page: choosing a province left the topic chips showing their corpus-wide numbers
-    if (scope === 'all') return across?.topics ?? m
-    for (const d of loaded)
-      if (matches(d, f, tax, 'topic') && d.topic && d.tc)
-        for (let cur: string | null = d.topic; cur; cur = tax?.topics[cur]?.parent ?? null)
-          m.set(cur, (m.get(cur) ?? 0) + 1)
-    return m
-  }, [loaded, f, tax, scope, across])
   const EMPTY_COUNTS = useMemo(() => new Map<string, number>(), [])
-  const actionCounts = useMemo(
-    () =>
-      scope === 'all'
-        ? (across?.actions ?? EMPTY_COUNTS)
-        : countsFor('action', (d) => (d.ac ? d.action : null)),
-    [countsFor, scope, across, EMPTY_COUNTS],
+  const topicCounts = across?.topics ?? EMPTY_COUNTS
+  const actionCounts = across?.actions ?? EMPTY_COUNTS
+  const govCounts = across?.govs ?? EMPTY_COUNTS
+  const provinceCounts = across?.provinces ?? EMPTY_COUNTS
+  const dtypeCounts = across?.dtypes ?? EMPTY_COUNTS
+  const dayCounts = useMemo(
+    () => [...(across?.days ?? EMPTY_COUNTS).entries()].sort(([a], [b]) => a.localeCompare(b)),
+    [across, EMPTY_COUNTS],
   )
-  const govCounts = useMemo(
-    () =>
-      scope === 'all'
-        ? (across?.govs ?? EMPTY_COUNTS)
-        : countsFor('govlevel', (d) => (d.gc ? d.govlevel : null)),
-    [countsFor, scope, across, EMPTY_COUNTS],
-  )
-  const provinceCounts = useMemo(
-    () => (scope === 'all' ? (across?.provinces ?? EMPTY_COUNTS) : countsFor('province', (d) => d.pr)),
-    [countsFor, scope, across, EMPTY_COUNTS],
-  )
-  const dtypeCounts = useMemo(
-    () => (scope === 'all' ? (across?.dtypes ?? EMPTY_COUNTS) : countsFor('dtype', (d) => d.dt)),
-    [countsFor, scope, across, EMPTY_COUNTS],
-  )
-  // the days of the loaded month, counted here rather than shipped: the shard already has them
-  const dayCounts = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const d of loaded) if (d.d && matches(d, f, tax, 'day')) m.set(d.d, (m.get(d.d) ?? 0) + 1)
-    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [loaded, f, tax])
+  // A dropdown of 77 provinces is something you scan, not something you rank: alphabetical by
+  // Thai collation is the only order in which a reader can find ตรัง without reading all of them.
+  const provinceOptions = useMemo(() => {
+    const all = base.state === 'ok' ? base.data.provinces : []
+    return [...all].sort((a, b) => a.name.localeCompare(b.name, 'th'))
+  }, [base])
   if (base.state === 'loading') return <Loading />
   if (base.state === 'error') return <ErrorBox error={base.error} />
   const set = (patch: Partial<Record<keyof Filters, string>>, replace = false) => {
@@ -261,9 +238,11 @@ export function Explore({ q }: { q: URLSearchParams }) {
   // While the data a count is made from is still arriving there is no honest number to put beside
   // an option, and "(0)" beside every one of them reads as "nothing matches" — which is what this
   // page showed for a second on every month change.
-  const countsReady = scope === 'all' ? across !== null : docs.state === 'ok'
+  const countsReady = across !== null
   const fmt = (n: number | undefined) => (countsReady ? ` (${(n ?? 0).toLocaleString('th-TH')})` : '')
-  const total = scope === 'all' ? (across?.total ?? 0) : hits.length
+  // In a month or a year the list is the answer, so its length is the headline — the two agree
+  // unless a title search is narrowing the list, which the index cannot see.
+  const total = scope === 'all' ? (across?.total ?? 0) : f.q ? hits.length : (across?.total ?? 0)
   const scopeLabel = f.day
     ? thaiDate(f.day)
     : scope === 'month'
@@ -271,6 +250,18 @@ export function Explore({ q }: { q: URLSearchParams }) {
       : scope === 'year'
         ? `ปี ${year ? beYear(year) : ''}`
         : 'ทั้งคลัง'
+  // A filter that matches nothing here but plenty elsewhere used to read as "the search is
+  // broken". The index already knows where the matches are, so offer the nearest period instead.
+  const elsewhere = (() => {
+    if (!across || total > 0 || scope === 'all') return null
+    const pick = scope === 'month' ? across.months : across.years
+    const best = [...pick.entries()].filter(([, n]) => n > 0).sort(([a], [b]) => b.localeCompare(a))[0]
+    if (!best) return null
+    const [key, n] = best
+    return scope === 'month'
+      ? { label: `เดือน ${beMonth(key)}`, n, patch: { month: key } }
+      : { label: `ปี ${beYear(key)}`, n, patch: { year: key } }
+  })()
   const list = scope === 'all' ? cubeDocs : hits
   // only a genuinely empty list waits: once something is on screen, a further batch loads under it
   const listing =
@@ -309,7 +300,8 @@ export function Explore({ q }: { q: URLSearchParams }) {
           >
             {months.map((m) => (
               <option key={m} value={m}>
-                {beMonth(m)} ({(base.data.years.by_month[m] ?? 0).toLocaleString('th-TH')})
+                {beMonth(m)}
+                {fmt(across?.months.get(m))}
               </option>
             ))}
           </select>
@@ -338,7 +330,8 @@ export function Explore({ q }: { q: URLSearchParams }) {
           >
             {years.map((y) => (
               <option key={y} value={y}>
-                {beYear(y)} ({(base.data.years.by_year[y] ?? 0).toLocaleString('th-TH')})
+                {beYear(y)}
+                {fmt(across?.years.get(y))}
               </option>
             ))}
           </select>
@@ -395,14 +388,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
             style="width:100%;padding:8px"
           >
             <option value="">ทุกจังหวัด</option>
-            {base.data.provinces
-              .filter((p) => !countsReady || provinceCounts.has(p.name) || p.name === f.province)
-              .map((p) => (
-                <option key={p.file} value={p.name}>
-                  {p.name}
-                  {fmt(provinceCounts.get(p.name))}
-                </option>
-              ))}
+            {provinceOptions.map((p) => (
+              <option key={p.file} value={p.name}>
+                {p.name}
+                {fmt(provinceCounts.get(p.name))}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -451,6 +442,24 @@ export function Explore({ q }: { q: URLSearchParams }) {
           />
         </label>
       </div>
+      <p class="muted" style="font-size:.85rem;margin:-6px 0 16px">
+        ตัวเลขในวงเล็บคือจำนวนฉบับที่จะได้ <b>ถ้าเลือกตัวเลือกนั้น</b> โดยยังคงตัวกรองอื่นไว้ —
+        เลือกจังหวัดแล้ว รายการเดือนและปีก็จะนับเฉพาะจังหวัดนั้น
+        {f.q && ' · ยกเว้นคำค้นในชื่อเรื่อง ซึ่งกรองเฉพาะรายการด้านล่าง ไม่ได้กรองตัวเลขเหล่านี้'}
+      </p>
+      {elsewhere && (
+        <p class="emptyhint" style="margin:-8px 0 16px">
+          ไม่มีฉบับที่ตรงเงื่อนไขใน{scopeLabel} — ช่วงล่าสุดที่มีคือ{' '}
+          <button
+            class="chip"
+            onClick={() => {
+              set(elsewhere.patch)
+            }}
+          >
+            {elsewhere.label} ({elsewhere.n.toLocaleString('th-TH')})
+          </button>
+        </p>
+      )}
       <div class="chips" style="margin-bottom:20px" aria-label="หมวดหลัก">
         <button class="chip" aria-pressed={!f.topic} onClick={() => set({ topic: '' })}>
           {/* the chips below count corroborated topics only, so this has to count the same

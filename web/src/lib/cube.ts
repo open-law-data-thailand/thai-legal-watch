@@ -259,7 +259,7 @@ export const codeOf = (cube: Cube, dim: string, value: string): number | undefin
   cube.index[dim]?.get(value)
 
 /** Counts keyed by code turned back into counts keyed by the value a page shows. */
-export function named(cube: Cube, dim: string, counts: Map<number, number>): Map<string, number> {
+export function named(cube: Cube, dim: string, counts: ReadonlyMap<number, number>): Map<string, number> {
   const out = new Map<string, number>()
   for (const [code, n] of counts) {
     const name = codeName(cube, dim, code)
