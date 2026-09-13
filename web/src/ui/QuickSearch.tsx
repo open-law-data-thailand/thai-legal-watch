@@ -84,6 +84,8 @@ export function search(
 }
 
 export function QuickSearch({ big = false }: { big?: boolean } = {}) {
+  // two of these render on the home page, so the ids they point at have to differ
+  const listId = big ? 'qs-list-hero' : 'qs-list'
   const client = useClient()
   const [note, setNote] = useState('')
   const idx = useLoad(
@@ -117,14 +119,20 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
   const go = (h: Hit) => {
     if (h.citation) {
       setNote('กำลังเปิดฉบับตามเลขอ้างอิง…')
-      void client.byCitation(h.citation).then((hit) => {
-        if (hit) {
-          location.hash = href.doc(hit.doc.id, hit.month)
-          setQ('')
-          setOpen(false)
-          setNote('')
-        } else setNote('ไม่พบฉบับตามเลขอ้างอิงนี้')
-      })
+      client.byCitation(h.citation).then(
+        (hit) => {
+          if (hit) {
+            location.hash = href.doc(hit.doc.id, hit.month)
+            setQ('')
+            setOpen(false)
+            setNote('')
+          } else setNote('ไม่พบฉบับตามเลขอ้างอิงนี้')
+        },
+        // without this a failed shard fetch left "กำลังเปิด…" on screen for good
+        () => {
+          setNote('เปิดไม่สำเร็จ ลองใหม่อีกครั้ง')
+        },
+      )
       return
     }
     location.hash = h.to
@@ -145,7 +153,10 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
         }
         aria-label="ค้นหาด่วน"
         aria-expanded={open && hits.length > 0}
-        aria-controls="qs-list"
+        // only point at the list while it exists, and name the highlighted option — arrowing
+        // through the results used to be completely silent for a screen reader
+        aria-controls={open && hits.length > 0 ? listId : undefined}
+        aria-activedescendant={open && hits[sel] ? `${listId}-${sel}` : undefined}
         aria-autocomplete="list"
         role="combobox"
         onInput={(e) => {
@@ -183,10 +194,11 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
         </div>
       )}
       {open && hits.length > 0 && (
-        <ul id="qs-list" class="qs-list" role="listbox">
+        <ul id={listId} class="qs-list" role="listbox" aria-label="ผลการค้นหาด่วน">
           {hits.map((h, i) => (
             <li
               key={h.to}
+              id={`${listId}-${i}`}
               role="option"
               aria-selected={i === sel}
               onMouseDown={() => {

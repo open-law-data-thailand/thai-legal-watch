@@ -49,6 +49,9 @@ export function App({ client }: { client?: DataClient }) {
   )
   return (
     <ClientContext.Provider value={client ?? sourced}>
+      <a class="skip" href="#main">
+        ข้ามไปเนื้อหาหลัก
+      </a>
       <header class="topbar">
         <div class="wrap">
           <a class="brand" href={href.home()}>

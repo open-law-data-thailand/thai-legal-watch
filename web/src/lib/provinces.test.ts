@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PROVINCES, REGIONS, regionOf } from './provinces'
+import { PROVINCES, REGIONS } from './provinces'
 
 describe('province table', () => {
   it('covers all 77 provinces exactly once', () => {
@@ -14,10 +14,5 @@ describe('province table', () => {
     expect(size('ตะวันออก')).toBe(7)
     expect(size('ตะวันตก')).toBe(5)
     expect(size('ใต้')).toBe(14)
-  })
-  it('answers for a known province and stays quiet for a non-province', () => {
-    expect(regionOf('ตรัง')).toBe('ใต้')
-    expect(regionOf('ตาก')).toBe('ตะวันตก')
-    expect(regionOf('เวียงจันทน์')).toBeNull()
   })
 })

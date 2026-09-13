@@ -79,10 +79,6 @@ export function thaiDigits(n: number | string): string {
   return String(n).replace(/\d/g, (c) => '๐๑๒๓๔๕๖๗๘๙'[Number(c)] ?? c)
 }
 
-export function formatNumber(n: number): string {
-  return new Intl.NumberFormat('th-TH').format(n)
-}
-
 export interface Coordinates {
   volume: number | null
   part: string | null
@@ -104,11 +100,4 @@ export function partLabel(part: string): string {
   const special = /พิเศษ/.test(part)
   const rest = part.replace(/พิเศษ/g, '').replace(/\s+/g, ' ').trim()
   return special ? `ตอนพิเศษ ${rest}` : `ตอนที่ ${rest}`
-}
-
-/** Standard Thai legal citation of a gazette item. */
-export function citation(title: string, c: Coordinates): string {
-  const coords = coordinates(c)
-  const date = thaiDate(c.date)
-  return `${title}, ราชกิจจานุเบกษา ${coords} (${date}).`
 }

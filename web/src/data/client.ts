@@ -95,7 +95,9 @@ export class DataClient {
     return p
   }
 
-  /** Every source in this build, from the data root. */
+  /** Every source in this build, from the data root. Nothing calls this yet: it is the hook the
+   *  planned source switcher needs (docs/HANDOFF.md, plan item 6), and the shape it returns is
+   *  what the pipeline already writes. */
   sources(): Promise<{ contract: number; sources: SourceInfo[] }> {
     return this.getAbs(`${this.root}/sources.json`)
   }

@@ -33,9 +33,6 @@ export function parseCitation(input: string): Citation | null {
   return null
 }
 
-/** Volume n of the gazette is year 1883 + n (เล่ม 143 = 2026). */
-export const yearOfVolume = (volume: number) => 1883 + volume
-
 /** Among the documents of one ตอน, the cited page belongs to the document that starts at or before it. */
 export function pickByPage<T extends { pg: number | null }>(docs: T[], page: number | null): T | null {
   const inPart = docs.filter((d) => d.pg !== null).sort((a, b) => (a.pg ?? 0) - (b.pg ?? 0))

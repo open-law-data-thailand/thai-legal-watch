@@ -360,6 +360,7 @@ export function Graph() {
           </button>
         ))}
       </div>
+      {yg.state === 'error' && <ErrorBox error={yg.error} what={`ข้อมูลความสัมพันธ์ของปี ${beYear(year)}`} />}
       {yg.state === 'loading' && <Loading what={`กราฟปี ${beYear(year)}`} />}
       <div
         ref={ref}

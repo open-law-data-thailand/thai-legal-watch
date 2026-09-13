@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { parseCitation, pickByPage, yearOfVolume } from './coords'
+import { parseCitation, pickByPage } from './coords'
 
 it('parses the long form with ตอนที่ / ตอนพิเศษ and Thai digits', () => {
   expect(parseCitation('เล่ม 143 ตอนพิเศษ 219 ง หน้า 23')).toEqual({
@@ -15,8 +15,7 @@ it('parses the short form and rejects other text', () => {
   expect(parseCitation('143 / 17 ก พิเศษ')).toEqual({ volume: 143, part: '17 ก พิเศษ', page: null })
   expect(parseCitation('ขยะ')).toBeNull()
 })
-it('maps volumes to years and pages to the document that starts at or before them', () => {
-  expect(yearOfVolume(143)).toBe(2026)
+it('picks the document that starts at or before the cited page', () => {
   const docs = [
     { id: 'c', pg: 20 },
     { id: 'a', pg: 1 },

@@ -75,6 +75,3 @@ const BY_REGION: Record<Region, string[]> = {
 export const PROVINCES: { name: string; region: Region }[] = REGIONS.flatMap((region) =>
   BY_REGION[region].map((name) => ({ name, region })),
 )
-
-export const regionOf = (name: string): Region | null =>
-  PROVINCES.find((p) => p.name === name)?.region ?? null

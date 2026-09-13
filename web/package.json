@@ -21,8 +21,7 @@
   },
   "dependencies": {
     "echarts": "^6.1.0",
-    "preact": "^10.29.8",
-    "preact-iso": "^2.12.2"
+    "preact": "^10.29.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

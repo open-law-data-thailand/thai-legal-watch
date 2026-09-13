@@ -178,7 +178,30 @@ export function Dashboard() {
               </>
             )}
           </p>
-          <div ref={yearsRef} style="height:260px" data-testid="chart-years" />
+          <div
+            ref={yearsRef}
+            style="height:260px"
+            data-testid="chart-years"
+            role="img"
+            aria-label={`ฉบับต่อปี พ.ศ. ${beYear(trends.years[0] ?? '')} ถึง ${beYear(
+              trends.years[trends.years.length - 1] ?? '',
+            )}`}
+          />
+          {/* the chart is mouse-only; this is the same choice, reachable by keyboard */}
+          <p class="chips" style="margin-top:10px" aria-label="เลือกปี">
+            {[...Object.keys(years.by_year)].sort().map((y) => (
+              <button
+                key={y}
+                class="chip"
+                aria-pressed={year === y}
+                onClick={() => {
+                  setYear((cur) => (cur === y ? null : y))
+                }}
+              >
+                {beYear(y)}
+              </button>
+            ))}
+          </p>
 
           <h2 class="sec" style="margin-top:28px">
             ช่วงเวลาในรอบปี

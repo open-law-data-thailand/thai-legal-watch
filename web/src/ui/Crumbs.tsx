@@ -20,7 +20,7 @@ export function Crumbs({ items }: { items: Crumb[] }) {
           {c.to && i < all.length - 1 ? (
             <a href={c.to}>{c.label}</a>
           ) : (
-            <span aria-current="page">{c.label}</span>
+            <span aria-current={i === all.length - 1 ? 'page' : undefined}>{c.label}</span>
           )}
         </span>
       ))}

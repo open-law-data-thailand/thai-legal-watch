@@ -325,7 +325,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
       {f.topic && (tax?.topics[f.topic]?.children.length ?? 0) > 0 && (
         <div class="chips" style="margin:-10px 0 20px" aria-label="หมวดย่อย">
           {tax?.topics[f.topic]?.children.map((s) => (
-            <button key={s} class="chip" aria-pressed={false} onClick={() => set({ topic: s })}>
+            <button key={s} class="chip" aria-pressed={f.topic === s} onClick={() => set({ topic: s })}>
               ↳ {topicName(tax, s)}
               {fmt(topicCounts.get(s))}
             </button>

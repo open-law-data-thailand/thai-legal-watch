@@ -414,6 +414,63 @@ test.describe('finding your way back', () => {
   })
 })
 
+test.describe('keyboard and screen reader', () => {
+  test('a skip link jumps past the header, and it is the first thing focused', async ({ page }) => {
+    await page.goto('/#/')
+    const skip = page.locator('.skip')
+    // first in the document, so it is first in tab order wherever Tab is available
+    const firstFocusable = await page.evaluate(() => {
+      const el = document.querySelector('a[href], button, input, select, [tabindex]')
+      return el?.className ?? ''
+    })
+    expect(firstFocusable).toContain('skip')
+    // off-screen until focused, then visible and pointing at the content
+    await skip.focus()
+    await expect(skip).toBeFocused()
+    await expect(skip).toBeInViewport()
+    await expect(skip).toHaveAttribute('href', '#main')
+  })
+
+  test('arrowing through quick search names the highlighted result', async ({ page }) => {
+    await page.goto('/#/')
+    const box = page.locator('.topbar').getByRole('combobox', { name: 'ค้นหาด่วน' })
+    await box.fill('ขยะ')
+    await expect(page.locator('.topbar #qs-list li').first()).toBeVisible()
+    const first = await box.getAttribute('aria-activedescendant')
+    expect(first, 'the highlighted option must be named').toBeTruthy()
+    // whatever it points at must exist and be the option marked selected
+    await expect(page.locator(`#${first as string}`)).toHaveAttribute('role', 'option')
+    await expect(page.locator(`#${first as string}`)).toHaveAttribute('aria-selected', 'true')
+    const options = page.locator('.topbar #qs-list li')
+    if ((await options.count()) > 1) {
+      await page.keyboard.press('ArrowDown')
+      const second = await box.getAttribute('aria-activedescendant')
+      expect(second, 'arrowing down must move the highlight').not.toBe(first)
+      await expect(page.locator(`#${second as string}`)).toHaveAttribute('aria-selected', 'true')
+    }
+  })
+
+  test('exactly one element per page claims to be the current location', async ({ page, request }) => {
+    const agencies = await data.agencies(request)
+    const withPage = agencies.find((a) => a.page)
+    if (!withPage) throw new Error('fixture has no agency page')
+    for (const hash of ['#/ratchakitcha/topic/environment', `#/ratchakitcha/agency/${withPage.id}`])
+      await test.step(hash, async () => {
+        await page.goto(`/${hash}`)
+        await expect(page.locator('.crumbs [aria-current="page"]')).toHaveCount(1)
+      })
+  })
+
+  test('the dashboard year can be chosen without a mouse', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    const years = page.locator('[aria-label="เลือกปี"] .chip')
+    await expect(years.first()).toBeVisible()
+    await years.first().click()
+    await expect(years.first()).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('heading', { name: /^หมวดหลักของปี/ })).toBeVisible()
+  })
+})
+
 test.describe('dead ends', () => {
   test('a topic that does not exist says so instead of blaming the network', async ({ page }) => {
     await page.goto('/#/ratchakitcha/topic/no_such_topic')

@@ -21,8 +21,13 @@ export function rootOf(slug: string, parent: Record<string, string | null | unde
   return cur
 }
 
-export function familyIndex(slug: string | null | undefined, tax: Taxonomy | undefined): number {
-  if (!slug || !tax) return FAMILY_PALETTE.length - 1
+/** Walking and sorting the whole taxonomy per call meant rebuilding it a hundred times to paint
+ *  one page of results. The taxonomy object is immutable once fetched, so it keys a cache. */
+const FAMILY_CACHE = new WeakMap<Taxonomy, Map<string, number>>()
+
+function familyMap(tax: Taxonomy): Map<string, number> {
+  const hit = FAMILY_CACHE.get(tax)
+  if (hit) return hit
   const parent: Record<string, string | null> = {}
   const roots: string[] = []
   for (const [s, t] of Object.entries(tax.topics)) {
@@ -30,8 +35,18 @@ export function familyIndex(slug: string | null | undefined, tax: Taxonomy | und
     if (!t.parent) roots.push(s)
   }
   roots.sort()
-  const i = roots.indexOf(rootOf(slug, parent))
-  return i < 0 ? FAMILY_PALETTE.length - 1 : i % (FAMILY_PALETTE.length - 1)
+  const map = new Map<string, number>()
+  for (const s of Object.keys(tax.topics)) {
+    const i = roots.indexOf(rootOf(s, parent))
+    map.set(s, i < 0 ? FAMILY_PALETTE.length - 1 : i % (FAMILY_PALETTE.length - 1))
+  }
+  FAMILY_CACHE.set(tax, map)
+  return map
+}
+
+export function familyIndex(slug: string | null | undefined, tax: Taxonomy | undefined): number {
+  if (!slug || !tax) return FAMILY_PALETTE.length - 1
+  return familyMap(tax).get(slug) ?? FAMILY_PALETTE.length - 1
 }
 
 export function familyColor(slug: string | null | undefined, tax: Taxonomy | undefined): string {
