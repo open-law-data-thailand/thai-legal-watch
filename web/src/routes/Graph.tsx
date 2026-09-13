@@ -17,13 +17,13 @@ interface EChart {
   dispose: () => void
   on: (event: string, handler: (raw: unknown) => void) => void
 }
-import { useLoad } from '../data/context'
-import type { Graph as GraphData } from '../data/types'
+import { useClient, useLoad } from '../data/context'
+import type { AgencyPage, Graph as GraphData, TopicPage } from '../data/types'
 import { FAMILY_PALETTE, rootOf } from '../lib/family'
 import { reducedMotion } from '../lib/motion'
 import { beYear } from '../lib/thai'
 import { useHref } from '../data/context'
-import { ErrorBox, Kicker, Loading } from '../ui/bits'
+import { DocRow, ErrorBox, Kicker, Loading } from '../ui/bits'
 
 export interface YearGraph {
   year: string
@@ -123,6 +123,30 @@ export function buildModel(
   }
 }
 
+/** The nodes joined to this one, heaviest edge first. The parent/child edges carry value 0 and
+ *  are structure rather than evidence, so they sort last but are still offered — "ขยะ is under
+ *  มลพิษ" is exactly the kind of thing somebody arrives here not knowing. */
+export function neighboursOf(
+  model: GraphModel,
+  id: string,
+  limit = 12,
+): { node: GraphNode; n: number; kin: boolean }[] {
+  const byId = new Map(model.nodes.map((n) => [n.id, n]))
+  // A pair can be joined twice — once because they co-occur and once because one is the other's
+  // parent — and listing มลพิษ under both reads as a bug. Keep one row, carrying both facts.
+  const best = new Map<string, { node: GraphNode; n: number; kin: boolean }>()
+  for (const l of model.links) {
+    const other = l.source === id ? l.target : l.target === id ? l.source : null
+    if (!other) continue
+    const node = byId.get(other)
+    if (!node) continue
+    const kin = l.value === 0
+    const had = best.get(other)
+    best.set(other, { node, n: Math.max(had?.n ?? 0, l.value), kin: kin || (had?.kin ?? false) })
+  }
+  return [...best.values()].sort((a, b) => b.n - a.n).slice(0, limit)
+}
+
 /** Focus never removes a node: matching nodes stay vivid, the rest fade to the background. */
 export function focusOf(node: GraphNode, focus: { families: Set<string>; q: string }): boolean {
   if (focus.families.size && node.kind === 'topic' && !focus.families.has(node.root)) return false
@@ -132,7 +156,6 @@ export function focusOf(node: GraphNode, focus: { families: Set<string>; q: stri
 }
 
 export function Graph() {
-  const href = useHref()
   const base = useLoad(
     async (c) => ({
       g: await c.graph(),
@@ -148,6 +171,11 @@ export function Graph() {
   const [minEdge, setMinEdge] = useState(200)
   const [families, setFamilies] = useState<Set<string>>(new Set())
   const [q, setQ] = useState('')
+  // Clicking a node used to leave the page. That is the one thing a reader exploring a graph
+  // never wants: you lose the layout, the filters and your place. A click now opens what that
+  // node actually is, beside the graph, with the links out offered rather than taken.
+  const [sel, setSel] = useState<{ id: string; name: string; kind: 'topic' | 'agency' } | null>(null)
+  const [zoom, setZoom] = useState(1)
   const ref = useRef<HTMLDivElement>(null)
   const model = useMemo(
     () =>
@@ -177,24 +205,34 @@ export function Graph() {
       const chart = echarts.init(el, undefined, { renderer: 'canvas' }) as unknown as EChart
       chartRef.current = chart
       chart.on('click', (raw: unknown) => {
-        const p = raw as { dataType?: string; data?: { id?: string } }
+        const p = raw as { dataType?: string; data?: { id?: string; name?: string } }
         const id = p.data?.id
         if (p.dataType !== 'node' || !id) return
-        location.hash = id.startsWith('t:') ? href.topic(id.slice(2)) : href.agency(id.slice(2))
+        setSel({ id, name: p.data?.name ?? id, kind: id.startsWith('t:') ? 'topic' : 'agency' })
       })
     })
     const onResize = () => {
       chartRef.current?.resize()
     }
     addEventListener('resize', onResize)
+    // The window is not the only thing that changes this element's width: opening the detail
+    // panel takes a third of the row. Without this the canvas keeps its old size and hangs over
+    // the panel, swallowing its clicks — which is exactly how a test found it.
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize)
+    ro?.observe(el)
     return () => {
       disposed = true
+      ro?.disconnect()
       removeEventListener('resize', onResize)
       chartRef.current?.dispose()
       chartRef.current = null
       delete el.dataset['ready']
     }
-  }, [mounted, href])
+  }, [mounted])
+
+  useEffect(() => {
+    chartRef.current?.setOption({ series: [{ zoom }] })
+  }, [zoom, model])
 
   useEffect(() => {
     const el = ref.current
@@ -239,6 +277,7 @@ export function Graph() {
             type: 'graph',
             layout: 'force',
             roam: true,
+            zoom,
             draggable: true,
             data,
             links,
@@ -268,7 +307,7 @@ export function Graph() {
     return () => {
       cancelled = true
     }
-  }, [model, families, q])
+  }, [model, families, q, zoom])
 
   if (base.state === 'loading') return <Loading what="ความสัมพันธ์ของหมวด" />
   if (base.state === 'error') return <ErrorBox error={base.error} />
@@ -293,8 +332,8 @@ export function Graph() {
       <p class="muted" style="margin:0 0 14px;max-width:72ch">
         วงกลมคือหมวด ขนาดตามจำนวนฉบับ สีตามหมวดแม่ · เส้นที่เชื่อมกันคือสองหมวดที่มักถูกจำแนกให้ฉบับเดียวกัน
         ยิ่งหนายิ่งพบบ่อย · จุดสีเทาคือหน่วยงานที่ออกเอกสารในหมวดนั้นมากที่สุด ·
-        ตัวกรองจะทำให้ส่วนที่ไม่ตรงจางลงเฉย ๆ ไม่ได้ลบออก · ลากเพื่อเลื่อน หมุนล้อเพื่อซูม
-        คลิกเพื่อเปิดหน้านั้น
+        ตัวกรองจะทำให้ส่วนที่ไม่ตรงจางลงเฉย ๆ ไม่ได้ลบออก · คลิกวงกลมเพื่อดูว่ามันคืออะไร อยู่ติดกับอะไร
+        และเปิดฉบับจริงได้จากตรงนั้น
       </p>
       <div class="toolbar">
         <select
@@ -348,6 +387,37 @@ export function Graph() {
           </span>
         </label>
       </div>
+      {/* A canvas has no elements, so nothing in the graph can be reached by keyboard or read by
+          a screen reader. Typing already dims everything that does not match; these are the same
+          matches, as real buttons, so the graph can be entered without a mouse — and once a node
+          is open, its neighbour list walks the rest of it. */}
+      {q.trim() !== '' && model && (
+        <div class="chips" style="margin:10px 0 0" aria-label={`โหนดที่ตรงกับ "${q}"`}>
+          {(() => {
+            const hits = model.nodes.filter((n) => focusOf(n, { families: new Set(), q })).slice(0, 12)
+            if (!hits.length) return <span class="muted">ไม่พบหมวดหรือหน่วยงานที่ตรงกับ "{q}"</span>
+            return (
+              <>
+                <span class="muted" style="align-self:center;font-size:.85rem">
+                  เลือกเพื่อดูรายละเอียด:
+                </span>
+                {hits.map((n) => (
+                  <button
+                    key={n.id}
+                    class="chip"
+                    aria-pressed={sel?.id === n.id}
+                    onClick={() => {
+                      setSel({ id: n.id, name: n.name, kind: n.kind })
+                    }}
+                  >
+                    {n.name}
+                  </button>
+                ))}
+              </>
+            )
+          })()}
+        </div>
+      )}
       <div class="chips" style="margin:10px 0 12px" aria-label="เน้นหมวดแม่">
         <button
           class="chip"
@@ -374,11 +444,167 @@ export function Graph() {
       </div>
       {yg.state === 'error' && <ErrorBox error={yg.error} what={`ข้อมูลความสัมพันธ์ของปี ${beYear(year)}`} />}
       {yg.state === 'loading' && <Loading what={`กราฟปี ${beYear(year)}`} />}
-      <div
-        ref={ref}
-        style="height:640px;border:1px solid var(--line);border-radius:14px;background:var(--paper-2)"
-        data-testid="graph"
-      />
+      <div class={`graphlayout${sel ? ' withpanel' : ''}`}>
+        <div class="graphstage">
+          <div class="graphnav" role="group" aria-label="มุมมองกราฟ">
+            <button
+              class="btn"
+              onClick={() => {
+                setZoom((z) => Math.min(6, +(z * 1.3).toFixed(3)))
+              }}
+              aria-label="ขยายเข้า"
+              title="ขยายเข้า"
+            >
+              +
+            </button>
+            <button
+              class="btn"
+              onClick={() => {
+                setZoom((z) => Math.max(0.2, +(z / 1.3).toFixed(3)))
+              }}
+              aria-label="ย่อออก"
+              title="ย่อออก"
+            >
+              −
+            </button>
+            <button
+              class="btn"
+              onClick={() => {
+                setZoom(1)
+              }}
+              aria-label="กลับไปขนาดเริ่มต้น"
+              title="กลับไปขนาดเริ่มต้น"
+            >
+              ⤢
+            </button>
+            <span class="muted" aria-hidden="true">
+              {Math.round(zoom * 100)}%
+            </span>
+          </div>
+          <div ref={ref} class="graphcanvas" data-testid="graph" />
+          <p class="muted graphhelp">
+            ลากเพื่อเลื่อน · หมุนล้อหรือกดปุ่มเพื่อซูม · คลิกวงกลมเพื่อดูรายละเอียด
+          </p>
+        </div>
+        {sel && model && (
+          <NodePanel
+            node={sel}
+            model={model}
+            year={year}
+            onPick={(id, name, kind) => {
+              setSel({ id, name, kind })
+            }}
+            onClose={() => {
+              setSel(null)
+            }}
+          />
+        )}
+      </div>
     </>
+  )
+}
+
+/** What a node actually is: how much of the archive it accounts for, what it sits next to, and
+ *  the three ways out — its own page, the documents themselves, and a feed to follow it. A graph
+ *  that only draws relationships leaves the reader to guess what to do with one. */
+function NodePanel({
+  node,
+  model,
+  year,
+  onPick,
+  onClose,
+}: {
+  node: { id: string; name: string; kind: 'topic' | 'agency' }
+  model: GraphModel
+  year: string
+  onPick: (id: string, name: string, kind: 'topic' | 'agency') => void
+  onClose: () => void
+}) {
+  const href = useHref()
+  const client = useClient()
+  const key = node.id.slice(2)
+  const facet = useLoad<TopicPage | AgencyPage | null>(
+    async (c) => (node.kind === 'topic' ? await c.topic(key) : await c.agency(key)),
+    [node.id],
+  )
+  const near = neighboursOf(model, node.id)
+  const explore = href.explore({
+    ...(year ? { scope: 'year', year } : { scope: 'all' }),
+    ...(node.kind === 'topic' ? { topic: key } : { agency: key }),
+  })
+  return (
+    <aside class="nodepanel" aria-label={`รายละเอียดของ ${node.name}`}>
+      <div class="nodepanel-head">
+        <div>
+          <span class="muted" style="font-size:.8rem">
+            {node.kind === 'topic' ? 'หมวด' : 'หน่วยงาน'}
+          </span>
+          <h2 style="font-size:1.1rem;margin:2px 0 0">{node.name}</h2>
+        </div>
+        <button class="chip" onClick={onClose} aria-label="ปิดรายละเอียด">
+          ×
+        </button>
+      </div>
+
+      {facet.state === 'loading' && <Loading what={node.name} />}
+      {facet.state === 'error' && (
+        <p class="muted" style="font-size:.9rem">
+          ยังไม่มีหน้าสรุปของ{node.kind === 'topic' ? 'หมวด' : 'หน่วยงาน'}นี้ — เปิดในหน้าสำรวจได้
+        </p>
+      )}
+      {facet.state === 'ok' && facet.data && (
+        <>
+          <p class="muted" style="font-size:.9rem;margin:10px 0 12px">
+            <b>{facet.data.total.toLocaleString('th-TH')}</b> ฉบับทั้งคลัง
+            {Object.keys(facet.data.provinces).length > 0 && (
+              <> · {Object.keys(facet.data.provinces).length} จังหวัด</>
+            )}
+          </p>
+          <h3 class="nodepanel-h">ฉบับล่าสุด</h3>
+          <div class="doclist tight">
+            {facet.data.recent.slice(0, 3).map((d) => (
+              <DocRow key={d.id} d={d} month={d.d?.slice(0, 7)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <h3 class="nodepanel-h">อยู่ติดกับ</h3>
+      {near.length === 0 ? (
+        <p class="muted" style="font-size:.85rem">
+          ไม่มีเส้นเชื่อมที่ผ่านเกณฑ์ — ลดค่า "แสดงเส้นเมื่อพบร่วมกันอย่างน้อย" ลง
+        </p>
+      ) : (
+        <ul class="nearlist">
+          {near.map((x) => (
+            <li key={x.node.id}>
+              <button
+                onClick={() => {
+                  onPick(x.node.id, x.node.name, x.node.kind)
+                }}
+              >
+                <span class="nm">{x.node.name}</span>
+                <span class="muted">
+                  {x.n > 0 ? `${x.n.toLocaleString('th-TH')} ฉบับร่วมกัน` : 'หมวดแม่หรือหมวดย่อย'}
+                  {x.n > 0 && x.kin ? ' · สายเดียวกัน' : ''}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div class="nodepanel-links">
+        <a class="btn" href={node.kind === 'topic' ? href.topic(key) : href.agency(key)}>
+          หน้าสรุปเต็ม →
+        </a>
+        <a class="btn" href={explore}>
+          ดูฉบับจริงในสำรวจ →
+        </a>
+        <a class="btn" href={client.feedUrl(`${node.kind === 'topic' ? 'topic' : 'agency'}/${key}`)}>
+          RSS
+        </a>
+      </div>
+    </aside>
   )
 }

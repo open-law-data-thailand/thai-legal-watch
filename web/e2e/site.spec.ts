@@ -515,6 +515,54 @@ test.describe('dashboard, graph and about', () => {
     await a11y(page)
   })
 
+  test('the graph can be zoomed and reset from buttons, not only the wheel', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/graph')
+    await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')
+    const nav = page.getByRole('group', { name: 'มุมมองกราฟ' })
+    await expect(nav).toBeVisible()
+    await nav.getByRole('button', { name: 'ขยายเข้า' }).click()
+    await expect(nav).toContainText('130%')
+    await nav.getByRole('button', { name: 'ย่อออก' }).click()
+    await nav.getByRole('button', { name: 'ย่อออก' }).click()
+    await expect(nav).not.toContainText('130%')
+    await nav.getByRole('button', { name: 'กลับไปขนาดเริ่มต้น' }).click()
+    await expect(nav).toContainText('100%')
+  })
+
+  test('a node opens beside the graph instead of throwing the reader off the page', async ({ page }) => {
+    // A canvas has no elements, so the graph cannot be entered by keyboard at all. The search box
+    // offers its matches as real buttons; from there the neighbour list walks the rest.
+    await page.goto('/#/ratchakitcha/graph')
+    await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')
+    await page.getByPlaceholder(/พิมพ์ชื่อหมวด/).fill('ขยะ')
+    const matches = page.locator('[aria-label^="โหนดที่ตรงกับ"] button')
+    await expect(matches.first()).toBeVisible()
+    const name = (await matches.first().textContent())?.trim() ?? ''
+    await matches.first().click()
+
+    const panel = page.locator('.nodepanel')
+    await expect(panel).toBeVisible()
+    await expect(panel.getByRole('heading', { level: 2 })).toHaveText(name)
+    // the three ways out: the full page, the documents, and a feed to follow it
+    await expect(panel.getByRole('link', { name: /หน้าสรุปเต็ม/ })).toBeVisible()
+    await expect(panel.getByRole('link', { name: /ดูฉบับจริงในสำรวจ/ })).toHaveAttribute('href', /explore/)
+    await expect(panel.getByRole('link', { name: 'RSS' })).toHaveAttribute('href', /feeds\/.+\.xml$/)
+    // and the graph is still there, with its filters, because nothing navigated
+    await expect(page.getByTestId('graph')).toBeVisible()
+
+    // a neighbour re-focuses the panel rather than leaving
+    const near = panel.locator('.nearlist button')
+    if (await near.count()) {
+      const nextName = (await near.first().locator('.nm').textContent())?.trim() ?? ''
+      await near.first().click()
+      await expect(panel.getByRole('heading', { level: 2 })).toHaveText(nextName)
+    }
+    await panel.getByRole('button', { name: 'ปิดรายละเอียด' }).click()
+    await expect(page.locator('.nodepanel')).toHaveCount(0)
+    await sane(page)
+    await a11y(page)
+  })
+
   test('the dashboard answers a question and a year click narrows it', async ({ page }) => {
     // data-ready goes up when the chart is configured, but the bars animate in after that, so a
     // click can land on empty canvas. Reduced motion removes the animation entirely — which the

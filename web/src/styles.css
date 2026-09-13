@@ -1409,3 +1409,120 @@ body {
   font-size: 1rem;
   margin: 0 0 10px;
 }
+
+/* ความสัมพันธ์: the graph keeps the room until a node is picked, then shares it with the panel
+   that says what the node is. On a narrow screen they stack, graph first. */
+.graphlayout {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .graphlayout.withpanel {
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+}
+.graphstage {
+  position: relative;
+  min-width: 0;
+  /* a canvas that has not caught up with a layout change must never reach its neighbours */
+  overflow: hidden;
+}
+.graphcanvas {
+  height: 640px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+.graphnav {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+}
+.graphnav .btn {
+  padding: 2px 9px;
+  line-height: 1.5;
+  background: var(--paper);
+}
+.graphnav .muted {
+  font-size: 0.78rem;
+  min-width: 3.2em;
+  text-align: right;
+}
+.graphhelp {
+  font-size: 0.82rem;
+  margin: 8px 0 0;
+}
+.nodepanel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  min-width: 0;
+  align-self: start;
+  max-height: 700px;
+  overflow-y: auto;
+}
+.nodepanel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.nodepanel-h {
+  font-size: 0.9rem;
+  margin: 16px 0 8px;
+  color: var(--ink-2);
+}
+.nodepanel-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.nearlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.nearlist button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.nearlist button:hover {
+  background: var(--paper-2);
+}
+.nearlist .nm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nearlist .muted {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.doclist.tight .doc {
+  padding: 8px 0;
+}
+.doclist.tight .doc .title {
+  font-size: 0.92rem;
+}
