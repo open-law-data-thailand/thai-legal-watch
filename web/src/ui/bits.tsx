@@ -11,7 +11,9 @@ export function Metric({ label, value, hint }: { label: string; value: string | 
   return (
     <div class="metric">
       <div class="label">{label}</div>
-      <div class="value">{typeof value === 'number' ? value.toLocaleString('th-TH') : value}</div>
+      <div class={`value${typeof value === 'string' && value.length > 6 ? ' text' : ''}`}>
+        {typeof value === 'number' ? value.toLocaleString('th-TH') : value}
+      </div>
       {hint && <div class="hint">{hint}</div>}
     </div>
   )

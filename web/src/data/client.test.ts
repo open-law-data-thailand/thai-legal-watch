@@ -58,6 +58,7 @@ describe('DataClient', () => {
 
   it('validates document ids', () => {
     expect(docIdOk('2024-001232')).toBe(true)
+    expect(docIdOk('2026-09-10-00125805')).toBe(true)
     expect(docIdOk('2024-1232')).toBe(false)
     expect(docIdOk('../etc')).toBe(false)
   })

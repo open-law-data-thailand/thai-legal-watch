@@ -144,5 +144,9 @@ class Aggregator:
             "bankruptcy_stages": dict(
                 Counter(d.extracted.get("stage") for d in docs if d.extracted.get("stage")).most_common()),
             "highlights": [d.slim() | {"labels": []} for d in highlights[:12]],
+            # a day with no new rules still has a story: the strongest corroborated documents, national first
+            "latest": [d.slim() | {"labels": []} for d in sorted(
+                (d for d in docs if d.topic_c and d.topic not in ("bankruptcy", "court")),
+                key=lambda d: (d.govlevel != "central", -(d.labels[0].weight if d.labels else 0), d.id))[:8]],
             "sparkline": [{"d": k, "n": self.by_day[k]} for k in days],
         }

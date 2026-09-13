@@ -38,6 +38,7 @@ def test_home_describes_the_newest_day(dataset):
     assert len(h["sparkline"]) <= 30 and h["sparkline"][-1]["d"] == h["latest_date"]
     for x in h["highlights"]:
         assert x["action"] in ("rulemaking", "amendment", "repeal") and x["ac"]
+    assert len(h["latest"]) <= 8 and all(x["tc"] and x["topic"] != "bankruptcy" for x in h["latest"])
 
 
 def test_recent_lists_are_newest_first_and_capped(dataset):

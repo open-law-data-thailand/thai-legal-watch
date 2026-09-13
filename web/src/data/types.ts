@@ -115,6 +115,7 @@ export interface Home {
   provinces: number
   bankruptcy_stages: Record<string, number>
   highlights: SlimDoc[]
+  latest?: SlimDoc[]
   sparkline: { d: string; n: number }[]
 }
 

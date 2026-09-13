@@ -1,6 +1,7 @@
 import { useLoad } from '../data/context'
 import { thaiDate } from '../lib/thai'
 import { href } from '../router'
+import { STAGE } from './Doc'
 import {
   Bars,
   DocRow,
@@ -44,7 +45,7 @@ export function Home() {
           value={bankrupt}
           hint={Object.entries(home.bankruptcy_stages)
             .slice(0, 1)
-            .map(([s, n]) => `${s} ${n}`)
+            .map(([s, n]) => `${STAGE[s] ?? s} ${n}`)
             .join('')}
         />
       </div>
@@ -88,10 +89,12 @@ export function Home() {
             <FeedLink path="topic/public_admin" />
           </div>
           {home.highlights.length === 0 && (
-            <p class="muted">วันนี้ไม่มีกฎ ระเบียบ หรือข้อบังคับใหม่ — มีแต่ประกาศและคำสั่ง</p>
+            <p class="muted">
+              วันนี้ไม่มีกฎ ระเบียบ หรือข้อบังคับใหม่ — มีแต่ประกาศและคำสั่ง ด้านล่างคือฉบับเด่นของวัน
+            </p>
           )}
           <div class="doclist">
-            {home.highlights.map((d) => (
+            {(home.highlights.length ? home.highlights : (home.latest ?? [])).map((d) => (
               <DocRow key={d.id} d={d} tax={tax} month={home.latest_date?.slice(0, 7)} />
             ))}
           </div>

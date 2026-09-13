@@ -5,6 +5,22 @@ import { citation, coordinates, thaiDate } from '../lib/thai'
 import { href } from '../router'
 import { ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 
+const XKEY: Record<string, string> = {
+  stage: 'ขั้นตอนคดี',
+  court: 'ศาล',
+  case_number: 'หมายเลขคดี',
+  case_book: 'เล่มคดี',
+}
+export const STAGE: Record<string, string> = {
+  absolute_receivership: 'พิทักษ์ทรัพย์เด็ดขาด',
+  interim_receivership: 'พิทักษ์ทรัพย์ชั่วคราว',
+  adjudicated: 'พิพากษาให้ล้มละลาย',
+  annulled: 'ยกเลิกการล้มละลาย',
+  discharged: 'ปลดจากล้มละลาย',
+  reorganisation: 'ฟื้นฟูกิจการ',
+}
+export const xLabel = (k: string) => XKEY[k] ?? k
+export const xValue = (k: string, v: string) => (k === 'stage' ? (STAGE[v] ?? v) : v)
 const EVIDENCE: Record<string, string> = {
   auth: 'ผู้ออก',
   title: 'ชื่อเรื่อง',
@@ -17,10 +33,10 @@ const HF = 'https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakit
 
 /** Where the PDF is: modern ids resolve at the source; legacy years live in the dataset's monthly zips. */
 export function pdfLink(id: string, month: string | undefined): { href: string; label: string } {
-  const year = Number(id.slice(0, 4))
-  if (year >= 2023)
+  const modern = /^\d{4}-\d{2}-\d{2}-(\d{8})$/.exec(id)
+  if (modern)
     return {
-      href: `https://ratchakitcha.soc.go.th/documents/${id.slice(5).replace(/^0+/, '')}.pdf`,
+      href: `https://ratchakitcha.soc.go.th/documents/${modern[1].replace(/^0+/, '')}.pdf`,
       label: 'PDF ต้นทาง (ราชกิจจานุเบกษา)',
     }
   const m = month ?? `${id.slice(0, 4)}-01`
@@ -121,8 +137,8 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                 {d.x &&
                   Object.entries(d.x).map(([k, v]) => (
                     <tr key={k}>
-                      <th>{k}</th>
-                      <td>{v}</td>
+                      <th>{xLabel(k)}</th>
+                      <td>{xValue(k, v)}</td>
                     </tr>
                   ))}
               </tbody>
