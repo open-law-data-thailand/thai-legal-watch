@@ -30,7 +30,11 @@
   #
   # connect-src names Hugging Face because the document page reads the full text of one document
   # straight out of the dataset with range requests — the layer is 12 GB and cannot be built into
-  # the site. `resolve/` redirects to whichever CDN host is serving the file, and a redirect is
-  # checked against connect-src too, so the redirect targets are listed as well. What comes back
-  # is rendered as text, never as markup.
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.hf.co https://transfer.xethub.hf.co; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
+  # the site. `resolve/` redirects to whichever host is serving the file that minute, and a
+  # redirect is checked against connect-src too. Naming the hosts individually was tried and
+  # failed in production: the real target was `us.aws.cdn.hf.co`, a Xet bridge host that appears
+  # on no published list, and the set changes with region and storage backend. The scope actually
+  # meant is "the publisher's own domains", so that is what it now says. infra/verify-live.sh
+  # follows the redirect and checks the deployed policy still allows wherever it lands.
+  # What comes back is rendered as text, never as markup.
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'
