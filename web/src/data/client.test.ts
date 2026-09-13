@@ -177,3 +177,49 @@ it('still finds a document when the month index disagrees with the shards', asyn
   const c = new DataClient({ fetchImpl: f })
   expect((await c.doc('2024-000500'))?.month).toBe('2024-05')
 })
+
+describe('byCitation', () => {
+  const vol = {
+    'index/volumes/143.json': {
+      volume: 143,
+      parts: { '219 ง พิเศษ': ['2026-09'], '17 ก': ['2026-01', '2026-02'] },
+    },
+  }
+
+  it('opens the document that starts at or before the cited page', async () => {
+    const { f } = fakeFetch({
+      ...vol,
+      'docs/2026/2026-09.json': [
+        { id: 'a', v: 143, p: '219 ง พิเศษ', pg: 1 },
+        { id: 'b', v: 143, p: '219 ง พิเศษ', pg: 20 },
+        { id: 'c', v: 143, p: '219 ง พิเศษ', pg: 40 },
+        { id: 'other', v: 143, p: '17 ก', pg: 25 },
+      ],
+    })
+    const c = new DataClient({ fetchImpl: f })
+    // page 23 falls inside the item that begins on page 20
+    expect((await c.byCitation({ volume: 143, part: '219 ง พิเศษ', page: 23 }))?.doc.id).toBe('b')
+    expect((await c.byCitation({ volume: 143, part: '219 ง พิเศษ', page: 40 }))?.doc.id).toBe('c')
+    // no page given: the ตอน starts at its first item
+    expect((await c.byCitation({ volume: 143, part: '219 ง พิเศษ', page: null }))?.doc.id).toBe('a')
+  })
+
+  it('searches every month a ตอน spans', async () => {
+    const { f } = fakeFetch({
+      ...vol,
+      'docs/2026/2026-01.json': [{ id: 'jan', v: 143, p: '17 ก', pg: 1 }],
+      'docs/2026/2026-02.json': [{ id: 'feb', v: 143, p: '17 ก', pg: 9 }],
+    })
+    const c = new DataClient({ fetchImpl: f })
+    const hit = await c.byCitation({ volume: 143, part: '17 ก', page: 9 })
+    expect(hit?.doc.id).toBe('feb')
+    expect(hit?.month).toBe('2026-02')
+  })
+
+  it('says nothing rather than guessing when the coordinates are not in the archive', async () => {
+    const { f } = fakeFetch(vol)
+    const c = new DataClient({ fetchImpl: f })
+    expect(await c.byCitation({ volume: 99, part: '1 ก', page: 1 })).toBeNull()
+    expect(await c.byCitation({ volume: 143, part: 'ไม่มีตอนนี้', page: 1 })).toBeNull()
+  })
+})

@@ -1,5 +1,9 @@
 public/data
 public/map
+# written by scripts/fixtures.mjs, mirroring what infra/deploy.sh puts at the site root
+public/directory.html
+public/sitemap.xml
+public/ratchakitcha
 dist
 coverage
 playwright-report
