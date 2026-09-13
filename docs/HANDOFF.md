@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 30 · Vitest 139 · Playwright 86 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 30 · Vitest 181 · Playwright 102 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -335,6 +335,86 @@ rule `aggregate.py` builds every topic, agency and province page with. The root 
 assertions now). Counts also wait for their data rather than reading "(0)" for a second on each
 month change.
 
+## Session 7 — the night pass: filters that reflect each other, สถิติ, the graph, and full text
+
+**สำรวจ: every number now comes from the archive index, in every scope.** The period dropdowns
+used to count from `years.json`, which knows nothing about the rest of the page — with จังหวัดตรัง
+chosen, the month list still offered "กันยายน 2569 (2,097)". A count beside an option has to
+answer "what would I get if I chose this", and only the cube can answer that across periods. So
+topics, actions, govlevels, provinces, document types, days, months and years are each counted
+with their own filter lifted and the others kept. The list still comes from the month shards,
+because only they carry titles and so only they can answer the title search — which the page now
+says out loud rather than leaving to be inferred.
+- Requests needing the same filter merge into one scan (`groupPasses`), so a page with nothing
+  chosen answers nine facets in **one pass**. Building that key exposed the bug that had been
+  costing the whole optimisation: an unchosen dropdown arrives as `action: undefined`, and
+  `{action: undefined}` is not `{}` to anything comparing them. Filters are compacted first now.
+- **The period filter names month files, not a date range** (`CubeFilter.shards`). That is a
+  correctness fix as much as a speed one: 160 of 732,143 documents sit in a shard whose year their
+  publication date disagrees with, and a count beside "เดือน 2556-11" has to mean what opening
+  that month shows. ปี 2556 now reads 36,380 everywhere instead of 36,380 in one place and 36,379
+  in another. A shard is contiguous rows, so a month scans ~2,000 rows instead of 773,000.
+- A filter that finds nothing in the current period offers the nearest period that has some.
+
+**สถิติ (was แดชบอร์ด).** Picking a year used to change four sections out of nine. Now every number
+answers for the chosen year, including three breakdowns that could not exist before — province,
+agency and document type; nobody built a `year × province` file and with 22 years and 77 provinces
+nobody sensibly could. Every comparison names its baseline ("มากขึ้น 28% จากปี 2567 (38,864)"), the
+movers table names its window, the bankruptcy panel says it is whole-archive because stages are
+not in the per-year index, and a first year with nothing before it says so.
+
+**ความสัมพันธ์.** A click used to leave the page, losing the layout and the filters. It now opens
+the node beside the graph: what it is, its three most recent documents, what it sits next to and
+how often, and three ways out (its page, the documents, a feed). Neighbours re-focus the panel.
+The search box's matches are real buttons, because **a canvas has no elements** — until now the
+graph could not be entered by keyboard or read by a screen reader at all. Zoom/shrink/reset are
+labelled buttons. Two bugs found here: a pair joined both by co-occurrence and by the topic tree
+was listed twice, and the canvas kept its old width when the panel opened, hanging over it and
+swallowing its clicks (ResizeObserver on the stage, `overflow: hidden` as a backstop).
+
+**Full text, read live from the dataset (`lib/ocr.ts`, `ui/FullText.tsx`).** The text layer is
+~40 MB a month, 12 GB for the archive, so it cannot be built in — but it is one JSON object per
+line sorted by `doc_id`, and Hugging Face answers range requests with CORS open. That makes the
+file a sorted array we can seek in, with no new build artefact and no server. It brings
+`announcement_date` (the date the document carries, which is not the date it reached the gazette),
+`signatories`, `reference_numbers` and `method`/`score`.
+- **Measured, then designed around.** Interpolating from the document's rank in its month does not
+  work: records run 800–90,000 characters, so rank does not map to a byte offset, and legacy ids
+  sort by number where the month file sorts by date. Eight-way probing was fast and asked HF for
+  ~34 ranges per document, which earned a **connection reset** — it is five-way now, opt-in behind
+  a button, and cached in IndexedDB. And the search advanced past a record by its **string** length
+  rather than its **byte** length; Thai is three bytes a character, so it walked backwards and
+  missed five of eight documents. There is a test for each.
+- Current cost: **~17 requests, ~7 seconds, ~450 KB**, once per document, then instant. The fix is
+  upstream — see `docs/DATA-WISHLIST.md` item 1.
+- CSP now names `huggingface.co` and its CDN hosts in `connect-src`; a redirect is checked against
+  it too. What comes back is rendered as text, never markup.
+
+**Reach.** The front page opens with subjects read from the taxonomy, not with "what came out
+today" — most people arrive with a subject, not a date. ล่าสุด carries its search into สำรวจ where
+the archive is 22 years rather than 90 days. สำรวจ offers a feed when the filter is one facet and
+says plainly why it cannot when it is crossed. A document ends with where to go next, each step
+carrying the count that says whether it is worth taking. And the whole site prints: a document
+page prints as the document, with the permalink and the date on it.
+
+**Performance.** `import('echarts')` pulled every chart type and both renderers — 358 KB gzipped on
+the two routes that draw. Naming the two it uses (`lib/charts.ts`) takes that to **190 KB**; the
+app itself is 45 KB. A row-oriented `latest.json` was tried and abandoned: gzip already collapses
+the repeated keys, so it saved 2% on the wire for a contract change. ล่าสุด filters 14,249 records
+in **under a millisecond** per keystroke.
+
+**`docs/DATA-WISHLIST.md` is new** — six asks with the measurement behind each, plus two data
+findings: 4,457 agencies have fewer than five documents and many are the same agency under a name
+truncated at a line break (8,207 documents with an issuer link that goes nowhere), and one
+impossible date (`1946-02-29`) is blocking the Hugging Face viewer, search and filter for the
+whole dataset, for everybody.
+
+### The fixture foot-gun, fixed at last
+`npm run e2e` rebuilds `dist` from fixtures *and* leaves fixture static pages in `public/` for the
+next build to copy back in — so a preview quietly serves 160 synthetic documents beside a real
+page. It has fooled three sessions. `link:data` and `prebuild` now clear all of it. Use
+`TLW_DATA=~/olw-build/tlw-dist.cube npm run preview:real`, and **re-link after every e2e run**.
+
 ## Still open
 - **Document links still unfurl as the home page.** Topics, provinces and agencies have static
   pages now; the 732,143 documents cannot, so a shared document link is still the site card.
@@ -349,6 +429,12 @@ month change.
   are not. The archive index removed the reason: a pill can point at สำรวจ now. **Decided:
   replace, never add** — one filter, `scope=all`, same meaning wherever it is clicked. The full
   TODO, including why a "คาดว่า" pill must stay unlinked, is at the top of `LabelPills`.
+- **The text layer costs 17 requests and 7 seconds per document.** Opt-in and cached, so it is
+  usable, but `docs/DATA-WISHLIST.md` item 1 (a byte-offset index) would make it one request and
+  30 KB, and would let it load with the page.
+- **Legacy documents still have no direct PDF.** `pdf/` covers only 2026; everything older can
+  only be pointed at the gazette's own search or a several-hundred-megabyte monthly zip. This is
+  the site's worst remaining dead end — wishlist item 2.
 - **Whole-archive title search** — see plan item 3; the box is disabled in the "ทั้งหมด" scope and
   says why.
 - Housekeeping never done: a Lighthouse budget in CI, visual regression, and moving the topic
