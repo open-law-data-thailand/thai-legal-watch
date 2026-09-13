@@ -36,6 +36,11 @@ jobs:
         with: { python-version: '3.11' }
       - run: pip install -e "pipeline[dev]"
       - run: ruff check pipeline
+      # infra/ has two Python scripts and both are load-bearing: one pulls the dataset in this
+      # very workflow, the other decides whether the deployed policy still lets the site read a
+      # document's text. Neither was linted by anything. `--isolated` because the flags are the
+      # pipeline's, and its per-file ignores are about the pipeline's files, not these.
+      - run: ruff check --isolated --line-length 124 --select E,F,I,B,UP,SIM infra
       - run: pytest pipeline
   web:
     runs-on: ubuntu-latest
