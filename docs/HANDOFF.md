@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 52 · Vitest 195 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 52 · Vitest 200 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -457,6 +457,17 @@ so the e2e can see it. That change immediately caught an e2e that had been passi
 The lesson they all share: **test in the shape the thing is actually served in.** None of these
 was subtle. Every one was invisible from where the tests were standing, and each one took a
 change to the test environment — not to the test — before it could be seen at all.
+
+### What the data itself looks like, swept
+
+732,143 documents: **0 duplicate ids, 0 missing publication dates, 0 missing เล่ม or ตอน**. 677
+(0.09%) have no page number and 676 (0.09%) have no title — and the untitled ones are not spread
+thin, they are one batch: **673 of the 4,786 documents in `docs/2025/2025-07.json` carry a
+`1998-` id prefix and have no title at all**, while the other 4,113 that month are fine. 660 of
+those are bankruptcy notices, and the debtor's name lives in the title, so for two weeks of 2025
+that name is not in the dataset. Written up as `DATA-WISHLIST.md` item 3b. The site names such a
+document by its type and issuer now (`displayTitle` in `ui/bits.tsx`) rather than printing
+"(ไม่มีชื่อเรื่อง)" at the reader. Also found: one published record titled `ทดลองระบบ`.
 
 ### The fixture foot-gun, fixed at last
 `npm run e2e` rebuilds `dist` from fixtures *and* leaves fixture static pages in `public/` for the
