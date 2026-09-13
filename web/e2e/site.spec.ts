@@ -202,6 +202,50 @@ test.describe('header search', () => {
   })
 })
 
+test('no page scrolls sideways on a narrow phone', async ({ page, request }) => {
+  // 320 CSS pixels is the narrowest thing still sold, and it is where `white-space: nowrap` on a
+  // sixty-character agency name pushed the whole page off the edge — found on the live site, not
+  // in a test, because the documents in the fixtures happen to have short issuers.
+  await page.setViewportSize({ width: 320, height: 720 })
+  const provinces = await data.provinces(request)
+  const months = await data.months(request)
+  const last = months[months.length - 1] as string
+  const docs = await data.docs(request, last)
+  const routes = [
+    '#/',
+    '#/ratchakitcha/latest',
+    '#/ratchakitcha/explore',
+    '#/ratchakitcha/explore?scope=all',
+    '#/ratchakitcha/provinces',
+    `#/ratchakitcha/province/${encodeURIComponent(provinces[0]?.file ?? '')}`,
+    '#/ratchakitcha/topic/environment',
+    `#/ratchakitcha/doc/${docs[0]?.id ?? ''}?m=${last}`,
+    '#/ratchakitcha/dashboard',
+    '#/ratchakitcha/graph',
+    '#/about',
+  ]
+  for (const hash of routes) {
+    await page.goto(`/${hash}`)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    const over = await page.evaluate(() => {
+      const de = document.documentElement
+      if (de.scrollWidth <= de.clientWidth + 1) return null
+      const worst = [...document.querySelectorAll('body *')]
+        .map((e) => ({ e, r: e.getBoundingClientRect() }))
+        .filter((x) => x.r.right > de.clientWidth + 1)
+        .sort((a, b) => b.r.right - a.r.right)[0]
+      return {
+        scrollWidth: de.scrollWidth,
+        clientWidth: de.clientWidth,
+        worst: worst
+          ? `${worst.e.tagName}.${String(worst.e.className)} → ${Math.round(worst.r.right)}px`
+          : '?',
+      }
+    })
+    expect(over, `${hash} scrolls sideways: ${JSON.stringify(over)}`).toBe(null)
+  }
+})
+
 test('no page trips the Content-Security-Policy it is served with', async ({ page, request }) => {
   // The preview sends the same `_headers` Cloudflare will. That is deliberate: the policy named
   // four Hugging Face hosts by hand, the redirect went to a fifth, and the document text was

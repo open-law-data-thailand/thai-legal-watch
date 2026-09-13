@@ -270,6 +270,14 @@ main > .crumbs:first-child {
   background: var(--paper-2);
   color: var(--ink-2);
   white-space: nowrap;
+  /* Agency names run to sixty characters — "สำนักงานคณะกรรมการกำกับและส่งเสริมการประกอบธุรกิจ
+     ประกันภัย" — and `nowrap` without a ceiling pushed the whole page sideways on a narrow
+     phone. The name is a link to a page that carries it in full, so clipping the pill costs
+     nothing; the title attribute keeps it reachable without following the link. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 .pill.topic {
   background: var(--accent-bg);
@@ -1740,4 +1748,19 @@ body {
 
 .nextsteps {
   margin-top: 30px;
+}
+
+/* A path or an id is one long token with nothing to break on, and a grid column cannot shrink
+   below its content's minimum — so a single `feeds/topic|province|agency/<name>.xml` set the
+   width of a whole page column and pushed a 320px phone sideways. Found on the live site. */
+code,
+.doc .meta code {
+  overflow-wrap: anywhere;
+}
+/* Belt and braces: a one-column grid whose track has no explicit floor still takes its min
+   content width. `minmax(0, 1fr)` says "you may be narrower than your contents". */
+@media (max-width: 800px) {
+  .two {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

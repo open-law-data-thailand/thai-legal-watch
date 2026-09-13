@@ -160,7 +160,7 @@ export function LabelPills({
       {d.govlevel && <span class={`pill${gov ? '' : ' guess'}`}>{govName(tax, d.govlevel)}</span>}
       {d.pr && <span class="pill">{d.pr}</span>}
       {agencyName && d.a && (
-        <a class="pill" href={href.agency(d.a)}>
+        <a class="pill" href={href.agency(d.a)} title={agencyName}>
           {agencyName}
         </a>
       )}
