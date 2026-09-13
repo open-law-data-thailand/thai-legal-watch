@@ -1,5 +1,8 @@
 # Deploy — Cloudflare Pages
 
+**Live:** https://thai-legal-watch.pages.dev (first deployed 2026-09-13, direct upload from the
+build box). Deployment history and rollback are under Pages → thai-legal-watch → Deployments.
+
 The site is static. A deploy is one directory: the built web app plus a pipeline build of the
 data beside it at `dist/data`. Nothing runs on a server.
 
