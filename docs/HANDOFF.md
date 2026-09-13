@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 26 · Vitest 79 · Playwright 70 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 30 · Vitest 139 · Playwright 86 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -309,6 +309,13 @@ count with a group-by**; `agg/cube.json` (the header and code tables) is 178 KB,
   counts the index already has — clicking a year switches to the year scope, which lists in full.
 - The web e2e fixture now spans four years (`--years` on `tlw_pipeline.fixtures`) so the sparse
   path and the per-year breakdown are actually exercised in CI.
+- **Staying current.** The stored copy is keyed by `meta.json`'s build stamp, so a nightly rebuild
+  invalidates it by definition. The trap is that `cube.json` and `cube.bin` are two HTTP cache
+  entries with independent ages, and a visit served from IndexedDB fetches only the header — so
+  after a rebuild a browser can pair a fresh header with yesterday's blob. `buildCube` refuses that
+  (it checks the blob against the header's `bytes`), and `fetchCube` then re-reads both with
+  `cache: 'reload'` once. Do not "fix" that check by relaxing it; it is what makes a wrong pairing
+  loud instead of silently wrong.
 
 **Considered and rejected: SQLite Wasm / DuckDB-Wasm for this.** The runtime alone is ~0.5 MB
 compressed — the size of the entire index — it needs `wasm-unsafe-eval` added to a CSP that is

@@ -126,24 +126,47 @@ export interface CubeSource {
 /** The cube, from the store if this build is already there and from the network otherwise. */
 export async function fetchCube(src: CubeSource): Promise<Cube> {
   const f = src.fetchImpl ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init))
-  const metaRes = await f(src.metaUrl)
-  if (!metaRes.ok) throw new CubeError(`${metaRes.status} for ${src.metaUrl}`)
-  const meta = (await metaRes.json()) as CubeMeta
-  if (!meta.layout?.length) throw new CubeError(`${src.metaUrl} is not a cube header`)
+  const header = async (init?: RequestInit) => {
+    const r = await f(src.metaUrl, init)
+    if (!r.ok) throw new CubeError(`${r.status} for ${src.metaUrl}`)
+    const meta = (await r.json()) as CubeMeta
+    if (!meta.layout?.length) throw new CubeError(`${src.metaUrl} is not a cube header`)
+    return meta
+  }
+  const body = async (init?: RequestInit) => {
+    const r = await f(src.binUrl, init)
+    if (!r.ok) throw new CubeError(`${r.status} for ${src.binUrl}`)
+    return await r.arrayBuffer()
+  }
+  const keep = (bytes: ArrayBuffer) => {
+    // not awaited: a full quota must not delay the page, and a failed write is not a failed load
+    void writeStored(src.source, src.version, bytes).catch(() => false)
+  }
 
+  const meta = await header()
   const cached = await readStored(src.source, src.version).catch(() => null)
   if (cached) {
     try {
       return buildCube(meta, await gunzip(cached))
     } catch {
-      // a stored copy that no longer matches the header is a stale write, not a reason to fail
+      // a stored copy that no longer fits the header is a stale write, not a reason to fail
     }
   }
-  const res = await f(src.binUrl)
-  if (!res.ok) throw new CubeError(`${res.status} for ${src.binUrl}`)
-  const raw = await res.arrayBuffer()
-  const cube = buildCube(meta, await gunzip(raw))
-  // after the cube is known good, and not awaited: a full quota must not delay the page
-  void writeStored(src.source, src.version, raw).catch(() => false)
-  return cube
+  try {
+    const raw = await body()
+    const cube = buildCube(meta, await gunzip(raw))
+    keep(raw)
+    return cube
+  } catch (e) {
+    if (!(e instanceof CubeError)) throw e
+    // The header and the blob are two HTTP cache entries with independent ages, and a visit that
+    // was served from the store fetched only the header — so after a nightly rebuild the browser
+    // can hand back a fresh header with yesterday's blob, which do not fit each other. Ask for
+    // both again, past the cache, once. (A build is minutes of work; this is two requests.)
+    const fresh: RequestInit = { cache: 'reload' }
+    const [meta2, raw2] = await Promise.all([header(fresh), body(fresh)])
+    const cube = buildCube(meta2, await gunzip(raw2))
+    keep(raw2)
+    return cube
+  }
 }

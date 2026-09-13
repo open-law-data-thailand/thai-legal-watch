@@ -107,6 +107,37 @@ describe('fetchCube', () => {
     await expect(fetchCube(src(f))).rejects.toThrow(CubeError)
   })
 
+  it('asks again past the cache when the header and the blob do not fit each other', async () => {
+    // The two are separate HTTP cache entries with independent ages, and a visit served from the
+    // store fetches only the header — so a browser can pair a fresh header with yesterday's blob.
+    const { bytes, meta } = blob()
+    const stale = await gzip(new Uint8Array(bytes.byteLength + 4))
+    const good = await gzip(bytes)
+    const calls: { url: string; reload: boolean }[] = []
+    const f = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = urlOf(input)
+      const reload = init?.cache === 'reload'
+      calls.push({ url, reload })
+      if (url.endsWith('cube.json')) return Promise.resolve(ok(meta))
+      return Promise.resolve(ok(reload ? good : stale, false))
+    }) as unknown as typeof fetch
+
+    const cube = await fetchCube(src(f))
+    expect(cube.meta.rows).toBe(2)
+    // once from the cache, then once past it — and not a third time
+    expect(calls.filter((c) => c.url.endsWith('cube.bin')).map((c) => c.reload)).toEqual([false, true])
+  })
+
+  it('gives up rather than looping when a second, uncached read still does not fit', async () => {
+    const { bytes, meta } = blob()
+    const stale = await gzip(new Uint8Array(bytes.byteLength + 4))
+    const f = vi.fn((input: RequestInfo | URL) =>
+      Promise.resolve(urlOf(input).endsWith('cube.json') ? ok(meta) : ok(stale, false)),
+    ) as unknown as typeof fetch
+    await expect(fetchCube(src(f))).rejects.toThrow(CubeError)
+    expect(f).toHaveBeenCalledTimes(4)
+  })
+
   it('fetches the blob once per instance of the header it was given', async () => {
     const { bytes } = blob()
     const { fetchImpl, calls } = server(await gzip(bytes))
