@@ -1,6 +1,6 @@
-# Thai Legal Watch — progress and plan (handoff, 2026-09-13 17:45)
+# Thai Legal Watch — progress and plan (handoff, 2026-09-13 19:15)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, all checks green: pytest 23 · Vitest 55 · Playwright 42 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 24 · Vitest 79 · Playwright 66 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -175,6 +175,87 @@ Everything here came out of the owner reading the running site.
 into `dist/` — so a plain rebuild silently replaced the real 732k-document preview with 40 synthetic
 ones, which looked exactly like "the province page is broken". Fixed at the root: `prebuild` removes
 `public/data`, and `npm run link:data` (or `npm run preview:real`) removes both and re-links.
+
+## Session 4 — deployed, then audited
+
+The site went up, and then everything was read again looking for what was missing rather than what
+was asked for. Most of what follows was found that way, not reported.
+
+### The root cause of three bugs
+`eslint-plugin-react-hooks` was a dependency and was **never registered**. Turning it on found:
+a `useMemo` whose hand-written dependency list never learned about `f.day` (so the day filter
+changed the heading and the count while the list below kept showing the whole month), and two
+ECharts effects that returned their cleanup **into a `.then()`**, so no chart was ever disposed —
+the graph re-ran `echarts.init` once per keystroke in its filter box, each time adding another
+resize listener, click handler and 1200 ms force layout.
+
+### A rendering bug that produced a false statement
+`Bars` measured every row against `rows[0]` instead of the maximum. Correct for sorted data, wrong
+for the month-of-year profile, which arrives in calendar order: seven of twelve months computed
+101–105% and were clipped to 100%. **I read the flat result off the screen and wrote copy saying
+the months barely differ.** They differ by 23% — August 64,708 against April 52,665. Fixed, and the
+copy now says what the data says. Worth remembering as a shape of mistake: a chart is evidence
+about the code as much as about the data.
+
+### What a reader hit before
+- A thrown render took the entire page with it. There is an error boundary, remounted per route.
+- A 404 said "โหลดข้อมูลไม่สำเร็จ — 404 for /data/…/topic/foo.json": blamed the network, leaked a
+  path, offered no way on. It now says the thing is not in the archive.
+- Empty lists rendered as a blank gap under a heading that promised something.
+- `← กลับไปผลการค้นหา` had never worked: `tlw:lastExplore` was read in three places and written
+  in none. สำรวจ writes it now.
+- The copy buttons failed silently forever on a non-secure origin.
+- All 76 topic pages shared one tab title; all 2,841 agency pages shared another.
+- Four divisions rendered `NaN%`; two year lookups rendered `พ.ศ. NaN`.
+- Typing in the title search pushed a history entry per character.
+
+### Data volume
+- Home's main button pointed at a whole year: up to 47 MB of JSON to parse. It points at the
+  latest month. (The wire cost was never the problem — gzipped, the largest month is 512 KB.)
+- Quick search pulled 186 KB gzipped of agency names on **every page**, sequentially. Lazy now.
+- A legacy id with no `?m=` walked up to twelve shards. `index/months/<year>.json` (88 KB total)
+  makes the median lookup one shard. Note: the source's per-year sequence is **not chronological**
+  — 2014-01 holds ids 2014-006904…2014-009446 — so nothing may infer a month from an id number.
+- The client evicts old month shards; browsing three years used to pin every one of them.
+- A document page fetched all 1.8 MB of agency names to print one.
+
+### Multi-source URLs were broken
+The scheme exists so a second dataset can sit beside the gazette, and nearly every link was built
+from the default source anyway — one keystroke in สำรวจ navigated you out of the source entirely.
+There is a `useHref()` off the client context now, feed URLs come from the client, and an e2e test
+walks every link on a page loaded under a different source id.
+
+### Accessibility past the scanner
+axe passes on every page, which is why all of this survived: quick search announced nothing while
+arrowing (no `aria-activedescendant`, no option ids), every agency page claimed two current
+locations, the dashboard's year was mouse-only, the graph canvas was an unlabelled div, and there
+was no skip link past six nav items.
+
+### Operations — three things that would have failed silently
+1. `nightly.sh` **never pulled**: the site would have frozen at one commit with every step still
+   reporting success. It pulls, and fails loudly if it cannot.
+2. Its default data root does not exist on the build box (`~/olw-build/data`); the real one is
+   assembled by `infra/link-dataset.sh` and named by `TLW_DATA_ROOT` in `~/src/.env`.
+3. cron has no ssh agent, so a pull needs a deploy key — `infra/deploy-key.sh` generates one and
+   prints the public half. **Still to do: paste it into GitHub and install the crontab line.**
+
+Also: `deploy.sh` hardlinks the data instead of copying 800 MB every run, and verifies that the
+edge actually serves the build it just made. `_headers` is generated per source, because Cloudflare
+Pages **ignores a wildcard in the middle of a path** — measured, not guessed: a deploy carrying
+both `/data/*/feeds/*` and a literal rule reported the literal one.
+
+## Still open
+- **Crawlers see one page.** Hash routes are not URLs to a crawler, so 732k documents, 76 topics
+  and 77 provinces have no organic search surface. `robots.txt` points machines at the JSON
+  indexes, which is a mitigation, not a fix. Moving to path routing with an SPA fallback would fix
+  it and would change every URL — an owner's decision.
+- **Link previews are all the home page.** Scrapers do not run JS, so the per-route `document.title`
+  never reaches them and every shared document link unfurls as the site card.
+- **`canonical` and `og:url` are hardcoded to pages.dev** and must change with the custom domain.
+- Document full text from Hugging Face: the datasets-server is not ready for this dataset, and the
+  raw OCR month files are far too big to fetch in a browser. The workable path is a byte-offset
+  index built by the pipeline plus HTTP range requests.
+- 2002–2004 once they publish: `TLW_YEARS=2002-2026`.
 
 ## Plan (in order)
 
