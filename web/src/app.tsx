@@ -92,6 +92,10 @@ export function App({ client }: { client?: DataClient }) {
               ก่อนนำไปใช้อ้างอิงหรือดำเนินการทางกฎหมาย
             </p>
             <p>
+              <a href="/directory">สารบัญหมวด จังหวัด และหน่วยงานทั้งหมด</a> ·{' '}
+              <a href="/data/ratchakitcha/agg/meta.json">ข้อมูลดิบ (JSON)</a>
+            </p>
+            <p>
               ข้อมูล:{' '}
               <a href="https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha">
                 OpenLawData — soc-ratchakitcha

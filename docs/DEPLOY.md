@@ -8,12 +8,19 @@ data beside it at `dist/data`. Nothing runs on a server.
 
 ```
 web/dist/
-  index.html  assets/…  map/…   ← the app (small, built by Vite)
-  _headers                      ← cache and CORS rules (copied from infra/_headers)
+  index.html  assets/…  map/…        ← the app (small, built by Vite)
+  _headers                           ← cache, CORS and CSP (generated from infra/_headers)
+  directory  sitemap.xml
+  ratchakitcha/{topic,province,agency}/…  ← ~3,000 static pages for crawlers and link previews
   data/
     sources.json
     ratchakitcha/{agg,index,docs,feeds}/…   ← ~800 MB, ~3,750 files
 ```
+
+About 6,800 files in total, against a Cloudflare Pages limit of 20,000 on the free plan. The
+static pages are written by `tlw-build` into `<dist-data>/_site/` and moved to the site root by
+`infra/deploy.sh`; they are twins of the facet pages, not doorways, and each links to the
+interactive version.
 
 ## How a deploy happens
 

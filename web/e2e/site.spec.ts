@@ -540,6 +540,53 @@ test('the site tells a crawler and a link preview what it is', async ({ page, re
   expect(await sitemap.text()).toContain('sitemaps.org/schemas/sitemap/0.9')
 })
 
+test.describe('what a machine without JavaScript sees', () => {
+  // The app is a hash-routed SPA: one page to a crawler, one card to a link unfurler. The facets
+  // are real files so that is not the whole story.
+  test('a topic has a real page with its own title, description and canonical URL', async ({
+    page,
+    request,
+  }) => {
+    const topics = (await (await request.get('/data/ratchakitcha/index/topics.json')).json()) as {
+      slug: string
+      thai: string | null
+      n: number
+    }[]
+    const t = topics.find((x) => x.n > 0)
+    if (!t) throw new Error('fixture has no topic with documents')
+    const r = await request.get(`/ratchakitcha/topic/${t.slug}`)
+    expect(r.ok(), `/ratchakitcha/topic/${t.slug}`).toBeTruthy()
+    const html = await r.text()
+    const name = t.thai ?? t.slug
+    expect(html).toContain(`<title>${name} — Thai Legal Watch</title>`)
+    expect(html).toContain('property="og:title"')
+    expect(html).toMatch(/rel="canonical" href="[^"]*\/ratchakitcha\/topic\//)
+    // and it must lead to the interactive page rather than being a dead end
+    expect(html).toContain(`/#/ratchakitcha/topic/${t.slug}`)
+
+    // it renders as a page, not as markup in a browser
+    await page.goto(`/ratchakitcha/topic/${t.slug}`)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(name)
+    await expect(page.getByRole('link', { name: /เปิดหน้านี้แบบโต้ตอบ/ })).toBeVisible()
+  })
+
+  test('the directory reaches every static page, and the app links to the directory', async ({
+    page,
+    request,
+  }) => {
+    const r = await request.get('/directory')
+    expect(r.ok()).toBeTruthy()
+    const html = await r.text()
+    const sitemap = await (await request.get('/sitemap.xml')).text()
+    const locs = [...sitemap.matchAll(/<loc>[^<]*?(\/ratchakitcha\/[^<]*)<\/loc>/g)].map((m) => m[1])
+    expect(locs.length, 'the sitemap must list the static pages').toBeGreaterThan(0)
+    for (const loc of locs) expect(html, `directory must link ${loc}`).toContain(loc as string)
+
+    await page.goto('/#/')
+    await expect(page.locator('footer').getByRole('link', { name: /สารบัญ/ })).toBeVisible()
+  })
+})
+
 test('the province map ships with the site and covers all 77 provinces', async ({ request }) => {
   const r = await request.get('/map/thailand-provinces.json')
   expect(r.ok()).toBeTruthy()

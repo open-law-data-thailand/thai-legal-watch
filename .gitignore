@@ -13,4 +13,8 @@ coverage/
 .env
 .DS_Store
 web/public/data/
+# static pages the fixture build drops at the site root, mirroring a real deploy
+web/public/directory.html
+web/public/sitemap.xml
+web/public/ratchakitcha/
 *.egg-info/

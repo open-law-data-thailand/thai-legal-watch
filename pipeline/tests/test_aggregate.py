@@ -108,3 +108,54 @@ def test_month_index_locates_a_document_without_opening_shards(tmp_path):
             for d in json.loads((src / "docs" / year / f"{month}.json").read_text(encoding="utf-8")):
                 owners = [m for m, (lo, hi) in idx["months"].items() if lo <= d["id"] <= hi]
                 assert month in owners, (d["id"], month, owners)
+
+
+def test_static_pages_say_what_they_are(tmp_path):
+    """The prerendered pages exist for readers that do not run JavaScript, so the things such a
+    reader needs — a real title, a description, a canonical URL, and a way to the rest — are the
+    things worth asserting. And nothing from the data may land in the HTML unescaped."""
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2023", "2024"), per_month=20)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2023-2024",
+                 "--site", "https://example.org"]) == 0
+
+    site = out / "_site"
+    topics = json.loads((out / "ratchakitcha" / "index" / "topics.json").read_text(encoding="utf-8"))
+    for t in topics:
+        page = site / "ratchakitcha" / "topic" / f"{t['slug']}.html"
+        if not page.exists():
+            continue
+        html = page.read_text(encoding="utf-8")
+        name = t["thai"] or t["slug"]
+        assert f"<title>{name} — Thai Legal Watch</title>" in html
+        assert 'name="description"' in html and 'property="og:description"' in html
+        assert f'rel="canonical" href="https://example.org/ratchakitcha/topic/{t["slug"]}"' in html
+        # and a way through to the interactive page it mirrors
+        assert f"https://example.org/#/ratchakitcha/topic/{t['slug']}" in html
+
+    directory = (site / "directory.html").read_text(encoding="utf-8")
+    for t in topics:
+        if (site / "ratchakitcha" / "topic" / f"{t['slug']}.html").exists():
+            assert f"/ratchakitcha/topic/{t['slug']}" in directory, t["slug"]
+
+    sitemap = (site / "sitemap.xml").read_text(encoding="utf-8")
+    assert sitemap.startswith("<?xml")
+    assert "<loc>https://example.org/</loc>" in sitemap
+    assert sitemap.count("<loc>") > 1
+
+
+def test_static_pages_escape_what_comes_from_the_data(tmp_path):
+    """Titles come from OCR of scanned pages; a stray angle bracket must not become markup."""
+    from tlw_pipeline.prerender import _docs, e
+
+    assert e('<img src=x onerror="alert(1)">') == "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"
+    out = _docs([{"id": "2024-000001", "t": '<script>alert(1)</script>', "d": "2024-02-03", "a": None}],
+                "https://example.org", "ratchakitcha", {})
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out

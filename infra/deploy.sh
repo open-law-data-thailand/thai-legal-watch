@@ -42,6 +42,16 @@ cp -al "$DATA" dist/data 2>/dev/null || cp -R "$DATA" dist/data
 # _headers is generated rather than copied: Cloudflare Pages ignores a wildcard in the middle of a
 # path (measured — the deploy that shipped /data/*/feeds/* served application/xml), so each source
 # needs its own literal rule, and the source ids are in the data itself.
+# The static facet pages belong at the site root (/ratchakitcha/topic/… , /directory,
+# /sitemap.xml), not under /data/, so they are moved out of the data tree on the way in.
+if [[ -d "$DATA/_site" ]]; then
+  rm -rf dist/data/_site
+  (cd "$DATA/_site" && find . -type d -exec mkdir -p "$OLDPWD/dist/{}" \;)
+  (cd "$DATA/_site" && find . -type f -exec cp -l {} "$OLDPWD/dist/{}" \; 2>/dev/null) ||
+    cp -R "$DATA/_site/." dist/
+  echo "deploy: $(find "$DATA/_site" -name '*.html' | wc -l | tr -d ' ') static pages at the site root"
+fi
+
 sources=$(python3 -c "import json;print(' '.join(s['id'] for s in json.load(open('dist/data/sources.json'))['sources']))")
 cp "$HERE/_headers" dist/_headers
 for src in $sources; do

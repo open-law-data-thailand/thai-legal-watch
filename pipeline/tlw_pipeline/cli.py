@@ -9,6 +9,7 @@ import argparse
 import sys
 import time
 
+from . import prerender
 from .aggregate import Aggregator
 from .contract import validate
 from .emit import Emitter
@@ -38,7 +39,11 @@ def build(root: str, out: str, years: list[str] | None = None, limit: int | None
         em.flush_year(y)
         print(f"  {y}: {k:,} docs · {time.time() - t0:.0f}s", flush=True)
     meta = em.finish(agg, [src.credit | {"built_from_years": todo}], site)
-    print(f"built {n:,} docs → {meta['files']:,} files, {meta['bytes'] / 1e6:.1f} MB in {time.time() - t0:.0f}s")
+    # A hash-routed app is one page to a crawler and one card to a link unfurler. The facets can
+    # each be a real file — about three thousand of them — so they are.
+    pages = prerender.write(out, src.id, site)
+    print(f"built {n:,} docs → {meta['files']:,} files, {meta['bytes'] / 1e6:.1f} MB in {time.time() - t0:.0f}s"
+          f" · {len(pages):,} static pages")
     return meta
 
 

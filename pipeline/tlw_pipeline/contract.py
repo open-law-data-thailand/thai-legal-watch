@@ -35,9 +35,40 @@ def validate(root: str) -> list[str]:
         problems.append("sources.json lists no source")
     for s in idx.get("sources", []):
         problems += [f"[{s['id']}] {p}" for p in validate_source(os.path.join(root, s["id"]))]
+    # _site/ is not source data: it is the static HTML that ends up at the site root
+    site_dir = os.path.join(root, "_site")
+    if os.path.isdir(site_dir):
+        problems += validate_site(site_dir)
     total = sum(len(files) for _, _, files in os.walk(root))
     if total > 19_000:
         problems.append(f"{total} files — Cloudflare Pages caps a deploy at 20,000")
+    return problems
+
+
+def validate_site(site_dir: str) -> list[str]:
+    """The static pages exist to be read by machines that do not run JavaScript, so the things
+    those machines need — a title, a description, a canonical URL — are what get checked."""
+    problems: list[str] = []
+    pages = [os.path.join(d, f) for d, _, fs in os.walk(site_dir) for f in fs if f.endswith(".html")]
+    if not pages:
+        return ["_site/ has no pages"]
+    if not os.path.exists(os.path.join(site_dir, "directory.html")):
+        problems.append("_site/directory.html missing — nothing links the static pages together")
+    if not os.path.exists(os.path.join(site_dir, "sitemap.xml")):
+        problems.append("_site/sitemap.xml missing")
+    # Thai is three bytes a character in UTF-8, so a character count is not a size — measure the
+    # file. The directory links everything and is legitimately large; a facet page is not.
+    for p in pages:
+        with open(p, encoding="utf-8") as f:
+            html = f.read()
+        rel = os.path.relpath(p, site_dir)
+        for needed in ("<title>", 'name="description"', 'rel="canonical"', 'property="og:title"'):
+            if needed not in html:
+                problems.append(f"_site/{rel}: no {needed}")
+        cap = 2_000_000 if rel == "directory.html" else 200_000
+        size = os.path.getsize(p)
+        if size > cap:
+            problems.append(f"_site/{rel} is {size:,} B > {cap:,}")
     return problems
 
 
