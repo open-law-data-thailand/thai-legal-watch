@@ -35,6 +35,11 @@ const EVIDENCE: Record<string, string> = {
 export const evidenceLabel = (m: string) => EVIDENCE[m] ?? `เกณฑ์ ${m.replace(/^\^/, '')}`
 const HF = 'https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha'
 
+/** The province route takes a file name, which is not the province name — they happen to match
+ *  in the current build, and that is not something to build a link on. */
+const provinceFile = (name: string, list: { name: string; file: string }[]) =>
+  list.find((p) => p.name === name)?.file ?? name
+
 const GAZETTE = 'https://ratchakitcha.soc.go.th'
 
 export interface DocLinks {
@@ -75,12 +80,23 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   const st = useLoad(
     async (c) => {
       if (!docIdOk(id)) throw new Error(`รหัสเอกสารไม่ถูกต้อง: ${id}`)
-      const [hit, tax, agencies] = await Promise.all([c.doc(id, month), c.taxonomy(), c.agencies()])
+      const [hit, tax, agencies, provinces] = await Promise.all([
+        c.doc(id, month),
+        c.taxonomy(),
+        c.agencies(),
+        c.provinces(),
+      ])
       if (!hit) throw new Error(`ไม่พบเอกสาร ${id}`)
       const siblings = (await c.month(id.slice(0, 4), hit.month))
         .filter((d) => d.v === hit.doc.v && d.p === hit.doc.p && d.id !== id)
         .sort((a, b) => (a.pg ?? 0) - (b.pg ?? 0))
-      return { ...hit, tax, agency: agencies.find((a) => a.id === hit.doc.a) ?? null, siblings }
+      return {
+        ...hit,
+        tax,
+        provinces,
+        agency: agencies.find((a) => a.id === hit.doc.a) ?? null,
+        siblings,
+      }
     },
     [id, month],
   )
@@ -92,7 +108,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   useTitle(st.state === 'ok' ? st.data.doc.t : null, st.state === 'ok' ? st.data.doc.id : undefined)
   if (st.state === 'loading') return <Loading what="เอกสาร" />
   if (st.state === 'error') return <ErrorBox error={st.error} what="เอกสารฉบับนี้" />
-  const { doc: d, tax, agency, siblings } = st.data
+  const { doc: d, tax, agency, siblings, provinces } = st.data
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
   const links = docLinks(d.id, st.data.month)
@@ -145,13 +161,13 @@ export function Doc({ id, month }: { id: string; month?: string }) {
             <table>
               <tbody>
                 <tr>
-                  <th>รหัส</th>
+                  <th scope="row">รหัส</th>
                   <td>
                     <code>{d.id}</code>
                   </td>
                 </tr>
                 <tr>
-                  <th>ผู้ออก</th>
+                  <th scope="row">ผู้ออก</th>
                   <td>
                     {agency ? (
                       <a href={href.agency(agency.id)}>{agency.name}</a>
@@ -162,28 +178,28 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                 </tr>
                 {d.pr && (
                   <tr>
-                    <th>จังหวัด</th>
+                    <th scope="row">จังหวัด</th>
                     <td>
-                      <a href={href.province(d.pr)}>{d.pr}</a>
+                      <a href={href.province(provinceFile(d.pr, provinces))}>{d.pr}</a>
                     </td>
                   </tr>
                 )}
                 <tr>
-                  <th>หมวด</th>
+                  <th scope="row">หมวด</th>
                   <td>
                     {d.topic ? <a href={href.topic(d.topic)}>{topicName(tax, d.topic)}</a> : '—'}{' '}
                     {d.topic && (d.tc ? '✓' : <span class="pill guess">คาดว่า</span>)}
                   </td>
                 </tr>
                 <tr>
-                  <th>การกระทำ</th>
+                  <th scope="row">การกระทำ</th>
                   <td>
                     {actionName(tax, d.action) || '—'}{' '}
                     {d.action && (d.ac ? '✓' : <span class="pill guess">คาดว่า</span>)}
                   </td>
                 </tr>
                 <tr>
-                  <th>ระดับ</th>
+                  <th scope="row">ระดับ</th>
                   <td>
                     {govName(tax, d.govlevel) || '—'}{' '}
                     {d.govlevel && (d.gc ? '✓' : <span class="pill guess">คาดว่า</span>)}
@@ -192,7 +208,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                 {d.x &&
                   Object.entries(d.x).map(([k, v]) => (
                     <tr key={k}>
-                      <th>{xLabel(k)}</th>
+                      <th scope="row">{xLabel(k)}</th>
                       <td>{xValue(k, v)}</td>
                     </tr>
                   ))}

@@ -137,3 +137,43 @@ it('keeps small aggregates cached however many shards go by', async () => {
   await c.taxonomy()
   expect(calls.length).toBe(before)
 })
+
+it('opens a legacy document from the month index instead of walking the year', async () => {
+  const { f, calls } = fakeFetch({
+    'index/months/2024.json': {
+      year: '2024',
+      months: {
+        '2024-01': ['2024-000001', '2024-000900'],
+        '2024-02': ['2024-000901', '2024-001800'],
+        '2024-03': ['2024-001801', '2024-002700'],
+      },
+    },
+    'docs/2024/2024-02.json': [{ id: '2024-001234', t: 'x' }],
+  })
+  const c = new DataClient({ fetchImpl: f })
+  const hit = await c.doc('2024-001234')
+  expect(hit?.month).toBe('2024-02')
+  // the index plus exactly one shard — not every month of the year
+  expect(calls.filter((u) => u.includes('/docs/'))).toHaveLength(1)
+})
+
+it('reads the month straight out of a modern id, with no index at all', async () => {
+  const { f, calls } = fakeFetch({
+    'docs/2026/2026-09.json': [{ id: '2026-09-10-00125805', t: 'y' }],
+  })
+  const c = new DataClient({ fetchImpl: f })
+  expect((await c.doc('2026-09-10-00125805'))?.month).toBe('2026-09')
+  expect(calls.some((u) => u.includes('index/months'))).toBe(false)
+  expect(calls.filter((u) => u.includes('/docs/'))).toHaveLength(1)
+})
+
+it('still finds a document when the month index disagrees with the shards', async () => {
+  const { f } = fakeFetch({
+    'index/months/2024.json': { year: '2024', months: { '2024-01': ['2024-000001', '2024-000900'] } },
+    'agg/years.json': { by_year: { '2024': 1 }, by_month: { '2024-01': 0, '2024-05': 1 } },
+    'docs/2024/2024-01.json': [],
+    'docs/2024/2024-05.json': [{ id: '2024-000500', t: 'moved' }],
+  })
+  const c = new DataClient({ fetchImpl: f })
+  expect((await c.doc('2024-000500'))?.month).toBe('2024-05')
+})

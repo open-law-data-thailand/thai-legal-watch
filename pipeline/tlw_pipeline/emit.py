@@ -130,6 +130,12 @@ class Emitter:
                                 for (a, b), n in agg.topic_pairs_year.get(year, Counter()).most_common(400)],
             }
             self.sizes[f"agg/graph/{year}.json"] = dump(os.path.join(self.out, "agg/graph", f"{year}.json"), gy)
+        # A legacy document id (YYYY-NNNNNN) does not say which month it is in, so a link without
+        # ?m= had to open shards one by one until it found it. Twelve numbers per year fix that.
+        for year, months in sorted(agg.doc_id_range.items()):
+            self.sizes[f"index/months/{year}.json"] = dump(
+                os.path.join(self.out, "index/months", f"{year}.json"),
+                {"year": year, "months": {m: [lo, hi] for m, (lo, hi) in sorted(months.items())}})
         # citation lookup: a lawyer types เล่ม/ตอน/หน้า; the site needs to know which month shard to open
         for vol, parts in agg.volume_parts.items():
             body = {"volume": vol, "parts": {p: sorted(m) for p, m in sorted(parts.items())}}

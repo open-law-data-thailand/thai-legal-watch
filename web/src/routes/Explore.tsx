@@ -190,7 +190,9 @@ export function Explore({ q }: { q: URLSearchParams }) {
   return (
     <>
       <Kicker>
-        สำรวจ · ตรงเงื่อนไข {total.toLocaleString('th-TH')} ฉบับ ใน{scopeLabel}
+        <span role="status">
+          สำรวจ · ตรงเงื่อนไข {total.toLocaleString('th-TH')} ฉบับ ใน{scopeLabel}
+        </span>
       </Kicker>
       <h1 style="margin:6px 0 16px">สำรวจตามหมวด สิ่งที่ทำ ระดับผู้ออก และพื้นที่</h1>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
@@ -433,7 +435,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
             </p>
           )}
         </section>
-        <section aria-live="polite">
+        <section>
           {docs.state === 'loading' && <Loading what={scopeLabel} />}
           {docs.state === 'error' && <ErrorBox error={docs.error} />}
           {scope === 'all' && !f.topic && (

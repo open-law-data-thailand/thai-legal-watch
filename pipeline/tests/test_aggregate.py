@@ -81,3 +81,30 @@ def test_trends_series_line_up_with_the_year_axis(tmp_path):
     for series in t["actions"].values():
         for y, n in zip(t["years"], series, strict=False):
             assert n <= years["by_year"][y]
+
+
+def test_month_index_locates_a_document_without_opening_shards(tmp_path):
+    """index/months/<year>.json must cover every document, so a link with no ?m= needs one fetch."""
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2023", "2024"), per_month=20)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2023-2024"]) == 0
+
+    src = out / "ratchakitcha"
+    for year in ("2023", "2024"):
+        idx = json.loads((src / "index" / "months" / f"{year}.json").read_text(encoding="utf-8"))
+        assert idx["year"] == year
+        for month, (lo, hi) in idx["months"].items():
+            docs = json.loads((src / "docs" / year / f"{month}.json").read_text(encoding="utf-8"))
+            ids = sorted(d["id"] for d in docs)
+            assert lo == ids[0] and hi == ids[-1], month
+        # every document of the year falls inside exactly one month's range
+        for month in idx["months"]:
+            for d in json.loads((src / "docs" / year / f"{month}.json").read_text(encoding="utf-8")):
+                owners = [m for m, (lo, hi) in idx["months"].items() if lo <= d["id"] <= hi]
+                assert month in owners, (d["id"], month, owners)

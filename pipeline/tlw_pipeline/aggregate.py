@@ -88,6 +88,7 @@ class Aggregator:
         self.topic_pairs_year: dict[str, Counter] = defaultdict(Counter)
         self.volume_parts: dict[int, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))  # volume → part → months
         self.topic_agency_year: dict[str, Counter] = defaultdict(Counter)   # (topic, agency) per year, corroborated topics
+        self.doc_id_range: dict[str, dict[str, tuple[str, str]]] = defaultdict(dict)  # year → month → (min id, max id)
         self.action_year: dict[str, Counter] = defaultdict(Counter)   # action  → year → n, corroborated only
         self.gov_year: dict[str, Counter] = defaultdict(Counter)      # govlevel → year → n, corroborated only
         self.parents = {s: v.get("parent") for s, v in taxonomy.get("topics", {}).items()}
@@ -102,6 +103,10 @@ class Aggregator:
 
     def add(self, d: Doc) -> None:
         self.all.add(d)
+        lo_hi = self.doc_id_range[d.year].get(d.month)
+        self.doc_id_range[d.year][d.month] = (
+            (d.id, d.id) if lo_hi is None else (min(lo_hi[0], d.id), max(lo_hi[1], d.id))
+        )
         if d.volume and d.part:
             self.volume_parts[d.volume][d.part].add(d.month)
         if d.topic or d.action or d.govlevel:

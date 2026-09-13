@@ -176,14 +176,39 @@ export class DataClient {
     return this.get(`docs/${year}/${month}.json`)
   }
 
-  /** A document lives in the shard of its month; the id alone tells the year, the meta tells the month. */
+  /** Which month shards could hold this id. A modern id says so itself; a legacy one needs the
+   *  month index, which is twelve number pairs. Falling back to every month of the year is what
+   *  the old code always did: up to twelve fetches and ~40 MB to open one document. */
+  private async shardsFor(id: string, monthHint?: string): Promise<string[]> {
+    if (monthHint) return [monthHint]
+    const year = id.slice(0, 4)
+    const modern = /^(\d{4}-\d{2})-\d{2}-\d{8}$/.exec(id)
+    if (modern?.[1]) return [modern[1]]
+    const idx = await this.get<{ months: Record<string, [string, string]> }>(
+      `index/months/${year}.json`,
+    ).catch(() => null)
+    const hits = Object.entries(idx?.months ?? {})
+      .filter(([, [lo, hi]]) => lo <= id && id <= hi)
+      .map(([m]) => m)
+    return hits.length ? hits : await this.monthsOf(year)
+  }
+
+  /** A document lives in the shard of its month. */
   async doc(id: string, monthHint?: string): Promise<{ doc: SlimDoc; month: string } | null> {
     const year = id.slice(0, 4)
-    const months = monthHint ? [monthHint] : await this.monthsOf(year)
-    for (const m of months) {
+    for (const m of await this.shardsFor(id, monthHint)) {
       const docs = await this.month(year, m)
       const doc = docs.find((d) => d.id === id)
       if (doc) return { doc, month: m }
+    }
+    // an id inside a month's range but absent from it means the index is stale, not that the
+    // document is gone; fall back rather than report "not found" wrongly
+    if (!monthHint) {
+      for (const m of await this.monthsOf(year)) {
+        const docs = await this.month(year, m)
+        const doc = docs.find((d) => d.id === id)
+        if (doc) return { doc, month: m }
+      }
     }
     return null
   }

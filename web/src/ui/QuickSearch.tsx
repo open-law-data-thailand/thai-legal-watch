@@ -88,15 +88,25 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
   const listId = big ? 'qs-list-hero' : 'qs-list'
   const client = useClient()
   const [note, setNote] = useState('')
-  const idx = useLoad(
-    async (c) => ({ topics: await c.topics(), provinces: await c.provinces(), agencies: await c.agencies() }),
-    [],
-  )
   const [q, setQ] = useState('')
+  // 186 KB of agency names gzipped, on every page, for a box most readers never touch — and
+  // fetched one after another rather than together. Nothing loads until the box is used.
+  const [wanted, setWanted] = useState(false)
+  const idx = useLoad(
+    async (c) => {
+      if (!wanted) return null
+      const [topics, provinces, agencies] = await Promise.all([c.topics(), c.provinces(), c.agencies()])
+      return { topics, provinces, agencies }
+    },
+    [wanted],
+  )
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState(0)
   const input = useRef<HTMLInputElement>(null)
-  const hits = useMemo(() => (idx.state === 'ok' ? search(q, idx.data) : []), [q, idx])
+  const hits = useMemo(() => (idx.state === 'ok' && idx.data ? search(q, idx.data) : []), [q, idx])
+  const wake = () => {
+    setWanted(true)
+  }
   useEffect(() => {
     // the header box is on every page, so it owns "/" — otherwise two instances race on the
     // home page and the shortcut lands wherever the last one mounted
@@ -108,6 +118,7 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
         !(e.target instanceof HTMLTextAreaElement)
       ) {
         e.preventDefault()
+        setWanted(true)
         input.current?.focus()
       }
     }
@@ -160,11 +171,13 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
         aria-autocomplete="list"
         role="combobox"
         onInput={(e) => {
+          wake()
           setQ((e.target as HTMLInputElement).value)
           setOpen(true)
           setSel(0)
         }}
         onFocus={() => {
+          wake()
           setOpen(true)
         }}
         onBlur={() => {
@@ -188,6 +201,11 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
           }
         }}
       />
+      {open && q !== '' && idx.state === 'loading' && (
+        <div class="qs-note" role="status">
+          กำลังเตรียมรายการค้นหา…
+        </div>
+      )}
       {note && (
         <div class="qs-note" role="status">
           {note}
