@@ -66,7 +66,7 @@ export function App({ client }: { client?: DataClient }) {
             </div>
             <p>
               ราชกิจจานุเบกษา จำแนกหมวดทุกวัน อ่านง่าย ติดตามได้ — โครงการในเครือ{' '}
-              <a href="https://github.com/open-law-data-thailand">OpenLawData</a>
+              <a href="https://huggingface.co/open-law-data-thailand">OpenLawData</a>
             </p>
           </div>
           <div>
