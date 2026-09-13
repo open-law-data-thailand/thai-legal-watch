@@ -17,7 +17,7 @@ die() { echo "[$(date '+%F %T')] FAILED: $*" >&2; exit 1; }
 [[ -f "$HOME/src/.env" ]] && { set -a; . "$HOME/src/.env"; set +a; }
 DATA_ROOT="${TLW_DATA_ROOT:-$HOME/olw-build/data}"
 OUT="${TLW_OUT:-$HOME/olw-build/tlw-dist}"
-YEARS="${TLW_YEARS:-2005-2026}"
+YEARS="${TLW_YEARS:-2002-2026}"
 MIN_FREE_GB="${TLW_MIN_FREE_GB:-4}"
 
 # shellcheck source=node-env.sh
@@ -64,16 +64,5 @@ say "deploy"
 "$REPO/infra/deploy.sh" "$OUT"
 
 # --- prove it ----------------------------------------------------------------------------------
-# A deploy that reports success but leaves the old data in place is the failure mode that would go
-# unnoticed longest, so compare what the edge serves against what was just built.
-site="${TLW_SITE:-https://thai-legal-watch.pages.dev}"
-built=$(python3 -c "import json;print(json.load(open('$OUT/${TLW_SOURCE:-ratchakitcha}/agg/meta.json'))['generated_at'])")
-for _ in $(seq 1 10); do
-  live=$(curl -fsS --max-time 30 "$site/data/${TLW_SOURCE:-ratchakitcha}/agg/meta.json" |
-    python3 -c "import json,sys;print(json.load(sys.stdin)['generated_at'])" 2>/dev/null || true)
-  [[ "$live" == "$built" ]] && break
-  sleep 10
-done
-[[ "$live" == "$built" ]] || die "deployed, but $site still serves data generated at '${live:-?}' (built '$built')"
-say "verified: $site serves the build from $built"
+"$REPO/infra/verify-live.sh" "$OUT"
 say "done"

@@ -2,6 +2,13 @@ name: ci
 on:
   push: { branches: [main] }
   pull_request:
+  # 16:00 UTC is 23:00 in Bangkok, after the dataset's own nightly has published to Hugging Face.
+  schedule: [{ cron: '0 16 * * *' }]
+  workflow_dispatch:
+    inputs:
+      years:
+        description: 'Years to build (blank = every year published in both layers)'
+        required: false
 jobs:
   # The deploy scripts became load-bearing — they pull, build, check Cloudflare's limits and verify
   # the edge afterwards — and a syntax error in them only shows up at 23:00 on the build box.
@@ -45,3 +52,47 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: web/playwright-report }
+
+  # Push code, and this puts it live. Nothing about the site lives on anyone's laptop: the data
+  # comes from Hugging Face, is built here, and is deployed here — which is also why the schedule
+  # above is all it takes to keep the site current.
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: [infra, pipeline, web]
+    runs-on: ubuntu-latest
+    concurrency: { group: deploy-production, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: pip install -e pipeline huggingface_hub
+
+      - id: day
+        run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      # Hugging Face only re-fetches what changed, so yesterday's copy makes a daily run cheap.
+      # One save per day rather than one per push keeps the 10 GB cache from churning.
+      - uses: actions/cache@v4
+        with:
+          path: hfdata
+          key: hfdata-${{ steps.day.outputs.d }}
+          restore-keys: hfdata-
+
+      - name: Fetch the dataset layers this site reads
+        run: |
+          infra/fetch-dataset.py --out hfdata --root hfroot --emit-years years.txt \
+            ${{ inputs.years && format('--years {0}', inputs.years) || '' }}
+          echo "TLW_YEARS=$(cat years.txt)" >> "$GITHUB_ENV"
+
+      - name: Build the site's data
+        run: tlw-build --root hfroot --out dist-data --years "$TLW_YEARS"
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: infra/deploy.sh "$PWD/dist-data"
+
+      - name: Prove the edge serves this build
+        run: infra/verify-live.sh "$PWD/dist-data"

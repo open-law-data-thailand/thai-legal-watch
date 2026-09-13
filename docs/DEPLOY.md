@@ -15,11 +15,22 @@ web/dist/
     ratchakitcha/{agg,index,docs,feeds}/…   ← ~800 MB, ~3,750 files
 ```
 
-## Why the deploy runs on the build box, not in GitHub Actions
+## How a deploy happens
 
-The data only exists where the source dataset lives. Building it needs `meta/` and
-`taxonomy/openlawdata-taxonomy/` (several GB, rsynced from the NAS), and the result is ~800 MB.
-GitHub Actions has neither, so CI runs the tests and the **build box runs the deploy**.
+**Push to `main`, and GitHub Actions puts it live.** Nothing about the site depends on anyone's
+laptop or on the build box: `.github/workflows/ci.yml` runs the tests, then a `deploy` job pulls
+`meta/` and `taxonomy/openlawdata-taxonomy/` straight from Hugging Face (~1.5 GB, public, no
+token), runs `tlw-build`, deploys, and checks that the edge really serves the build it just made.
+The same workflow runs on a schedule at 16:00 UTC — 23:00 in Bangkok, after the dataset's own
+nightly has published — so the site stays current with no one doing anything.
+
+The years are **discovered, not configured**: `infra/fetch-dataset.py` asks the repository which
+years exist in both layers and builds those. When 2002–2004 were published, the next run picked
+them up on its own. `workflow_dispatch` takes a `years` input to override that for a one-off.
+
+`infra/nightly.sh` is the same pipeline for the build box, kept as a fallback for when the dataset
+is not yet on Hugging Face or GitHub is unavailable. It needs `TLW_DATA_ROOT` in `~/src/.env`
+(see `infra/link-dataset.sh`) and a deploy key for its `git pull` (see `infra/deploy-key.sh`).
 
 ## One-time setup
 
@@ -49,7 +60,19 @@ npx wrangler pages project create thai-legal-watch --production-branch main
 Copy the token once — Cloudflare will not show it again. The account id is in the dashboard URL
 (`dash.cloudflare.com/<account-id>/…`) or from `npx wrangler whoami`.
 
-### 3. Put the credentials on the build box
+### 3a. Put the credentials in GitHub (for the CI deploy)
+
+**Repository → Settings → Secrets and variables → Actions → New repository secret**, twice:
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. From a machine that already has them:
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN --repo open-law-data-thailand/thai-legal-watch
+gh secret set CLOUDFLARE_ACCOUNT_ID --repo open-law-data-thailand/thai-legal-watch
+```
+
+Until both exist the `deploy` job fails; the test jobs are unaffected.
+
+### 3b. Put the credentials on the build box (only for the fallback path)
 
 ```bash
 cat >> ~/src/.env <<'ENV'
