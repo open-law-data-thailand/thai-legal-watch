@@ -202,6 +202,29 @@ test.describe('header search', () => {
   })
 })
 
+test('a mistyped path is a 404 page, not the app pretending everything is fine', async ({
+  page,
+  request,
+}) => {
+  // Without a 404.html, Cloudflare Pages answers any unmatched path with the app shell and a
+  // 200 — a soft 404, which tells a crawler the page exists and tells a reader nothing.
+  const r = await request.get('/ratchakitcha/topic/does-not-exist', { maxRedirects: 0 })
+  // vite preview and Cloudflare disagree about the status they attach to it; what matters here is
+  // that the body is the 404 page and not the application
+  const body = await r.text()
+  expect(body, 'an unmatched path must not serve the app shell').not.toContain('id="app"')
+  expect(body).toContain('ไม่พบหน้านี้')
+  expect(body).toContain('noindex')
+
+  // and it stands on its own: no stylesheet, no script, nothing to fetch
+  expect(body).not.toMatch(/<script[^>]*src=/)
+  expect(body).not.toMatch(/<link[^>]+rel="stylesheet"/)
+
+  await page.goto('/404.html')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('ไม่พบหน้านี้')
+  await expect(page.getByRole('link', { name: 'กลับหน้าแรก' })).toHaveAttribute('href', '/')
+})
+
 test('no page scrolls sideways on a narrow phone', async ({ page, request }) => {
   // 320 CSS pixels is the narrowest thing still sold, and it is where `white-space: nowrap` on a
   // sixty-character agency name pushed the whole page off the edge — found on the live site, not
@@ -1030,12 +1053,31 @@ test('the site tells a crawler and a link preview what it is', async ({ page, re
     expect(v, selector).toBeTruthy()
     expect((v ?? '').length, selector).toBeGreaterThan(10)
   }
-  // more than one feed is offered, and each one actually resolves
+  // More than one feed is offered, and every offered feed whose subject this build actually has
+  // must resolve. The fixture taxonomy is smaller than the real one, so an advertised feed for a
+  // subject it does not contain is expected to be missing — but a subject that exists and has no
+  // feed is a regression, and that is the half worth asserting. (Until the site started
+  // answering unmatched paths with a 404, this loop passed on anything at all.)
   const feeds = await page
     .locator('link[type="application/atom+xml"]')
     .evaluateAll((els) => els.map((e) => (e as HTMLLinkElement).getAttribute('href') ?? ''))
   expect(feeds.length).toBeGreaterThan(1)
-  for (const f of feeds) expect((await request.get(f)).ok(), f).toBeTruthy()
+  const topics = (await (await request.get('/data/ratchakitcha/index/topics.json')).json()) as {
+    slug: string
+  }[]
+  const have = new Set(topics.map((t) => t.slug))
+  const advertised = feeds.map((f) => ({ href: f, slug: /topic\/([^/]+)\.xml$/.exec(f)?.[1] ?? '' }))
+  expect(
+    advertised.some((a) => have.has(a.slug)),
+    'no advertised feed is in this build',
+  ).toBe(true)
+  for (const a of advertised.filter((x) => have.has(x.slug))) {
+    const r = await request.get(a.href)
+    expect(r.ok(), a.href).toBeTruthy()
+    // the body, not the header: the Atom content type comes from a rule `deploy.sh` generates per
+    // source, which only exists in a real deploy. `verify-live.sh` checks that one on the edge.
+    expect(await r.text(), a.href).toContain('<feed xmlns="http://www.w3.org/2005/Atom"')
+  }
 
   const robots = await request.get('/robots.txt')
   expect(robots.ok()).toBeTruthy()

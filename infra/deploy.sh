@@ -31,7 +31,19 @@ if [[ -f "$HOME/src/.env" ]]; then set -a; . "$HOME/src/.env"; set +a; fi
 
 cd "$HERE/../web"
 npm ci --silent
+# The site's own URL is decided once, by the pipeline, and written into the data it built — the
+# static pages already use it for their canonicals. The app shell has to agree, or its
+# `canonical` and `og:url` ship as the literal string `%VITE_SITE_URL%`, which is what every
+# link preview of the home page carried until this line existed.
+VITE_SITE_URL=$(python3 -c "import json;print(json.load(open('$DATA/${TLW_SOURCE:-ratchakitcha}/agg/meta.json'))['site'].rstrip('/'))")
+export VITE_SITE_URL
+echo "deploy: building the site as $VITE_SITE_URL"
 npm run build
+grep -q '%VITE_SITE_URL%' dist/index.html && {
+  echo "the built page still contains %VITE_SITE_URL% — canonical and og:url would be broken" >&2
+  exit 1
+}
+true
 
 rm -rf dist/data
 # Hardlinks, not copies: the build and the deploy directory are on one filesystem, so this is

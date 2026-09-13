@@ -1,13 +1,14 @@
-/** Serve `infra/_headers` from `vite preview`, so what the e2e runs against is what Cloudflare
- *  will send.
+/** Make `vite preview` behave like Cloudflare Pages: the same headers, and the same answer for a
+ *  path that is not a file.
  *
- *  This exists because of a bug that reached production: the Content-Security-Policy named four
- *  Hugging Face hosts by hand, the redirect went to a fifth, and the browser blocked the document
- *  text. Every test passed, because a preview server sends no policy at all — the one environment
- *  where the rule applies was the one environment nobody could test in.
+ *  Both halves exist because of bugs that reached production and could not be seen from here.
+ *  The Content-Security-Policy named four Hugging Face hosts by hand, the redirect went to a
+ *  fifth, and the browser blocked the document text — every test passed, because a preview server
+ *  sends no policy at all. And an unmatched path answered 200 with the application, a soft 404,
+ *  because vite preview falls back to `index.html` where Pages serves `404.html`.
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import type { Plugin } from 'vite'
 
 export interface Rule {
@@ -54,20 +55,52 @@ export function headersFor(rules: Rule[], path: string): Record<string, string> 
   return out
 }
 
+/** What Cloudflare Pages serves for a path: the file, `<path>.html`, `<path>/index.html`, or
+ *  nothing — and "nothing" means the 404 page, not the application. */
+export function resolveAsset(root: string, path: string): string | null {
+  const rel = decodeURIComponent(path).replace(/^\/+/, '')
+  const isFile = (p: string) => existsSync(p) && statSync(p).isFile()
+  for (const candidate of [rel, `${rel}.html`, join(rel, 'index.html')]) {
+    if (!candidate || candidate.includes('..')) continue
+    const full = join(root, candidate)
+    if (isFile(full)) return full
+  }
+  return null
+}
+
 export function productionHeaders(file = '../infra/_headers'): Plugin {
   let rules: Rule[] = []
+  let root = 'dist'
   return {
     name: 'tlw-production-headers',
     configurePreviewServer(server) {
+      root = resolve(server.config.root, server.config.build.outDir)
       try {
         rules = parseHeaders(readFileSync(resolve(process.cwd(), file), 'utf8'))
       } catch {
         // a checkout without infra/ is still a usable preview, just an unguarded one
-        return
       }
       server.middlewares.use((req, res, next) => {
         const path = (req.url ?? '/').split('?')[0] ?? '/'
         for (const [k, v] of Object.entries(headersFor(rules, path))) res.setHeader(k, v)
+
+        // Pages answers an unmatched path with 404.html, not with the application. vite preview
+        // falls back to index.html, which is how a soft 404 went unnoticed in production.
+        // Pages does this for any unmatched path, not only for ones that asked for HTML — which
+        // is why the data client checks the content type of what comes back rather than the
+        // status. Matching that here keeps the client's guard honest.
+        const notFound = join(root, '404.html')
+        if (
+          (req.method === 'GET' || req.method === 'HEAD') &&
+          path !== '/' &&
+          existsSync(notFound) &&
+          !resolveAsset(root, path)
+        ) {
+          res.statusCode = 404
+          res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          res.end(readFileSync(notFound))
+          return
+        }
         next()
       })
     },

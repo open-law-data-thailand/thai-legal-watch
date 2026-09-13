@@ -33,7 +33,13 @@ if [[ -n "$feed_acao" && "$feed_acao" != "*" ]]; then
   echo "the feeds answer 'Access-Control-Allow-Origin: $feed_acao' — a browser will not accept that" >&2
   exit 1
 fi
-echo "verified: the feeds are readable from any origin"
+feed_type=$(curl -fsSI --max-time 30 "$SITE/data/$SOURCE/feeds/topic/environment.xml" |
+  tr -d '\r' | grep -i '^content-type:' | cut -d' ' -f2- || true)
+case "$feed_type" in
+  *atom*) ;;
+  *) echo "the feeds answer 'Content-Type: $feed_type' — readers want application/atom+xml" >&2; exit 1 ;;
+esac
+echo "verified: the feeds are readable from any origin, as $feed_type"
 
 # The document page reads a document's text straight from the publisher, so the deployed policy
 # has to allow wherever `resolve/` redirects to. There is no way to know that host without
