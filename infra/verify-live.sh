@@ -23,6 +23,18 @@ done
 }
 echo "verified: $SITE serves the build from $built"
 
+# A header set by two matching `_headers` rules is appended, not overridden, and
+# `Access-Control-Allow-Origin: *, *` is not a valid value — browsers reject it outright. That made
+# every feed unfetchable from any other site while the JSON beside it was fine, which is exactly
+# the kind of thing nobody notices from inside the site.
+feed_acao=$(curl -fsSI --max-time 30 "$SITE/data/$SOURCE/feeds/topic/environment.xml" |
+  tr -d '\r' | grep -i '^access-control-allow-origin:' | cut -d' ' -f2- || true)
+if [[ -n "$feed_acao" && "$feed_acao" != "*" ]]; then
+  echo "the feeds answer 'Access-Control-Allow-Origin: $feed_acao' — a browser will not accept that" >&2
+  exit 1
+fi
+echo "verified: the feeds are readable from any origin"
+
 # The document page reads a document's text straight from the publisher, so the deployed policy
 # has to allow wherever `resolve/` redirects to. There is no way to know that host without
 # following the redirect — naming them by hand broke in production — so follow it.

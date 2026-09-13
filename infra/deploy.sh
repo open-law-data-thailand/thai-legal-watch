@@ -55,15 +55,21 @@ fi
 sources=$(python3 -c "import json;print(' '.join(s['id'] for s in json.load(open('dist/data/sources.json'))['sources']))")
 cp "$HERE/_headers" dist/_headers
 for src in $sources; do
+  # Only the content type. Cloudflare *appends* when two matching rules set the same header, so
+  # repeating the ones `/data/*` already sets produced `Access-Control-Allow-Origin: *, *` — not a
+  # valid value, and browsers reject it outright. Every feed was unfetchable from any other site
+  # while the JSON beside it was fine. Measured from https://example.com, not assumed.
   cat >> dist/_headers <<HDR
 
 /data/$src/feeds/*
   Content-Type: application/atom+xml; charset=utf-8
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
-  Access-Control-Allow-Origin: *
 HDR
 done
 echo "deploy: feed headers for $sources"
+# Two matching rules that set the same header get joined with a comma, and
+# `Access-Control-Allow-Origin: *, *` is not a value any browser accepts. Checked on the file
+# that is about to be uploaded, because that is the one that has the generated blocks in it.
+"$HERE/check-headers.py" dist/_headers
 
 files=$(find -L dist -type f | wc -l | tr -d ' ')
 big=$(find -L dist -type f -size +${MAX_FILE_MB}M -print -quit)
