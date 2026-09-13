@@ -17,7 +17,8 @@ TAX="${3:-${TLW_TAXONOMY_DIR:-$HOME/olw-build/ontology}}"
 mkdir -p "$ROOT"
 ln -sfn "$META" "$ROOT/meta"
 ln -sfn "$TAX" "$ROOT/taxonomy"
-echo "$ROOT/meta      -> $META      ($(ls "$ROOT/meta" | wc -l) years)"
-echo "$ROOT/taxonomy  -> $TAX  ($(ls "$ROOT/taxonomy" | grep -c '^[0-9]') years)"
+count_years() { find -L "$1" -mindepth 1 -maxdepth 1 -name '[0-9][0-9][0-9][0-9]' | wc -l; }
+echo "$ROOT/meta      -> $META      ($(count_years "$ROOT/meta") years)"
+echo "$ROOT/taxonomy  -> $TAX  ($(count_years "$ROOT/taxonomy") years)"
 echo
 echo "add to ~/src/.env:  TLW_DATA_ROOT=$ROOT"

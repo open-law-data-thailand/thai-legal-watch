@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by deploy.sh and nightly.sh. A cron shell gets /usr/bin/node, which on the build box is
 # v18 — too old for Vite 8 — while the version the project needs sits under nvm. Load nvm if it is
 # there, then refuse to continue on anything older than 20 rather than failing deep inside a build.

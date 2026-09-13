@@ -3,6 +3,16 @@ on:
   push: { branches: [main] }
   pull_request:
 jobs:
+  # The deploy scripts became load-bearing — they pull, build, check Cloudflare's limits and verify
+  # the edge afterwards — and a syntax error in them only shows up at 23:00 on the build box.
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: for f in infra/*.sh; do bash -n "$f"; done
+      - uses: ludeeus/action-shellcheck@master
+        with: { scandir: ./infra, severity: warning }
+
   pipeline:
     runs-on: ubuntu-latest
     steps:

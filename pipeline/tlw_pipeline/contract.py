@@ -43,7 +43,11 @@ def validate(root: str) -> list[str]:
 
 def validate_source(out: str) -> list[str]:
     problems: list[str] = []
-    for rel in ("agg/meta.json", "agg/taxonomy.json", "agg/home.json", "index/agencies.json", "index/topics.json"):
+    # trends.json and index/months/ are not decoration: the dashboard is built from the first and
+    # opening a document by a legacy id depends on the second. If a future change stops emitting
+    # them the site degrades quietly, which is exactly what a contract is for.
+    for rel in ("agg/meta.json", "agg/taxonomy.json", "agg/home.json", "agg/years.json",
+                "agg/trends.json", "index/agencies.json", "index/topics.json"):
         if not os.path.exists(os.path.join(out, rel)):
             problems.append(f"missing {rel}")
     if problems:
@@ -65,11 +69,31 @@ def validate_source(out: str) -> list[str]:
                 problems.append(f"unexpected file {rel}")
             elif os.path.getsize(p) > b:
                 problems.append(f"{rel} is {os.path.getsize(p):,} B > budget {b:,}")
+    with open(os.path.join(out, "agg/trends.json"), encoding="utf-8") as f:
+        trends = json.load(f)
+    for group in ("topics", "actions", "govlevels"):
+        for slug, series in trends.get(group, {}).items():
+            if len(series) != len(trends.get("years", [])):
+                problems.append(f"trends.{group}.{slug}: {len(series)} points for {len(trends.get('years', []))} years")
+                break
+
     for y in meta.get("years", []):
         d = os.path.join(out, "docs", y)
         if not os.path.isdir(d):
             problems.append(f"year {y} in meta but docs/{y}/ missing")
             continue
+        # every shard of the year must be findable from the month index, or a document reached by
+        # a link without ?m= silently falls back to opening all twelve
+        mi = os.path.join(out, "index", "months", f"{y}.json")
+        if not os.path.exists(mi):
+            problems.append(f"year {y} in meta but index/months/{y}.json missing")
+        else:
+            with open(mi, encoding="utf-8") as f:
+                indexed = set(json.load(f).get("months", {}))
+            shards = {fn[:-5] for fn in os.listdir(d) if fn.endswith(".json")}
+            if indexed != shards:
+                problems.append(f"index/months/{y}.json covers {sorted(indexed - shards)} extra, "
+                                f"misses {sorted(shards - indexed)}")
         for fn in os.listdir(d)[:1]:
             with open(os.path.join(d, fn), encoding="utf-8") as f:
                 docs = json.load(f)
