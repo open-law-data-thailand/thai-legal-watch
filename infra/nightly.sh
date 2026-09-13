@@ -14,6 +14,10 @@ YEARS="${TLW_YEARS:-2005-2026}"
 
 say() { echo "[$(date '+%F %T')] $*"; }
 
+# shellcheck source=node-env.sh
+. "$REPO/infra/node-env.sh"
+say "node $(node -v) · python $(python3 -V 2>&1 | cut -d' ' -f2)"
+
 say "pipeline: tlw-build --years $YEARS"
 python3 -m pip install -q -e "$REPO/pipeline"
 tlw-build --root "$DATA_ROOT" --out "$OUT.new" --years "$YEARS"

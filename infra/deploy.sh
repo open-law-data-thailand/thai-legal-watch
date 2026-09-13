@@ -20,6 +20,9 @@ BRANCH="${CF_PAGES_BRANCH:-main}"
 MAX_FILES=20000
 MAX_FILE_MB=25
 
+# shellcheck source=node-env.sh
+. "$HERE/node-env.sh"
+
 if [[ -f "$HOME/src/.env" ]]; then set -a; . "$HOME/src/.env"; set +a; fi
 : "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN (Pages:Edit) — see docs/DEPLOY.md}"
 : "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID — see docs/DEPLOY.md}"

@@ -59,7 +59,20 @@ chmod 600 ~/src/.env
 `infra/deploy.sh` sources that file if the variables are not already in the environment. It is
 gitignored; never commit it.
 
-### 4. First deploy
+### 4. Node on the build box
+
+A cron shell does not read `~/.bashrc`, so it gets `/usr/bin/node` — v18 on this box, which Vite 8
+will not run on. `infra/node-env.sh` loads nvm if it is installed and refuses to continue on
+anything older than Node 20, rather than failing halfway into a build. Check what cron would see:
+
+```bash
+ssh spicydog@192.168.21.124 'bash -lc "node -v"; ssh-add -l >/dev/null; env -i bash -c "node -v"'
+```
+
+If the second one is older than v20, either `nvm install --lts` (the scripts will find it) or
+install a current Node system-wide.
+
+### 5. First deploy
 
 ```bash
 cd ~/src/thai-legal-watch
@@ -77,13 +90,13 @@ curl -sI https://thai-legal-watch.pages.dev/map/thailand-provinces.json | grep -
 
 and open a deep link in a browser: `…/#/ratchakitcha/provinces`, `…/#/ratchakitcha/dashboard`.
 
-### 5. Custom domain
+### 6. Custom domain
 
 **Pages → thai-legal-watch → Custom domains → Set up a domain.** If the zone is already on
 Cloudflare the record is created for you; otherwise add the `CNAME` the dashboard shows. HTTPS is
 automatic. Afterwards, change nothing else — the app uses relative URLs throughout.
 
-### 6. Nightly
+### 7. Nightly
 
 `infra/nightly.sh` is the whole pipeline in one entry point: rebuild the data, run the pipeline and
 web checks, deploy only if everything passed. Add it to the build box's crontab, after the
