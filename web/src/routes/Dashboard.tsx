@@ -101,9 +101,13 @@ export function Dashboard() {
             type: 'funnel',
             sort: 'descending',
             gap: 3,
-            left: '5%',
-            width: '90%',
+            left: '2%',
+            width: '96%',
+            minSize: '12%',
             label: {
+              position: 'inside',
+              color: '#fff',
+              fontSize: 12,
               formatter: (p: { name: string; value: number }) =>
                 `${STAGE[p.name] ?? p.name}  ${p.value.toLocaleString('th-TH')}`,
               ...font,
