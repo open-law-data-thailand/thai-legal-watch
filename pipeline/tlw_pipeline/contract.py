@@ -7,6 +7,7 @@ import os
 BUDGETS = {  # bytes
     "agg/meta.json": 10_000, "agg/taxonomy.json": 100_000, "agg/home.json": 100_000, "agg/years.json": 50_000,
     "agg/trends.json": 200_000, "agg/latest.json": 14_000_000, "index/months/": 5_000,
+    "agg/cube.bin": 3_000_000, "agg/cube.json": 1_000_000,
     "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000, "agg/graph/": 400_000,
     "agg/topic/": 150_000, "agg/agency/": 100_000, "agg/province/": 100_000,
     "index/agencies.json": 2_500_000, "index/volumes/": 200_000, "index/provinces.json": 10_000,
@@ -78,7 +79,8 @@ def validate_source(out: str) -> list[str]:
     # opening a document by a legacy id depends on the second. If a future change stops emitting
     # them the site degrades quietly, which is exactly what a contract is for.
     for rel in ("agg/meta.json", "agg/taxonomy.json", "agg/home.json", "agg/years.json",
-                "agg/trends.json", "agg/latest.json", "index/agencies.json", "index/topics.json"):
+                "agg/trends.json", "agg/latest.json", "agg/cube.json", "agg/cube.bin",
+                "index/agencies.json", "index/topics.json"):
         if not os.path.exists(os.path.join(out, rel)):
             problems.append(f"missing {rel}")
     if problems:
@@ -107,6 +109,34 @@ def validate_source(out: str) -> list[str]:
             if len(series) != len(trends.get("years", [])):
                 problems.append(f"trends.{group}.{slug}: {len(series)} points for {len(trends.get('years', []))} years")
                 break
+
+    # The cube stores no document ids: the client turns row i into a document by finding the month
+    # whose range contains it and taking that offset in the shard. Nothing about that is visible
+    # when it goes wrong — the filters just answer with other people's documents — so the shape is
+    # checked here as well as in the tests.
+    with open(os.path.join(out, "agg/cube.json"), encoding="utf-8") as f:
+        cube = json.load(f)
+    shards = sorted(fn[:-5] for y in meta.get("years", [])
+                    for fn in os.listdir(os.path.join(out, "docs", y))
+                    if os.path.isdir(os.path.join(out, "docs", y)) and fn.endswith(".json"))
+    months = [m["m"] for m in cube.get("months", [])]
+    if months != shards:
+        problems.append(f"agg/cube.json covers {len(months)} months, docs/ has {len(shards)}"
+                        f" ({sorted(set(months) ^ set(shards))[:4]} differ)")
+    at = 0
+    for m in cube.get("months", []):
+        if m["start"] != at:
+            problems.append(f"agg/cube.json: {m['m']} starts at {m['start']}, expected {at}")
+            break
+        at += m["n"]
+    if at != cube.get("rows"):
+        problems.append(f"agg/cube.json: months cover {at:,} rows, header says {cube.get('rows'):,}")
+    if cube.get("rows") != meta.get("docs"):
+        problems.append(f"agg/cube.json has {cube.get('rows'):,} rows for {meta.get('docs'):,} documents")
+    width = {"u8": 1, "u16": 2}
+    expected = sum(width[c["type"]] for c in cube.get("layout", [])) * (cube.get("rows") or 0)
+    if expected != cube.get("bytes"):
+        problems.append(f"agg/cube.json: layout needs {expected:,} B, header says {cube.get('bytes'):,}")
 
     for y in meta.get("years", []):
         d = os.path.join(out, "docs", y)

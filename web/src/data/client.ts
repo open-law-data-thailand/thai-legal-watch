@@ -18,6 +18,8 @@ import type {
 } from './types'
 import { CONTRACT } from './types'
 import { pickByPage } from '../lib/coords'
+import type { Cube } from '../lib/cube'
+import { fetchCube } from '../lib/cubestore'
 
 export class DataError extends Error {
   readonly path: string
@@ -145,6 +147,32 @@ export class DataClient {
       c.page,
     )
     return pick ? { doc: pick.doc, month: pick.month } : null
+  }
+
+  /** The whole corpus's dimensions as typed arrays, for filtering that no pre-built facet file
+   *  anticipated. Memoised on the same map as everything else, so the several components that
+   *  want it share one download. The version is the build stamp: it is what lets the browser keep
+   *  a copy between visits and still notice the nightly rebuild. */
+  cube(): Promise<Cube> {
+    const k = `${this.base}#cube`
+    const hit = this.cache.get(k)
+    if (hit) return hit as Promise<Cube>
+    const p = this.meta()
+      .then((m) =>
+        fetchCube({
+          source: this.source,
+          version: `${m.generated_at}/${m.docs}`,
+          metaUrl: `${this.base}/agg/cube.json`,
+          binUrl: `${this.base}/agg/cube.bin`,
+          fetchImpl: this.f,
+        }),
+      )
+      .catch((e: unknown) => {
+        this.cache.delete(k)
+        throw e
+      })
+    this.cache.set(k, p)
+    return p
   }
 
   graph(): Promise<Graph> {

@@ -17,6 +17,10 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | `agg/taxonomy.json` | topic tree / actions / govlevels with counts | <100 KB |
 | `agg/home.json` | latest publication day: counts per axis, highlights, 30-day sparkline | <100 KB |
 | `agg/years.json` | docs per month per year | <50 KB |
+| `agg/latest.json` | every document of the last 90 days, newest first — the raw daily listing | <14 MB |
+| `agg/trends.json` | one number per year for every topic, action and govlevel | <200 KB |
+| `agg/cube.json` | header for `cube.bin`: row count, column layout, month ranges, code tables | <1 MB |
+| `agg/cube.bin` | **gzipped** columnar index — every document's dimensions as small integers, so the browser can cross-filter the whole archive | <3 MB |
 | `agg/bankruptcy.json` | court × stage counts for the funnel | <200 KB |
 | `agg/graph.json` | relationship graph: topics, their top agencies, topic↔agency and topic↔topic edge weights | <400 KB |
 | `agg/graph/<year>.json` | the same graph restricted to one year (node sizes and edges of that year; thai/parent come from `agg/graph.json`) | <400 KB |
@@ -48,6 +52,29 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
   uncorroborated label as "คาดว่า" and never counts it in headline numbers.
 - `x` is present only when the sieve extracted fields (bankruptcy today).
 - Titles come from `meta/` (`doctitle`); coordinates and labels from the taxonomy layer.
+
+## The archive index (`agg/cube.json` + `agg/cube.bin`)
+
+A file per facet can only answer questions somebody anticipated: "waste rules in Trang" needs a
+`topic×province` file that nobody built. The cube ships the *dimensions* of every document instead
+— one small integer per field — and lets the browser answer any combination of them.
+
+`cube.bin` is column-major: `agency` and `day` as `uint16`, then `topic`, `action`, `gov`, `prov`,
+`dtype` and `flags` as `uint8`. Code `0` always means "none"; `codes` in `cube.json` maps the rest
+back to slugs, names and ISO dates. `flags` carries the corroboration bits (1 topic, 2 action,
+4 govlevel) so a client can apply the same rule the pipeline counts by.
+
+**A row has no id.** Row *i* belongs to the month in `months` whose range contains it, at that
+offset in `docs/<year>/<month>.json` — the pipeline writes the shards and the cube in one order,
+and both `contract.py` and a test check every row of a build. Titles are deliberately absent: they
+are 306 MB of text for the whole archive, against 504 KB for all the dimensions.
+
+The blob is written gzipped because Cloudflare compresses by content type and does not compress
+`application/octet-stream`. `cube.json` says so in `encoding`, and the gzip magic number is in the
+first two bytes, so a client can tell what it got rather than having to be told.
+
+Measured on the real corpus (732,143 documents, 261 months): 504 KB over the wire, 7.3 MB of typed
+arrays in memory, 11 ms to decompress, and 0.8 ms for one filtered count with a group-by.
 
 ## Source credit
 

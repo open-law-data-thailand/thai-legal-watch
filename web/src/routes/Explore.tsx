@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
+import { type CubeFilter, planFetch, rowLocation } from '../lib/cube'
+import { crossFilter, descendantCodes } from '../lib/cubequery'
 import { beMonth, beYear, thaiDate } from '../lib/thai'
 import { rememberExplore } from '../lib/title'
 import { useHref } from '../data/context'
@@ -8,8 +10,19 @@ import { DEFAULT_SOURCE, hrefFor } from '../router'
 import { Bars, DocRow, Empty, ErrorBox, Kicker, Loading, actionName, govName, topicName } from '../ui/bits'
 
 const PAGE = 50
+/** How many matching rows the whole-archive scan keeps. Beyond this nobody is browsing any more,
+ *  they are exporting — and the count above the list is exact regardless of this number. */
+const CUBE_ROWS = 600
+/** Titles are not in the cube; they come from month shards — measured at 130-235 KB over the wire
+ *  and 2.7 MB parsed, so a handful is affordable and the whole 261 of them is not. A filter narrow
+ *  enough to spread its matches thinly (one topic in one province can be eighty documents across
+ *  eighty months) would otherwise pull the archive down a page at a time. Each round reads this
+ *  many, which is also what the data client keeps cached, and then offers to continue. */
+const BATCH_SHARDS = 6
+const MAX_BATCHES = 4
 /** a stable empty array, so a memo keyed on `loaded` is not invalidated every render */
 const EMPTY: SlimDoc[] = []
+const NO_ROWS: number[] = []
 
 export type Scope = 'month' | 'year' | 'all'
 export interface Filters {
@@ -18,6 +31,8 @@ export interface Filters {
   govlevel?: string
   province?: string
   agency?: string
+  /** ประเภทเอกสาร — ประกาศ, กฎกระทรวง, พระราชกฤษฎีกา… as the gazette itself labels them */
+  dtype?: string
   q?: string
   scope?: Scope
   month?: string
@@ -35,6 +50,7 @@ export function filtersFrom(q: URLSearchParams): Filters {
     govlevel: pick('govlevel'),
     province: pick('province'),
     agency: pick('agency'),
+    dtype: pick('dtype'),
     q: pick('q'),
     month: pick('month'),
     year: pick('year'),
@@ -52,11 +68,16 @@ export function topicMatches(docTopic: string | null, wanted: string, tax: Taxon
 
 /** Pure, testable filter; `except` leaves one dimension unfiltered so its option counts can be shown. */
 export function matches(d: SlimDoc, f: Filters, tax: Taxonomy | undefined, except?: keyof Filters): boolean {
-  if (f.topic && except !== 'topic' && !topicMatches(d.topic, f.topic, tax)) return false
-  if (f.action && except !== 'action' && d.action !== f.action) return false
-  if (f.govlevel && except !== 'govlevel' && d.govlevel !== f.govlevel) return false
+  // The three labelled dimensions match only when the label is corroborated — the same rule the
+  // pipeline uses to build the topic, agency and province pages and every count on this one.
+  // Without it a chip read "(120)" and then listed 150 documents, because the count applied the
+  // rule and the filter did not.
+  if (f.topic && except !== 'topic' && !(d.tc && topicMatches(d.topic, f.topic, tax))) return false
+  if (f.action && except !== 'action' && !(d.ac && d.action === f.action)) return false
+  if (f.govlevel && except !== 'govlevel' && !(d.gc && d.govlevel === f.govlevel)) return false
   if (f.province && except !== 'province' && d.pr !== f.province) return false
   if (f.agency && except !== 'agency' && d.a !== f.agency) return false
+  if (f.dtype && except !== 'dtype' && d.dt !== f.dtype) return false
   if (f.q && except !== 'q' && !d.t.replace(/\s+/g, '').includes(f.q.replace(/\s+/g, ''))) return false
   if (f.day && except !== 'day' && d.d !== f.day) return false
   return true
@@ -93,7 +114,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
     async (c) => (await Promise.all(wanted.map((m) => c.month(m.slice(0, 4), m)))).flat(),
     [wanted.join(',')],
   )
-  const agg = useLoad(async (c) => (scope === 'all' && f.topic ? c.topic(f.topic) : null), [scope, f.topic])
+  // The whole-archive view used to be able to show one pre-built topic page, so every question
+  // that crossed two dimensions — this topic in that province — had no answer. The cube carries
+  // every document's dimensions as typed arrays (~500 KB over the wire) and is filtered here, so
+  // the combinations nobody built a file for are the same speed as the ones somebody did.
+  const cubeSt = useLoad(async (c) => (scope === 'all' ? await c.cube() : null), [scope])
+  const cube = cubeSt.state === 'ok' ? cubeSt.data : null
   const [page, setPage] = useState(0)
   // so a document page can offer "back to the list you came from" — the key was read in three
   // places and written in none, which made that button unreachable since it was written
@@ -102,6 +128,62 @@ export function Explore({ q }: { q: URLSearchParams }) {
   }, [q])
   const tax = base.state === 'ok' ? base.data.tax : undefined
   const loaded = useMemo(() => (docs.state === 'ok' ? docs.data : EMPTY), [docs])
+  const cubeFilter = useMemo<CubeFilter | null>(
+    () =>
+      cube && tax
+        ? {
+            topics: f.topic ? descendantCodes(cube, tax, f.topic) : undefined,
+            action: f.action,
+            gov: f.govlevel,
+            prov: f.province,
+            dtype: f.dtype,
+            agency: f.agency,
+            day: f.day,
+          }
+        : null,
+    [cube, tax, f],
+  )
+  const across = useMemo(
+    () => (cube && cubeFilter ? crossFilter(cube, tax, cubeFilter, CUBE_ROWS) : null),
+    [cube, cubeFilter, tax],
+  )
+  // Rows are not documents: a row says which month shard holds the record and where in it. Shards
+  // are big, so they are fetched a few at a time and the reader is told what is still unread
+  // rather than being shown a short list as if it were the whole answer.
+  const [batches, setBatches] = useState(1)
+  useEffect(() => {
+    setBatches(1)
+  }, [cubeFilter])
+  const plan = useMemo(
+    () => (cube ? planFetch(cube, across?.rows ?? NO_ROWS, BATCH_SHARDS * batches) : null),
+    [cube, across, batches],
+  )
+  const want = plan?.months.join(',') ?? ''
+  const shards = useLoad(
+    async (c) =>
+      new Map(
+        await Promise.all(
+          (want ? want.split(',') : []).map(async (m) => [m, await c.month(m.slice(0, 4), m)] as const),
+        ),
+      ),
+    [want],
+  )
+  // The resolved documents are kept, not the shards they came from: a shard is megabytes and the
+  // records are not, so holding these lets the data client evict shards freely — and lets the list
+  // stay on screen while the next batch loads instead of blinking out and losing the scroll.
+  const filterKey = useMemo(() => JSON.stringify(cubeFilter), [cubeFilter])
+  const [got, setGot] = useState<{ key: string; docs: SlimDoc[] }>({ key: '', docs: EMPTY })
+  useEffect(() => {
+    if (!cube || !plan || shards.state !== 'ok') return
+    const out: SlimDoc[] = []
+    for (const r of plan.rows) {
+      const loc = rowLocation(cube, r)
+      const d = loc ? shards.data.get(loc.month)?.[loc.offset] : undefined
+      if (d) out.push(d)
+    }
+    setGot({ key: filterKey, docs: out })
+  }, [cube, plan, shards, filterKey])
+  const cubeDocs = got.key === filterKey ? got.docs : EMPTY
   // `f` rather than a hand-written list of its fields: the list forgot `f.day`, so choosing a day
   // changed the heading and the count while the list below kept showing the whole month.
   const hits = useMemo(() => loaded.filter((d) => matches(d, f, tax)).reverse(), [loaded, f, tax])
@@ -120,31 +202,38 @@ export function Explore({ q }: { q: URLSearchParams }) {
   )
   const topicCounts = useMemo(() => {
     const m = new Map<string, number>()
-    if (scope === 'all') {
-      for (const [s, t] of Object.entries(tax?.topics ?? {})) m.set(s, t.n)
-      return m
-    }
+    // whole-archive counts used to come from the taxonomy totals, which ignore every other filter
+    // on the page: choosing a province left the topic chips showing their corpus-wide numbers
+    if (scope === 'all') return across?.topics ?? m
     for (const d of loaded)
       if (matches(d, f, tax, 'topic') && d.topic && d.tc)
         for (let cur: string | null = d.topic; cur; cur = tax?.topics[cur]?.parent ?? null)
           m.set(cur, (m.get(cur) ?? 0) + 1)
     return m
-  }, [loaded, f, tax, scope])
+  }, [loaded, f, tax, scope, across])
+  const EMPTY_COUNTS = useMemo(() => new Map<string, number>(), [])
   const actionCounts = useMemo(
     () =>
       scope === 'all'
-        ? new Map(Object.entries(tax?.action_counts ?? {}))
+        ? (across?.actions ?? EMPTY_COUNTS)
         : countsFor('action', (d) => (d.ac ? d.action : null)),
-    [countsFor, tax, scope],
+    [countsFor, scope, across, EMPTY_COUNTS],
   )
   const govCounts = useMemo(
     () =>
       scope === 'all'
-        ? new Map(Object.entries(tax?.govlevel_counts ?? {}))
+        ? (across?.govs ?? EMPTY_COUNTS)
         : countsFor('govlevel', (d) => (d.gc ? d.govlevel : null)),
-    [countsFor, tax, scope],
+    [countsFor, scope, across, EMPTY_COUNTS],
   )
-  const provinceCounts = useMemo(() => countsFor('province', (d) => d.pr), [countsFor])
+  const provinceCounts = useMemo(
+    () => (scope === 'all' ? (across?.provinces ?? EMPTY_COUNTS) : countsFor('province', (d) => d.pr)),
+    [countsFor, scope, across, EMPTY_COUNTS],
+  )
+  const dtypeCounts = useMemo(
+    () => (scope === 'all' ? (across?.dtypes ?? EMPTY_COUNTS) : countsFor('dtype', (d) => d.dt)),
+    [countsFor, scope, across, EMPTY_COUNTS],
+  )
   // the days of the loaded month, counted here rather than shipped: the shard already has them
   const dayCounts = useMemo(() => {
     const m = new Map<string, number>()
@@ -169,16 +258,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
     .filter(([, t]) => !t.parent)
     .map(([s]) => s)
     .sort((a, b) => (topicCounts.get(b) ?? 0) - (topicCounts.get(a) ?? 0))
-  const fmt = (n: number | undefined) =>
-    n ? ` (${n.toLocaleString('th-TH')})` : scope === 'all' ? '' : ' (0)'
-  const total =
-    scope === 'all'
-      ? f.topic
-        ? agg.state === 'ok'
-          ? (agg.data?.total ?? 0)
-          : 0
-        : Object.values(base.data.years.by_year).reduce((s, n) => s + n, 0)
-      : hits.length
+  // While the data a count is made from is still arriving there is no honest number to put beside
+  // an option, and "(0)" beside every one of them reads as "nothing matches" — which is what this
+  // page showed for a second on every month change.
+  const countsReady = scope === 'all' ? across !== null : docs.state === 'ok'
+  const fmt = (n: number | undefined) => (countsReady ? ` (${(n ?? 0).toLocaleString('th-TH')})` : '')
+  const total = scope === 'all' ? (across?.total ?? 0) : hits.length
   const scopeLabel = f.day
     ? thaiDate(f.day)
     : scope === 'month'
@@ -186,12 +271,24 @@ export function Explore({ q }: { q: URLSearchParams }) {
       : scope === 'year'
         ? `ปี ${year ? beYear(year) : ''}`
         : 'ทั้งคลัง'
-  const list = scope === 'all' ? (agg.state === 'ok' && agg.data ? agg.data.recent : []) : hits
+  const list = scope === 'all' ? cubeDocs : hits
+  // only a genuinely empty list waits: once something is on screen, a further batch loads under it
+  const listing =
+    scope === 'all'
+      ? (cubeSt.state !== 'ok' || shards.state === 'loading') && cubeDocs.length === 0
+      : docs.state === 'loading'
+  const listError = scope === 'all' ? (cubeSt.state === 'error' ? cubeSt.error : null) : null
   return (
     <>
       <Kicker>
         <span role="status">
-          สำรวจ · ตรงเงื่อนไข {total.toLocaleString('th-TH')} ฉบับ ใน{scopeLabel}
+          {countsReady ? (
+            <>
+              สำรวจ · ตรงเงื่อนไข {total.toLocaleString('th-TH')} ฉบับ ใน{scopeLabel}
+            </>
+          ) : (
+            <>สำรวจ · กำลังนับใน{scopeLabel}</>
+          )}
         </span>
       </Kicker>
       <h1 style="margin:6px 0 16px">สำรวจตามหมวด สิ่งที่ทำ ระดับผู้ออก และพื้นที่</h1>
@@ -248,7 +345,9 @@ export function Explore({ q }: { q: URLSearchParams }) {
         )}
         {scope === 'all' && (
           <span class="muted" style="font-size:.85rem">
-            มุมมองทั้งคลัง: ตัวเลขนับจากทุกปี ส่วนรายการด้านล่างแสดง 30 ฉบับล่าสุดของหมวดที่เลือก
+            {countsReady
+              ? `มุมมองทั้งคลัง${years.length ? ` ${beYear(years[years.length - 1] ?? '')}–${beYear(years[0] ?? '')}` : ''} · ตัวกรองทุกอันใช้ร่วมกันได้ ตัวเลขในวงเล็บคิดจากตัวกรองอื่นที่เลือกไว้แล้ว`
+              : 'กำลังโหลดดัชนีทั้งคลัง (ครั้งแรกประมาณครึ่งเมกะไบต์ หลังจากนั้นเก็บไว้ในเครื่อง)'}
           </span>
         )}
       </div>
@@ -296,15 +395,39 @@ export function Explore({ q }: { q: URLSearchParams }) {
             style="width:100%;padding:8px"
           >
             <option value="">ทุกจังหวัด</option>
-            {(scope === 'all'
-              ? base.data.provinces
-              : base.data.provinces.filter((p) => provinceCounts.has(p.name))
-            ).map((p) => (
-              <option key={p.file} value={p.name}>
-                {p.name}
-                {scope === 'all' ? ` (${p.n.toLocaleString('th-TH')})` : fmt(provinceCounts.get(p.name))}
+            {base.data.provinces
+              .filter((p) => !countsReady || provinceCounts.has(p.name) || p.name === f.province)
+              .map((p) => (
+                <option key={p.file} value={p.name}>
+                  {p.name}
+                  {fmt(provinceCounts.get(p.name))}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label>
+          ประเภทเอกสาร
+          <br />
+          <select
+            value={f.dtype ?? ''}
+            onChange={(e) => set({ dtype: (e.target as HTMLSelectElement).value })}
+            style="width:100%;padding:8px"
+          >
+            <option value="">ทุกประเภท</option>
+            {[...dtypeCounts.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([k, n]) => (
+                <option key={k} value={k}>
+                  {k}
+                  {fmt(n)}
+                </option>
+              ))}
+            {f.dtype && !dtypeCounts.has(f.dtype) && (
+              <option key={f.dtype} value={f.dtype}>
+                {f.dtype}
+                {fmt(0)}
               </option>
-            ))}
+            )}
           </select>
         </label>
         <label>
@@ -313,8 +436,15 @@ export function Explore({ q }: { q: URLSearchParams }) {
           <input
             type="search"
             value={f.q ?? ''}
-            placeholder="ขยะ, พิทักษ์ทรัพย์, แต่งตั้ง…"
+            placeholder={
+              scope === 'all' ? 'เลือกช่วงเวลาก่อนจึงค้นชื่อเรื่องได้' : 'ขยะ, พิทักษ์ทรัพย์, แต่งตั้ง…'
+            }
             disabled={scope === 'all'}
+            title={
+              scope === 'all'
+                ? 'ชื่อเรื่องไม่ได้อยู่ในดัชนีทั้งคลัง — สลับเป็นรายปีหรือรายเดือนเพื่อค้นในชื่อเรื่อง'
+                : undefined
+            }
             onInput={(e) => {
               set({ q: (e.target as HTMLInputElement).value }, true)
             }}
@@ -323,7 +453,14 @@ export function Explore({ q }: { q: URLSearchParams }) {
       </div>
       <div class="chips" style="margin-bottom:20px" aria-label="หมวดหลัก">
         <button class="chip" aria-pressed={!f.topic} onClick={() => set({ topic: '' })}>
-          ทุกหมวด{fmt(scope === 'all' ? undefined : loaded.filter((d) => matches(d, f, tax, 'topic')).length)}
+          {/* the chips below count corroborated topics only, so this has to count the same
+              population — otherwise the parts add up to more than the whole */}
+          ทุกหมวด
+          {fmt(
+            scope === 'all'
+              ? across?.topicTotal
+              : loaded.filter((d) => d.topic && d.tc && matches(d, f, tax, 'topic')).length,
+          )}
         </button>
         {roots.map((s) => (
           <button key={s} class="chip" aria-pressed={f.topic === s} onClick={() => set({ topic: s })}>
@@ -356,7 +493,7 @@ export function Explore({ q }: { q: URLSearchParams }) {
           · <a href={href.topic(f.topic)}>หน้าหมวด →</a>
         </p>
       )}
-      {(f.province || f.agency || f.day) && (
+      {(f.province || f.agency || f.day || f.dtype) && (
         <p class="muted">
           กรองเพิ่ม:{' '}
           {f.day && (
@@ -379,6 +516,14 @@ export function Explore({ q }: { q: URLSearchParams }) {
             <span class="pill">
               {base.data.agencies.get(f.agency) ?? f.agency}{' '}
               <button class="chip" onClick={() => set({ agency: '' })} aria-label="ลบตัวกรองหน่วยงาน">
+                ×
+              </button>
+            </span>
+          )}{' '}
+          {f.dtype && (
+            <span class="pill">
+              {f.dtype}{' '}
+              <button class="chip" onClick={() => set({ dtype: '' })} aria-label="ลบตัวกรองประเภทเอกสาร">
                 ×
               </button>
             </span>
@@ -422,31 +567,55 @@ export function Explore({ q }: { q: URLSearchParams }) {
             }
             nameOf={(k) => govName(tax, k)}
           />
-          {scope !== 'all' && (
-            <p style="margin-top:16px">
-              <button
-                onClick={() => {
-                  downloadCsv(hits, scope === 'month' ? month : year, tax, href.doc)
-                }}
-                disabled={!hits.length}
-              >
-                ดาวน์โหลด CSV ({hits.length.toLocaleString('th-TH')})
-              </button>
-            </p>
-          )}
+          <p style="margin-top:16px">
+            <button
+              onClick={() => {
+                downloadCsv(
+                  list,
+                  scope === 'month' ? month : scope === 'year' ? year : 'ทั้งคลัง',
+                  tax,
+                  href.doc,
+                )
+              }}
+              disabled={!list.length}
+            >
+              ดาวน์โหลด CSV ({list.length.toLocaleString('th-TH')})
+            </button>
+            {scope === 'all' && list.length < total && (
+              <span class="muted" style="display:block;font-size:.85rem;margin-top:6px">
+                ไฟล์จะได้เฉพาะ {list.length.toLocaleString('th-TH')} ฉบับที่โหลดรายละเอียดมาแล้ว จาก{' '}
+                {total.toLocaleString('th-TH')} ฉบับที่ตรงเงื่อนไข — กด "โหลดเพิ่ม"
+                ด้านล่างก่อนถ้าต้องการมากกว่านี้
+              </span>
+            )}
+          </p>
         </section>
         <section>
-          {docs.state === 'loading' && <Loading what={scopeLabel} />}
-          {docs.state === 'error' && <ErrorBox error={docs.error} />}
-          {scope === 'all' && !f.topic && (
-            <p class="muted">
-              เลือกหมวดเพื่อดูฉบับล่าสุดของหมวดนั้น หรือสลับไปรายปี/รายเดือนเพื่อไล่ดูทีละฉบับ
-            </p>
+          {/* A filter can be exact and still be unlistable: eighty documents spread over eighty
+              months is eighty shards. The count above is right either way, and the year it came
+              from is already in the archive index — so offer the years instead of a dead end. */}
+          {scope === 'all' && across && total > list.length && (
+            <div class="chips" style="margin-bottom:14px" aria-label="แยกดูรายปี">
+              <span class="muted" style="align-self:center;font-size:.85rem">
+                ดูให้ครบทีละปี:
+              </span>
+              {[...across.years.entries()]
+                .sort((a, b) => b[0].localeCompare(a[0]))
+                .map(([y, n]) => (
+                  <button key={y} class="chip" onClick={() => set({ scope: 'year', year: y })}>
+                    {beYear(y)} ({n.toLocaleString('th-TH')})
+                  </button>
+                ))}
+            </div>
           )}
-          {docs.state === 'ok' && list.length === 0 && (
+          {listing && <Loading what={scope === 'all' ? 'ดัชนีทั้งคลัง' : scopeLabel} />}
+          {docs.state === 'error' && <ErrorBox error={docs.error} />}
+          {shards.state === 'error' && <ErrorBox error={shards.error} />}
+          {listError !== null && <ErrorBox error={listError} what="ดัชนีทั้งคลัง" />}
+          {!listing && !listError && list.length === 0 && (
             <Empty>
-              ไม่พบฉบับที่ตรงเงื่อนไขใน{scopeLabel} — ลองขยายช่วงเวลา ลบตัวกรองบางอัน
-              หรือเปลี่ยนคำค้นในชื่อเรื่อง
+              ไม่พบฉบับที่ตรงเงื่อนไขใน{scopeLabel} — ลองลบตัวกรองบางอัน
+              {scope === 'all' ? ' หรือเลือกหมวดที่กว้างขึ้น' : ' ขยายช่วงเวลา หรือเปลี่ยนคำค้นในชื่อเรื่อง'}
             </Empty>
           )}
           <div class="doclist" data-testid="results">
@@ -474,6 +643,35 @@ export function Explore({ q }: { q: URLSearchParams }) {
               </button>
             </div>
           )}
+          {/* The count above the list is exact; this list is only as long as the shards fetched so
+              far allow. Saying which is which is the difference between a partial list and a
+              wrong one. */}
+          {scope === 'all' && (plan?.rest.length ?? 0) > 0 && batches < MAX_BATCHES && (
+            <p style="margin-top:14px">
+              <button
+                class="btn"
+                disabled={shards.state === 'loading'}
+                onClick={() => {
+                  setBatches((n) => n + 1)
+                }}
+              >
+                {shards.state === 'loading' ? 'กำลังโหลด…' : 'โหลดเพิ่ม'}
+              </button>
+              <span class="muted" style="display:block;font-size:.85rem;margin-top:6px">
+                แสดงรายละเอียดแล้ว {list.length.toLocaleString('th-TH')} จาก {total.toLocaleString('th-TH')}{' '}
+                ฉบับ — ที่เหลืออยู่คนละเดือนกัน จึงต้องโหลดข้อมูลรายเดือนเพิ่มทีละชุด
+              </span>
+            </p>
+          )}
+          {scope === 'all' &&
+            total > list.length &&
+            (batches >= MAX_BATCHES || (plan?.rest.length ?? 0) === 0) && (
+              <p class="muted" style="font-size:.85rem;margin-top:14px">
+                แสดง {list.length.toLocaleString('th-TH')} ฉบับล่าสุด จาก {total.toLocaleString('th-TH')}{' '}
+                ฉบับที่ตรงเงื่อนไข — ตัวเลขด้านบนนับครบทั้งคลังแล้ว ถ้าต้องการไล่ดูให้ครบ
+                ให้แคบตัวกรองลงหรือสลับเป็นรายปี
+              </p>
+            )}
         </section>
       </div>
     </>

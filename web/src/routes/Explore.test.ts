@@ -39,6 +39,21 @@ describe('matches', () => {
     expect(matches(doc({}), { topic: 'pollution_waste' }, tax)).toBe(true)
     expect(matches(doc({ topic: 'bankruptcy' }), { topic: 'environment' }, tax)).toBe(false)
   })
+  it('ignores an uncorroborated label, the way every count on the page does', () => {
+    // the counts beside the chips always applied this rule and the filter did not, so a chip
+    // could read "(120)" and then list 150 documents
+    expect(matches(doc({ tc: false }), { topic: 'environment' }, tax)).toBe(false)
+    expect(matches(doc({ ac: false }), { action: 'rulemaking' }, tax)).toBe(false)
+    expect(matches(doc({ gc: false }), { govlevel: 'local' }, tax)).toBe(false)
+    // it is a rule about the three labelled dimensions, not about the document
+    expect(matches(doc({ tc: false, ac: false, gc: false }), { province: 'ตรัง' }, tax)).toBe(true)
+  })
+  it('filters by document type', () => {
+    expect(matches(doc({ dt: 'ประกาศ' }), { dtype: 'ประกาศ' }, tax)).toBe(true)
+    expect(matches(doc({ dt: 'ประกาศ' }), { dtype: 'กฎกระทรวง' }, tax)).toBe(false)
+    expect(matches(doc({ dt: null }), { dtype: 'ประกาศ' }, tax)).toBe(false)
+    expect(filtersFrom(new URLSearchParams('dtype=ประกาศ')).dtype).toBe('ประกาศ')
+  })
   it('ANDs every set filter and ignores whitespace in title search', () => {
     expect(matches(doc({}), { govlevel: 'local', province: 'ตรัง', q: 'มูล ฝอย' }, tax)).toBe(true)
     expect(matches(doc({}), { govlevel: 'central' }, tax)).toBe(false)

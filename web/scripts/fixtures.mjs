@@ -17,7 +17,12 @@ const data = resolve(web, 'public/data')
 for (const p of ['public/directory.html', 'public/sitemap.xml', 'public/ratchakitcha'])
   rmSync(resolve(web, p), { recursive: true, force: true })
 
-execFileSync(py, ['-m', 'tlw_pipeline.fixtures', '--out', data], { cwd: pipeline, stdio: 'inherit' })
+// four years, so e2e reaches the whole-archive paths that only appear when a filter's matches are
+// spread over more months than one round of shard fetches covers
+execFileSync(py, ['-m', 'tlw_pipeline.fixtures', '--out', data, '--years', '2021,2022,2023,2024'], {
+  cwd: pipeline,
+  stdio: 'inherit',
+})
 
 const site = resolve(data, '_site')
 if (existsSync(site)) {

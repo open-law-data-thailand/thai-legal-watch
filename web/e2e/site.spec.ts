@@ -21,6 +21,10 @@ async function sane(page: Page) {
   await expect(page.locator('.skeleton')).toHaveCount(0)
 }
 
+/** the number a chip or an option carries, e.g. "ล้มละลาย (1,204)" -> 1204 */
+const countIn = (text: string | null): number =>
+  Number(/\((\d[\d,]*)\)/.exec(text ?? '')?.[1]?.replace(/,/g, '') ?? NaN)
+
 const data = {
   async months(request: APIRequestContext) {
     const y = (await (await request.get('/data/ratchakitcha/agg/years.json')).json()) as {
@@ -221,12 +225,127 @@ test.describe('explore', () => {
     const results = page.getByTestId('results')
     await expect(results.locator('.doc')).toHaveCount(50) // first page of 80
     await expect(page.locator('.pager')).toContainText('หน้า 1 / 2')
-    await expect(page.getByRole('button', { name: /^ทุกหมวด \(80\)/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^ทุกหมวด \(\d/ })).toBeVisible()
     await page.getByRole('button', { name: /ถัดไป/ }).click()
     await expect(page.locator('.pager')).toContainText('หน้า 2 / 2')
     await page.getByRole('button', { name: 'ทั้งหมด' }).click()
     await expect(page).toHaveURL(/scope=all/)
-    await expect(page.getByPlaceholder(/ขยะ/)).toBeDisabled()
+    // titles are not in the archive index, so title search belongs to the scopes that load shards
+    await expect(page.getByLabel('ค้นในชื่อเรื่อง')).toBeDisabled()
+  })
+
+  test('the whole archive cross-filters, and the numbers beside the options follow', async ({
+    page,
+    request,
+  }) => {
+    // Before the archive index existed this view could show one pre-built topic page and nothing
+    // else: no list without a topic, and no way to ask for a topic *and* a province at once.
+    await page.goto('/#/ratchakitcha/explore?scope=all')
+    const results = page.getByTestId('results')
+    await expect(results.locator('.doc').first()).toBeVisible()
+    const everything = await results.locator('.doc').count()
+    expect(everything).toBeGreaterThan(0)
+
+    const provinces = await data.provinces(request)
+    const province = provinces[0]
+    if (!province) throw new Error('fixture has no provinces')
+    // the province option carries a count that the archive index computed in the browser
+    await expect(page.getByLabel('จังหวัด').locator('option', { hasText: province.name })).toContainText(
+      /\(\d/,
+    )
+    await page.getByLabel('จังหวัด').selectOption(province.name)
+    await expect(page).toHaveURL(new RegExp(`province=${encodeURIComponent(province.name)}`))
+    await expect(page.getByRole('button', { name: 'ลบตัวกรองจังหวัด' })).toBeVisible()
+
+    // and now the combination that had no pre-built file: this province and this topic
+    const chip = page.getByRole('button', { name: /^ล้มละลาย/ })
+    const label = (await chip.textContent()) ?? ''
+    await chip.click()
+    await expect(page).toHaveURL(/topic=bankruptcy/)
+    const narrowed = await results.locator('.doc').count()
+    expect(narrowed).toBeLessThanOrEqual(everything)
+    // the count on the chip was computed with the topic filter lifted, so it survives the click
+    await expect(chip).toHaveText(label)
+    for (const pill of await results.locator('.doc .pill.topic').allTextContents())
+      expect(pill).toContain('ล้มละลาย')
+    await sane(page)
+    await a11y(page)
+  })
+
+  test('a chip promises a number and the list keeps it', async ({ page }) => {
+    // The chips counted corroborated labels and the filter did not, so "ล้มละลาย (12)" listed
+    // more than twelve. Both now use the rule the rest of the site counts by.
+    for (const url of ['/#/ratchakitcha/explore?scope=year&year=2024', '/#/ratchakitcha/explore?scope=all']) {
+      await page.goto(url)
+      const chip = page.getByRole('button', { name: /^ล้มละลาย \(/ })
+      await expect.poll(async () => countIn(await chip.textContent())).toBeGreaterThan(0)
+      const promised = countIn(await chip.textContent())
+      await chip.click()
+      await expect(page.getByRole('status').first()).toContainText(
+        new RegExp(`ตรงเงื่อนไข ${promised.toLocaleString('th-TH')} ฉบับ`),
+      )
+    }
+  })
+
+  test('the archive index agrees with the files the pipeline built from the same data', async ({
+    page,
+    request,
+  }) => {
+    await page.goto('/#/ratchakitcha/explore?scope=all')
+    const chips = page.locator('[aria-label="หมวดหลัก"] button')
+    await expect.poll(async () => countIn(await chips.first().textContent())).toBeGreaterThan(0)
+    const texts = await chips.allTextContents()
+    const [all, ...roots] = texts.map(countIn)
+
+    // a document has one topic, rolled up to exactly one root, so the roots must account for
+    // "ทุกหมวด" exactly — they did not when the two were counted by different rules
+    expect(roots.reduce((a, b) => a + b, 0)).toBe(all)
+
+    // and the browser's own count of a topic has to be the number the pipeline wrote for it
+    const chip = chips.nth(1)
+    const promised = countIn(await chip.textContent())
+    await chip.click()
+    const slug = new URL(page.url()).hash.match(/topic=([^&]+)/)?.[1]
+    if (!slug) throw new Error('clicking a topic chip set no topic')
+    const built = (await (await request.get(`/data/ratchakitcha/agg/topic/${slug}.json`)).json()) as {
+      total: number
+    }
+    expect(promised).toBe(built.total)
+  })
+
+  test('a year from the archive view lists in full, and to the same number', async ({ page }) => {
+    // A filter can match documents spread one-per-month across twenty years; those cannot be
+    // listed from a handful of shards, so the archive view offers the years instead. The number
+    // on a year comes from the index and the list comes from the month files — two different
+    // paths through two different filters, which have to agree.
+    await page.goto('/#/ratchakitcha/explore?scope=all&topic=bankruptcy')
+    const byYear = page.locator('[aria-label="แยกดูรายปี"]')
+    if ((await byYear.count()) === 0) test.skip(true, 'fixture is small enough to list in full')
+    const chip = byYear.locator('button').first()
+    const promised = countIn(await chip.textContent())
+    expect(promised).toBeGreaterThan(0)
+    await chip.click()
+    await expect(page).toHaveURL(/scope=year/)
+    await expect(page).toHaveURL(/topic=bankruptcy/)
+    await expect(page.getByRole('status').first()).toContainText(
+      new RegExp(`ตรงเงื่อนไข ${promised.toLocaleString('th-TH')} ฉบับ`),
+    )
+  })
+
+  test('document type is a filter of its own in every scope', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/explore?scope=all')
+    const kind = page.getByLabel('ประเภทเอกสาร')
+    await expect(kind.locator('option')).not.toHaveCount(1)
+    const value = await kind.locator('option').nth(1).getAttribute('value')
+    if (!value) throw new Error('fixture has no document types')
+    await kind.selectOption(value)
+    await expect(page).toHaveURL(new RegExp(`dtype=${encodeURIComponent(value)}`))
+    const results = page.getByTestId('results')
+    await expect(results.locator('.doc').first()).toBeVisible()
+    // the filter survives a scope change, and still filters
+    await page.getByRole('button', { name: 'รายเดือน' }).click()
+    await expect(page).toHaveURL(new RegExp(`dtype=${encodeURIComponent(value)}`))
+    await sane(page)
   })
 
   test('months are listed in Buddhist years and the province filter narrows the list', async ({
@@ -414,11 +533,21 @@ test.describe('dashboard, graph and about', () => {
     await expect(page.getByRole('heading', { name: /หมวดที่มาแรง/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: /คดีล้มละลายตามขั้นตอน/ })).toBeVisible()
     const heading = page.getByRole('heading', { name: /^หมวดหลักของปี/ })
-    // click inside the first bar: bars rise from the axis, so three quarters down is inside one
+    // Click the middle of an actual drawn bar rather than a fraction of the chart: a fixed
+    // fraction lands between bars as soon as the number of years changes. ECharts also emits
+    // full-size clip and background paths, so the narrow tall ones are the bars.
     const chart = page.getByTestId('chart-years')
     const box = await chart.boundingBox()
     if (!box) throw new Error('the year chart has no box')
-    await chart.click({ position: { x: box.width * 0.35, y: box.height * 0.78 } })
+    const bars = await chart.locator('svg path').evaluateAll((paths) =>
+      paths
+        .map((p) => p.getBoundingClientRect())
+        .filter((r) => r.width > 2 && r.width < 200 && r.height > 8)
+        .map((r) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 })),
+    )
+    const bar = bars[0]
+    if (!bar) throw new Error('the year chart drew no bars')
+    await page.mouse.click(bar.x, bar.y)
     // the chip names the year that was picked, and the per-year sections follow it
     const chip = page.locator('.chip', { hasText: 'ล้างการเลือก' })
     await expect(chip).toBeVisible()

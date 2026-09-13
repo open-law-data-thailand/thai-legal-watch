@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 
 from . import CONTRACT_VERSION
 from .aggregate import Aggregator
+from .cube import Cube
 from .feeds import atom
 from .model import Doc
 
@@ -48,6 +49,7 @@ class Emitter:
         # of the work. Kept as a date -> records map and trimmed after every year, so memory does
         # not grow with the corpus.
         self.latest: dict[str, list[dict]] = defaultdict(list)
+        self.cube = Cube()
 
     def add(self, d: Doc) -> None:
         slim = d.slim()
@@ -59,10 +61,14 @@ class Emitter:
 
     def flush_year(self, year: str) -> None:
         """Shards are written per year so memory does not grow with the corpus."""
-        for (y, m), docs in list(self.shards.items()):
+        # sorted, not insertion order: the cube's row order is the concatenation of these shards,
+        # and it has to be reproducible from the files alone
+        for (y, m), docs in sorted(self.shards.items()):
             if y == year:
                 docs.sort(key=lambda x: (x["d"] or "", x["id"]))
                 self.sizes[f"docs/{y}/{m}.json"] = dump(os.path.join(self.out, "docs", y, f"{m}.json"), docs)
+                # after the sort, so a cube row and a shard position are the same thing
+                self.cube.add_month(m, docs)
                 del self.shards[(y, m)]
         for day in sorted(self.latest)[:-LATEST_DAYS]:
             del self.latest[day]
@@ -164,6 +170,9 @@ class Emitter:
         for vol, parts in agg.volume_parts.items():
             body = {"volume": vol, "parts": {p: sorted(m) for p, m in sorted(parts.items())}}
             self.sizes[f"index/volumes/{vol}.json"] = dump(os.path.join(self.out, "index/volumes", f"{vol}.json"), body)
+        cube_bin, cube_json = self.cube.write(self.out)
+        self.sizes["agg/cube.bin"] = cube_bin
+        self.sizes["agg/cube.json"] = cube_json
         self.sizes["agg/bankruptcy.json"] = dump(os.path.join(self.out, "agg/bankruptcy.json"),
             {"by_court_stage": [{"court": c, "stage": s, "n": n} for (c, s), n in agg.extracted_stage.most_common()]})
         meta = {"contract": CONTRACT_VERSION, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),

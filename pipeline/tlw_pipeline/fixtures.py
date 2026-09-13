@@ -75,10 +75,15 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="tlw-fixtures")
     ap.add_argument("--out", required=True, help="dist-data folder to write (e.g. web/public/data)")
     ap.add_argument("--per-month", type=int, default=40)
+    # the web e2e asks for more years than the unit tests need: the whole-archive view reads a few
+    # month files at a time and offers a per-year breakdown for what it cannot reach, and that
+    # branch only exists once there are more months than the reader fetches in one go
+    ap.add_argument("--years", default="", help="comma-separated, e.g. 2021,2022,2023,2024")
     a = ap.parse_args(argv)
     root = tempfile.mkdtemp(prefix="tlw-fixture-")
     try:
-        make_dataset(root, per_month=a.per_month)
+        years = tuple(y.strip() for y in a.years.split(",") if y.strip())
+        make_dataset(root, per_month=a.per_month, **({"years": years} if years else {}))
         if os.path.isdir(a.out):
             shutil.rmtree(a.out)
         build(root, a.out, site="http://127.0.0.1:4173")

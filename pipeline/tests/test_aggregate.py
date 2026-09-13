@@ -204,3 +204,80 @@ def test_build_survives_having_no_revisions_to_report(tmp_path):
     assert meta["build"]["dataset"]["sha"] == ""
     page = (out / "_site" / "directory.html").read_text(encoding="utf-8")
     assert "รุ่น:" not in page or "commit/" not in page
+
+
+def test_cube_row_and_shard_position_are_the_same_document(tmp_path):
+    """The cube stores no ids: row i is identified by its month and offset. If that mapping ever
+    slips, every filter silently returns the wrong documents — so it is checked exhaustively."""
+    import array
+    import gzip
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2023", "2024"), per_month=40)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2023-2024"]) == 0
+
+    src = out / "ratchakitcha"
+    meta = json.loads((src / "agg" / "cube.json").read_text(encoding="utf-8"))
+    raw = (src / "agg" / "cube.bin").read_bytes()
+    assert raw[:2] == b"\x1f\x8b", "the client sniffs the gzip magic number to know what it got"
+    assert meta["encoding"] == "gzip"
+    blob = gzip.decompress(raw)
+
+    cols = {}
+    for c in meta["layout"]:
+        width = 2 if c["type"] == "u16" else 1
+        a = array.array("H" if width == 2 else "B")
+        a.frombytes(blob[c["offset"]: c["offset"] + meta["rows"] * width])
+        cols[c["name"]] = a
+        assert len(a) == meta["rows"], c["name"]
+
+    total = sum(m["n"] for m in meta["months"])
+    assert total == meta["rows"]
+    assert len(blob) == meta["bytes"]
+
+    codes = meta["codes"]
+    checked = 0
+    for m in meta["months"]:
+        month = m["m"]
+        docs = json.loads((src / "docs" / month[:4] / f"{month}.json").read_text(encoding="utf-8"))
+        assert len(docs) == m["n"], month
+        for offset, d in enumerate(docs):
+            row = m["start"] + offset
+            for col, field in (("topic", "topic"), ("action", "action"), ("gov", "govlevel"),
+                               ("prov", "pr"), ("dtype", "dt"), ("agency", "a"), ("day", "d")):
+                assert codes[col][cols[col][row]] == (d.get(field) or None), (month, offset, col)
+            f = cols["flags"][row]
+            assert bool(f & 1) is bool(d["tc"]) and bool(f & 2) is bool(d["ac"])
+            assert bool(f & 4) is bool(d["gc"])
+            checked += 1
+    assert checked == meta["rows"]
+
+
+def test_cube_months_are_in_order_and_cover_every_shard(tmp_path):
+    """Row order is the concatenation of the shards, so the month list must be complete and
+    chronological — insertion order is not something to leave to chance."""
+    import json
+
+    from tlw_pipeline import fixtures
+    from tlw_pipeline.cli import main
+
+    root = tmp_path / "data"
+    out = tmp_path / "dist"
+    fixtures.make_dataset(str(root), years=("2023", "2024"), per_month=10)
+    assert main(["--root", str(root), "--out", str(out), "--years", "2023-2024"]) == 0
+
+    src = out / "ratchakitcha"
+    months = json.loads((src / "agg" / "cube.json").read_text(encoding="utf-8"))["months"]
+    names = [m["m"] for m in months]
+    assert names == sorted(names)
+    on_disk = sorted(p.stem for p in (src / "docs").glob("*/*.json"))
+    assert names == on_disk
+    at = 0
+    for m in months:
+        assert m["start"] == at
+        at += m["n"]

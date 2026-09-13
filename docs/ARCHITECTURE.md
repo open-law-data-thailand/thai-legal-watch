@@ -17,6 +17,12 @@ OpenLawData dataset (HF)          nightly, on the build box                 Clou
   what matched it; the about page carries the measured accuracy.
 - **Privacy line.** Individuals appear only as the gazette prints them, one document at a
   time. Cross-document timelines are built for juristic persons only.
+- **Dimensions travel, text does not.** Pre-building a file per facet means only anticipated
+  questions have answers, and every new pairing is another file. The build instead ships every
+  document's *dimensions* as a columnar index (`agg/cube.bin`, 504 KB for 732k documents) that the
+  browser filters in under a millisecond, so any combination works. Titles stay in the month
+  shards, which are fetched only for the documents actually shown — 306 MB of text could never
+  have gone the same way.
 
 ## Web app
 
@@ -25,6 +31,10 @@ Vite + Preact + TypeScript (strict). `web/src/`:
 - `routes/` — one module per page; `router.ts` is a hash router with typed params
 - `ui/` — presentational components (labels, coordinates, charts)
 - `lib/` — pure helpers: Thai dates/numerals, citation formatter, slugging, search
+- `lib/cube.ts` + `cubequery.ts` — the archive index: typed-array columns, one-pass filtering with
+  group-bys, and the plan for turning matching rows back into documents within a shard budget
+- `lib/cubestore.ts` — fetch, gunzip and keep it in IndexedDB keyed by the build stamp, so a
+  return visit pays nothing; every part degrades to the network if storage is unavailable
 Charts: ECharts loaded only on routes that draw.
 
 ## Testing
