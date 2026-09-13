@@ -285,6 +285,49 @@ runs `bash -n` and shellcheck over `infra/`; and the contract now requires `agg/
 `index/months/` and the static pages, checks trend series lengths, and checks that the month index
 covers exactly the shards on disk.
 
+## Session 6 — the archive index (`agg/cube.bin`)
+
+สำรวจ's "ทั้งหมด" view can now cross-filter the whole 25-year corpus in the browser. The build
+emits every document's *dimensions* as a gzipped columnar index (topic, action, govlevel, province,
+agency, document type, date, corroboration flags — one small integer each). Measured on the real
+corpus: **504 KB over the wire, 7.3 MB of typed arrays, 11 ms to decompress, 0.8 ms per filtered
+count with a group-by**; `agg/cube.json` (the header and code tables) is 178 KB, ~67 KB gzipped.
+
+- Written by `pipeline/tlw_pipeline/cube.py`, read by `web/src/lib/cube.ts`; `cubequery.ts` adds
+  the taxonomy rollup and the six per-dimension passes; `cubestore.ts` fetches, gunzips and keeps
+  the compressed blob in IndexedDB keyed by the build stamp.
+- **Gzipped in the file, not by the CDN.** Cloudflare compresses by content type and does not
+  compress `application/octet-stream`. `cube.json` declares `encoding`, and the client also sniffs
+  the gzip magic number, so a host that decompresses it for us is handled too.
+- **Row i has no id** — it is the month in `months` whose range contains it, at that offset in
+  `docs/<year>/<month>.json`. `emit.py` iterates `sorted(self.shards.items())` and calls
+  `cube.add_month` *after* the per-shard sort so the two orders are the same thing; `contract.py`
+  and two pytest cases check it.
+- Titles are deliberately not in it: **306 MB** of UTF-8 for the whole archive, against 504 KB for
+  all the dimensions. They come from the month shards (130–235 KB gzipped, 2.7 MB parsed each),
+  six per round, and when a filter is too sparse to list that way the view offers the per-year
+  counts the index already has — clicking a year switches to the year scope, which lists in full.
+- The web e2e fixture now spans four years (`--years` on `tlw_pipeline.fixtures`) so the sparse
+  path and the per-year breakdown are actually exercised in CI.
+
+**Considered and rejected: SQLite Wasm / DuckDB-Wasm for this.** The runtime alone is ~0.5 MB
+compressed — the size of the entire index — it needs `wasm-unsafe-eval` added to a CSP that is
+currently `script-src 'self'`, and a row store with five indexes over 732k rows is tens of
+megabytes where the column store is half of one. A range-request VFS trades that for several HTTP
+round trips per query against 0.8 ms in memory, and the facet counts touch 692,284 rows, which is
+the worst case for a B-tree. It would only start to pay if the questions outgrew these seven
+dimensions. It does not solve full-text search either: the blocker there is the 306 MB of titles,
+not the query engine.
+
+### A bug this turned up
+The counts beside a chip applied the corroboration rule and the filter did not, so "ล้มละลาย (12)"
+would list more than twelve, and "ทุกหมวด" counted a different population from the chips under it.
+`matches()` in `Explore.tsx` now requires `tc`/`ac`/`gc` for the three labelled dimensions — the
+rule `aggregate.py` builds every topic, agency and province page with. The root chips now sum to
+"ทุกหมวด" exactly, and a chip's number matches the topic page the pipeline wrote (both are e2e
+assertions now). Counts also wait for their data rather than reading "(0)" for a second on each
+month change.
+
 ## Still open
 - **Document links still unfurl as the home page.** Topics, provinces and agencies have static
   pages now; the 732,143 documents cannot, so a shared document link is still the site card.
@@ -293,6 +336,8 @@ covers exactly the shards on disk.
 - **A custom domain needs `VITE_SITE_URL` and `--site` set to it**, or canonical, og: and the feeds
   will point at pages.dev.
 - Document full text: blocked upstream, see above.
+- **Whole-archive title search** — see plan item 3; the box is disabled in the "ทั้งหมด" scope and
+  says why.
 - Housekeeping never done: a Lighthouse budget in CI, visual regression, and moving the topic
   family palette into CSS variables.
 - Phase 2 (Functions + D1: watches, feedback, a bankruptcy tracker for juristic persons) is a
@@ -307,8 +352,10 @@ covers exactly the shards on disk.
 2. ~~Content correctness pass~~ — done, see Session 2. Re-check `#/about` against the dataset README
    whenever the sieve version changes; the numbers there are the dataset's, never ours.
 3. ~~Lawyer features~~ — coordinate form and four citation formats done. Still open: **full-text
-   search**, which a static host cannot do — the idea on the table is DuckDB-WASM over the HF parquet
-   as a separate power-user page, not part of the main site.
+   search**. Title search works within a month or a year (the shards are the corpus); across the
+   whole archive it does not, and no client-side format fixes that — the titles are 306 MB. It
+   needs an index somewhere with a server: a Worker over R2/D1, or the HF parquet behind a
+   power-user page. Not a format problem, a hosting one.
 4. ~~"ท้องถิ่นฉัน"~~ — done as a dot map. If real boundaries are ever wanted, that needs a licensed,
    simplified province GeoJSON committed to the repo; the dot map needs nothing.
 5. **Phase 2 (Cloudflare Functions + D1, all free tier)**: watches with magic-link accounts and a
