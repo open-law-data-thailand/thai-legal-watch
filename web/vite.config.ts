@@ -8,8 +8,10 @@ export default defineConfig({
     target: 'es2022',
     rollupOptions: {
       output: {
+        // the charting code is only reached from two routes; keeping it in its own chunk means
+        // the other seven pages never download it
         manualChunks: (id: string) =>
-          id.includes('node_modules/echarts') || id.includes('node_modules/zrender') ? 'echarts' : undefined,
+          id.includes('node_modules/echarts') || id.includes('node_modules/zrender') ? 'charts' : undefined,
       },
     },
   },

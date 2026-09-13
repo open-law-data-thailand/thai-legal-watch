@@ -14,7 +14,17 @@ if (!existsSync(target)) {
   )
   process.exit(1)
 }
-for (const p of ['public/data', 'dist/data'])
+// `npm run e2e` rebuilds dist from fixtures, which replaces this symlink and also leaves the
+// fixture static pages in public/ for the next build to copy back in. Clear all of it, not just
+// the data: a preview that serves 160 synthetic documents next to a real page is worse than one
+// that plainly fails, and it has fooled three sessions now.
+for (const p of [
+  'public/data',
+  'dist/data',
+  'public/directory.html',
+  'public/sitemap.xml',
+  'public/ratchakitcha',
+])
   if (existsSync(p) || lstatSync(p, { throwIfNoEntry: false })) rmSync(p, { recursive: true, force: true })
 symlinkSync(target, 'dist/data')
 console.log(`dist/data -> ${target}`)

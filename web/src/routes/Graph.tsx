@@ -200,9 +200,9 @@ export function Graph() {
     const el = ref.current
     if (!el) return
     let disposed = false
-    void import('echarts').then((echarts) => {
+    void import('../lib/charts').then(({ init }) => {
       if (disposed) return
-      const chart = echarts.init(el, undefined, { renderer: 'canvas' }) as unknown as EChart
+      const chart = init(el, undefined, { renderer: 'canvas' }) as unknown as EChart
       chartRef.current = chart
       chart.on('click', (raw: unknown) => {
         const p = raw as { dataType?: string; data?: { id?: string; name?: string } }

@@ -86,10 +86,10 @@ export function Dashboard() {
     if (!byYear) return
     let disposed = false
     const el = yearsRef.current
-    void import('echarts').then((echarts) => {
+    void import('../lib/charts').then(({ init }) => {
       if (disposed || !el) return
       const ys = Object.keys(byYear).sort()
-      const chart = echarts.init(el, undefined, { renderer: 'svg' })
+      const chart = init(el, undefined, { renderer: 'svg' })
       chartRef.current = chart
       chart.setOption({
         backgroundColor: 'transparent',
