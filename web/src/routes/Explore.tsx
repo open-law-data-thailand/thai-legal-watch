@@ -231,6 +231,14 @@ export function Explore({ q }: { q: URLSearchParams }) {
     const all = base.state === 'ok' ? base.data.provinces : []
     return [...all].sort((a, b) => a.name.localeCompare(b.name, 'th'))
   }, [base])
+  // the same for document types: the full list comes from the index, so the dropdown keeps its
+  // shape and a type at zero says zero rather than disappearing
+  const dtypeOptions = useMemo(() => {
+    const all = (cube?.meta.codes['dtype'] ?? []).filter((x): x is string => !!x)
+    return all.sort(
+      (a, b) => (dtypeCounts.get(b) ?? 0) - (dtypeCounts.get(a) ?? 0) || a.localeCompare(b, 'th'),
+    )
+  }, [cube, dtypeCounts])
   if (base.state === 'loading') return <Loading />
   if (base.state === 'error') return <ErrorBox error={base.error} />
   const set = (patch: Partial<Record<keyof Filters, string>>, replace = false) => {
@@ -415,6 +423,9 @@ export function Explore({ q }: { q: URLSearchParams }) {
             style="width:100%;padding:8px"
           >
             <option value="">ทุกจังหวัด</option>
+            {/* every province stays listed, including the ones at zero. A list that shortens as
+                filters change makes ตรัง look deleted rather than empty, and the reader cannot
+                tell the difference between "no documents here" and "we lost it". */}
             {provinceOptions.map((p) => (
               <option key={p.file} value={p.name}>
                 {p.name}
@@ -432,20 +443,12 @@ export function Explore({ q }: { q: URLSearchParams }) {
             style="width:100%;padding:8px"
           >
             <option value="">ทุกประเภท</option>
-            {[...dtypeCounts.entries()]
-              .sort((a, b) => b[1] - a[1])
-              .map(([k, n]) => (
-                <option key={k} value={k}>
-                  {k}
-                  {fmt(n)}
-                </option>
-              ))}
-            {f.dtype && !dtypeCounts.has(f.dtype) && (
-              <option key={f.dtype} value={f.dtype}>
-                {f.dtype}
-                {fmt(0)}
+            {dtypeOptions.map((k) => (
+              <option key={k} value={k}>
+                {k}
+                {fmt(dtypeCounts.get(k))}
               </option>
-            )}
+            ))}
           </select>
         </label>
         <label>
