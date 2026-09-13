@@ -64,7 +64,7 @@ describe('grouping by day', () => {
 
   it('reports the day’s own count even when the page shows fewer', () => {
     // the number beside a date is a fact about that day, not about how far the page has scrolled
-    const days = byDay([...Array(200)].map((_, i) => doc({ id: `x${i}`, d: '2026-09-11' })))
+    const days = byDay(Array.from({ length: 200 }, (_, i) => doc({ id: `x${i}`, d: '2026-09-11' })))
     const shown = visibleDays(days, 150)
     expect(shown[0]?.total).toBe(200)
     expect(shown[0]?.docs).toHaveLength(150)
