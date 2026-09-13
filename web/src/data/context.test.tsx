@@ -13,7 +13,9 @@ function withClient(files: Record<string, unknown>) {
       )
       const body = files[key]
       return Promise.resolve(
-        body === undefined ? new Response('', { status: 404 }) : new Response(JSON.stringify(body)),
+        body === undefined
+          ? new Response('', { status: 404 })
+          : new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }),
       )
     },
   })
