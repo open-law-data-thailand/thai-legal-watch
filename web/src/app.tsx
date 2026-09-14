@@ -11,6 +11,7 @@ import { Home } from './routes/Home'
 import { Latest } from './routes/Latest'
 import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
+import { onJump } from './lib/jump'
 import { Boundary } from './ui/Boundary'
 
 // "วันนี้" is gone: it was the same destination as the wordmark beside it, and a nav that
@@ -70,7 +71,7 @@ export function App({ client }: { client?: DataClient }) {
   )
   return (
     <ClientContext.Provider value={client ?? sourced}>
-      <a class="skip" href="#main">
+      <a class="skip" href="#main" onClick={onJump('main')}>
         ข้ามไปเนื้อหาหลัก
       </a>
       <header class="topbar" ref={bar}>

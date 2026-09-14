@@ -3,6 +3,7 @@ import { docIdOk } from '../data/client'
 import { useLoad } from '../data/context'
 import type { AgencyPage, SlimDoc, Taxonomy } from '../data/types'
 import { CITE_FORMATS, formatCitation, permalink, type CiteFormat } from '../lib/cite'
+import { onJump } from '../lib/jump'
 import { coordinates, thaiDate } from '../lib/thai'
 import { lastExplore, useTitle } from '../lib/title'
 import { useClient, useHref } from '../data/context'
@@ -43,6 +44,21 @@ const provinceFile = (name: string, list: { name: string; file: string }[]) =>
   list.find((p) => p.name === name)?.file ?? name
 
 const GAZETTE = 'https://ratchakitcha.soc.go.th'
+
+/** Whether the published text layer reaches this document. It starts part-way through the
+ *  archive and only grows forward, so the year it starts at is the whole test. Offering the
+ *  button outside that range costs the reader seven seconds and seventeen requests to be told
+ *  there is nothing — and it is exactly the years with no PDF link where being told to "read it
+ *  below" would be a lie. */
+export function hasFullText(
+  text: { base?: string; from?: string } | undefined,
+  month: string | undefined,
+  id: string,
+): boolean {
+  if (!text?.base) return false
+  const year = (month ?? id).slice(0, 4)
+  return !text.from || year >= text.from
+}
 
 export interface DocLinks {
   primary: { href: string; label: string }
@@ -128,6 +144,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
   const links = docLinks(d.id, st.data.month, d.u)
+  const readable = hasFullText(st.data.meta.text, st.data.month, d.id)
   // Clipboard access needs a secure context and can be refused; the optional chain used to mean
   // the button simply did nothing, forever, with no explanation. These buttons are the page's
   // whole point for a lawyer, so a failure has to say so and leave the text selectable.
@@ -264,10 +281,20 @@ export function Doc({ id, month }: { id: string; month?: string }) {
             </p>
             {!links.fromSource && (
               <p class="muted" style="font-size:.8rem;margin:10px 0 0">
-                ชุดข้อมูลยังไม่มีลิงก์ตรงของฉบับนี้ (กำลังทยอยเพิ่มอยู่) ระหว่างนี้ให้ค้นด้วยเล่ม ตอน และหน้า
-                ด้านบน — กดคัดลอกการอ้างอิงไปวางได้เลย · สำเนาในชุดข้อมูลเปิดอยู่รวมกันทั้งเดือน
-                จึงมีขนาดใหญ่มาก และของปีเก่าบางส่วนยังจับคู่กับเลขที่เอกสารผิดฉบับ
-                <a href={href.about()}>(ดูข้อจำกัด)</a>
+                {readable ? (
+                  <>
+                    <b>อ่านเนื้อหาเต็มของฉบับนี้ได้ที่ด้านล่าง</b> —{' '}
+                    <a href="#fulltext" onClick={onJump('fulltext')}>
+                      ข้ามไปอ่านเลย
+                    </a>{' '}
+                    · ส่วนไฟล์ PDF ต้นฉบับ ชุดข้อมูลยังไม่มีลิงก์ของปีนี้ (กำลังทยอยเพิ่มอยู่){' '}
+                  </>
+                ) : (
+                  <>ชุดข้อมูลยังไม่มีลิงก์ตรงของฉบับนี้ (กำลังทยอยเพิ่มอยู่) </>
+                )}
+                ระหว่างนี้ถ้าต้องการตัวไฟล์ ให้ค้นด้วยเล่ม ตอน และหน้า ด้านบน — กดคัดลอกการอ้างอิงไปวางได้เลย
+                · สำเนาในชุดข้อมูลเปิดอยู่รวมกันทั้งเดือน จึงมีขนาดใหญ่มาก
+                และของปีเก่าบางส่วนยังจับคู่กับเลขที่เอกสารผิดฉบับ <a href={href.about()}>(ดูข้อจำกัด)</a>
               </p>
             )}
           </div>
@@ -370,7 +397,9 @@ export function Doc({ id, month }: { id: string; month?: string }) {
           )}
         </section>
       </div>
-      {st.data.meta.text?.base && <FullText base={st.data.meta.text.base} id={d.id} month={st.data.month} />}
+      {readable && st.data.meta.text?.base && (
+        <FullText base={st.data.meta.text.base} id={d.id} month={st.data.month} />
+      )}
       <Next d={d} tax={tax} agency={agency} facet={facet} provinces={provinces} />
     </article>
   )

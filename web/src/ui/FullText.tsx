@@ -103,7 +103,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
 
   if (st.s === 'idle')
     return (
-      <section class="fulltext">
+      <section class="fulltext" id="fulltext">
         <h2 class="sec">เนื้อหาเต็ม</h2>
         <p class="muted fulltext-note" style="max-width:70ch">
           อ่านตัวเอกสารได้จากชุดข้อมูลต้นทางโดยตรง — ใช้เวลาสักครู่ (ราว 5 วินาที)
@@ -120,7 +120,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
 
   if (st.s === 'loading')
     return (
-      <section class="fulltext" aria-busy="true">
+      <section class="fulltext" id="fulltext" aria-busy="true">
         <h2 class="sec">เนื้อหาเต็ม</h2>
         <p class="muted" role="status">
           กำลังไล่หาในไฟล์ข้อความของเดือน {month} … ปกติใช้เวลาไม่เกินสิบวินาที
@@ -130,7 +130,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
     )
   if (st.s === 'none')
     return (
-      <section class="fulltext">
+      <section class="fulltext" id="fulltext">
         <h2 class="sec">เนื้อหาเต็ม</h2>
         <p class="muted">
           ชุดข้อมูลยังไม่มีเนื้อหาของฉบับนี้ — การสกัดข้อความไม่ได้สำเร็จทุกฉบับ เปิดไฟล์ PDF
@@ -140,7 +140,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
     )
   if (st.s === 'error')
     return (
-      <section class="fulltext">
+      <section class="fulltext" id="fulltext">
         <h2 class="sec">เนื้อหาเต็ม</h2>
         <p class="muted">
           อ่านเนื้อหาจากชุดข้อมูลต้นทางไม่สำเร็จ ({st.why}) — เปิด PDF ต้นฉบับได้จากปุ่มด้านบน
@@ -171,7 +171,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
   const { shown, hidden } = all ? { shown: paras, hidden: 0 } : clamp(paras)
   const ocr = doc.method !== null && doc.method !== 'direct'
   return (
-    <section class="fulltext" data-testid="fulltext">
+    <section class="fulltext" id="fulltext" data-testid="fulltext">
       <div class="fulltext-head">
         <h2 class="sec" style="margin:0">
           เนื้อหาเต็ม

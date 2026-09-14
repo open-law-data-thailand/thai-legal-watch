@@ -34,6 +34,11 @@ TEXT = {
     "base": "https://huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha/resolve/main/ocr/openlawdata-ocr",
     "layer": "ocr/openlawdata-ocr",
     "credit": "OpenLawData — soc-ratchakitcha (ชั้น ocr)",
+    # The layer starts here. A lower bound rather than a range because the layer only ever grows
+    # forward, so this is the part that stays true; a year above it may still miss a record, and
+    # the reader is told so when it does. Without it the site offers to fetch the text of a 1950
+    # document and spends seven seconds finding out there is none.
+    "from": "2002",
 }
 _WS = re.compile(r"\s+")
 

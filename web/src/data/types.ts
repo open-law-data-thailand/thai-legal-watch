@@ -78,7 +78,7 @@ export interface Meta {
   /** Where the full text of a document can be read from, one record at a time. Not part of the
    *  build — the layer is about 10 GB — so the site range-reads it from the publisher. Absent
    *  means this build simply does not offer full text. */
-  text?: { base: string; layer?: string; credit?: string }
+  text?: { base: string; layer?: string; credit?: string; from?: string }
 }
 
 export interface TopicNode {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { docLinks, sourceHref } from './Doc'
+import { docLinks, hasFullText, sourceHref } from './Doc'
 
 it('opens modern ids straight at the gazette', () => {
   const l = docLinks('2026-09-10-00125805', '2026-09')
@@ -102,4 +102,37 @@ it('turns a raw rule name into a readable evidence label', async () => {
   const { evidenceLabel } = await import('./Doc')
   expect(evidenceLabel('auth')).toBe('ชื่อผู้ออก')
   expect(evidenceLabel('^profession')).toBe('เกณฑ์ profession')
+})
+
+describe('whether the text layer reaches a document', () => {
+  const layer = { base: 'https://example.invalid/ocr', from: '2002' }
+
+  it('offers the text only from the year the layer starts', () => {
+    expect(hasFullText(layer, '2002-01', '2002-007130')).toBe(true)
+    expect(hasFullText(layer, '2026-09', '2026-09-01-00121899')).toBe(true)
+    expect(hasFullText(layer, '2001-12', '2001-008331')).toBe(false)
+    expect(hasFullText(layer, '1885-01', '1885-000092')).toBe(false)
+  })
+
+  it('judges by the month the record is filed under, which is where the reader would look', () => {
+    // the id year and the file year disagree for a few hundred records upstream, and the fetch
+    // follows the month — so the promise has to follow the month too
+    expect(hasFullText(layer, '2013-11', '2013-028472')).toBe(true)
+    expect(hasFullText(layer, '1970-01', '1970-009777')).toBe(false)
+  })
+
+  it('falls back to the id when there is no month', () => {
+    expect(hasFullText(layer, undefined, '2005-008777')).toBe(true)
+    expect(hasFullText(layer, undefined, '1998-001218')).toBe(false)
+  })
+
+  it('says no when the build publishes no text layer at all', () => {
+    expect(hasFullText(undefined, '2010-01', 'x')).toBe(false)
+    expect(hasFullText({ from: '2002' }, '2010-01', 'x')).toBe(false)
+  })
+
+  it('treats a layer with no declared start as covering everything', () => {
+    // an older build, or a different dataset that publishes text for the whole archive
+    expect(hasFullText({ base: 'https://example.invalid/ocr' }, '1885-01', 'x')).toBe(true)
+  })
 })

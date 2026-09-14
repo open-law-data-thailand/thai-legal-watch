@@ -794,6 +794,36 @@ test.describe('ท้องถิ่น', () => {
   })
 })
 
+test.describe('a document with no PDF link', () => {
+  test('points at the text it does have, and getting there stays on the page', async ({ page, request }) => {
+    // The fixture carries source_url for half its records, mirroring a dataset still being
+    // backfilled; the other half is the state most of a few years are still in upstream.
+    const months = await data.months(request)
+    let target: { id: string; month: string } | null = null
+    for (const m of months) {
+      const docs = await data.docs(request, m)
+      const without = docs.find((d: { u?: unknown }) => d.u === undefined || d.u === null)
+      if (without) {
+        target = { id: without.id, month: m }
+        break
+      }
+    }
+    if (!target) throw new Error('fixture has no document without a source url')
+
+    await page.goto(`/#/ratchakitcha/doc/${target.id}?m=${target.month}`)
+    const note = page.locator('.doclinks + .muted, .doclinks ~ p.muted').first()
+    await expect(note).toContainText('อ่านเนื้อหาเต็ม')
+
+    const jump = page.getByRole('link', { name: 'ข้ามไปอ่านเลย' })
+    const before = await page.evaluate(() => location.hash)
+    await jump.click()
+    // an in-page anchor is a route change in a hash-routed app; this one must not be
+    expect(await page.evaluate(() => location.hash)).toBe(before)
+    await expect(page.getByRole('heading', { name: 'เนื้อหาเต็ม' })).toBeInViewport()
+    await sane(page)
+  })
+})
+
 test.describe('citation lookup', () => {
   test('เล่ม / ตอน / หน้า on the hero opens the document at those coordinates', async ({ page, request }) => {
     const months = await data.months(request)
@@ -1126,6 +1156,23 @@ test.describe('keyboard and screen reader', () => {
     await expect(skip).toBeFocused()
     await expect(skip).toBeInViewport()
     await expect(skip).toHaveAttribute('href', '#main')
+  })
+
+  test('and pressing it lands on the content instead of throwing you off the page', async ({ page }) => {
+    // This is the bug the test above could not see, because it read the href and never used it:
+    // the router reads location.hash, so `#main` parsed as the สำรวจ page of a data source
+    // called "main". The first control a keyboard user meets on every page navigated away.
+    await page.goto('/#/ratchakitcha/dashboard')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    const before = await page.evaluate(() => location.hash)
+    // focus then Enter, which is how this link is reached at all: it sits off-screen until
+    // focused, so a pointer never touches it
+    await page.locator('.skip').focus()
+    await page.keyboard.press('Enter')
+    expect(await page.evaluate(() => location.hash)).toBe(before)
+    await expect(page).toHaveTitle(/สถิติ/)
+    // and focus actually moved to the content, which is the whole point of the link
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('main')
   })
 
   test('arrowing through quick search names the highlighted result', async ({ page }) => {
