@@ -912,6 +912,41 @@ test.describe('dashboard, graph and about', () => {
     await sane(page)
   })
 
+  test('an agency is told who else works the same ground', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/graph')
+    // show agency nodes, then reach one through a subject's neighbour list
+    await page.getByRole('checkbox', { name: /หน่วยงาน/ }).check()
+    // the edge threshold defaults high enough to hide everything this fixture has; the page is
+    // about relationships, so the test has to be looking at a graph that draws some
+    const slider = page.locator('input[type=range]')
+    await slider.evaluate((el: HTMLInputElement) => {
+      el.value = el.min
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    // a subject that really is shared — picked by name rather than by position, so the test
+    // fails when the relationship disappears instead of quietly skipping
+    const spread = page.getByTestId('authority-spread')
+    const shared = spread.locator('li button').filter({ hasText: 'ขยะ' }).first()
+    await expect(shared, 'the fixture must have a subject with more than one issuer').toHaveCount(1)
+    await shared.click()
+
+    const panel = page.locator('.nodepanel')
+    await expect(panel).toBeVisible()
+    const agency = panel
+      .locator('.nearlist button')
+      .filter({ hasText: /องค์การ|กรม|กระทรวง|สำนักงาน|จังหวัด|ศาล/ })
+      .first()
+    await expect(agency, 'a shared subject must have agency neighbours to reach').toHaveCount(1)
+    await agency.click()
+
+    await expect(panel.getByText('หน่วยงานนี้ออกเรื่องอะไร')).toBeVisible()
+    // it shares that subject with another body, so this has to be there
+    await expect(panel.getByText('ทำงานทับซ้อนกับใคร')).toBeVisible()
+    await expect(panel.locator('.sharelist a').first()).toHaveAttribute('href', /explore\?/)
+    await sane(page)
+  })
+
   test('the graph can be zoomed and reset from buttons, not only the wheel', async ({ page }) => {
     await page.goto('/#/ratchakitcha/graph')
     await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')

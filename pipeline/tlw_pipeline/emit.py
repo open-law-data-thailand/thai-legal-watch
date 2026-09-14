@@ -91,12 +91,15 @@ class Emitter:
                               "parent": agg.parents.get(slug), "children": topics_out.get(slug, {}).get("children", [])}
             self.sizes[f"agg/topic/{slug}.json"] = dump(os.path.join(self.out, "agg/topic", f"{slug}.json"), o)
             self._feed(f"topic/{slug}", o["thai"] or slug, o["recent"], site)
+        paged = {name for name, f in agg.agencies.items() if f.total >= MIN_AGENCY_PAGE}
+        overlaps = agg.overlaps(ids, paged)
         for name, f in agg.agencies.items():
             # a page per agency would be ~10k files across the corpus (Pages caps a deploy at 20k):
             # agencies below the threshold are listed in the index and reached through search only
             if f.total < MIN_AGENCY_PAGE:
                 continue
-            o = f.out(ids) | {"id": ids[name], "name": name, "type": agg.agency_type.get(name)}
+            o = f.out(ids) | {"id": ids[name], "name": name, "type": agg.agency_type.get(name),
+                              "overlap": overlaps.get(name, [])}
             self.sizes[f"agg/agency/{ids[name]}.json"] = dump(os.path.join(self.out, "agg/agency", f"{ids[name]}.json"), o)
             if f.total >= MIN_AGENCY_FEED:
                 self._feed(f"agency/{ids[name]}", name, o["recent"], site)
@@ -158,6 +161,8 @@ class Emitter:
             "topic_agency": [{"t": s, "a": ids[a], "n": n} for s, f in agg.topics.items()
                              for a, n in f.agencies.most_common(6) if a in ids],
             "topic_topic": [{"a": a, "b": b, "n": n} for (a, b), n in agg.topic_pairs.most_common(400)],
+            # subjects where the body issuing most of them changed hands, newest first
+            "handovers": agg.handovers()[:12],
         }
         self.sizes["agg/graph.json"] = dump(os.path.join(self.out, "agg/graph.json"), graph)
         # the same graph per year: node sizes, co-occurrence and agency edges of that year only

@@ -352,6 +352,13 @@ export function Graph() {
           setSel({ id: `t:${slug}`, name, kind: 'topic' })
         }}
       />
+      <Handovers
+        rows={g.handovers ?? []}
+        topics={g.topics}
+        onPick={(slug, name) => {
+          setSel({ id: `t:${slug}`, name, kind: 'topic' })
+        }}
+      />
       <p class="muted" style="margin:0 0 14px;max-width:72ch">
         วงกลมคือหมวด ขนาดตามจำนวนฉบับ สีตามหมวดแม่ · เส้นที่เชื่อมกันคือสองหมวดที่มักถูกจำแนกให้ฉบับเดียวกัน
         ยิ่งหนายิ่งพบบ่อย · ติ๊ก "แสดงหน่วยงาน" เพื่อซ้อนจุดสีเทาของหน่วยงานที่ออกเอกสารในหมวดนั้นมากที่สุด ·
@@ -591,6 +598,71 @@ function AuthoritySpread({
   )
 }
 
+/** Subjects where the body issuing most of them changed, and when.
+ *
+ *  This is the one thing in the archive that no single year can show, and it is a fact about how
+ *  the country is governed: securities moving from the SEC's office to the capital-market board,
+ *  party filings from the election commission to the party registrar. It is deliberately phrased
+ *  as "who files most" rather than "who is in charge", because that is what a count of documents
+ *  can honestly support — a transfer of authority and a change in who does the filing look
+ *  identical from here. The build already refuses the cases where the two are provably the same
+ *  office written two ways.
+ */
+function Handovers({
+  rows,
+  topics,
+  onPick,
+}: {
+  rows: NonNullable<GraphData['handovers']>
+  topics: GraphData['topics']
+  onPick: (slug: string, name: string) => void
+}) {
+  if (rows.length === 0) return null
+  const nameOf = (slug: string) => topics.find((t) => t.slug === slug)?.thai ?? slug
+  return (
+    <details class="fold handovers" data-testid="handovers">
+      <summary>
+        <h2 class="sec">
+          เรื่องที่ผู้ออกหลักเปลี่ยนมือ
+          <span class="muted" style="font-weight:400;font-size:.85rem">
+            {' '}
+            · {rows.length} เรื่อง
+          </span>
+        </h2>
+      </summary>
+      <p class="muted" style="font-size:.85rem;margin:0 0 10px;max-width:72ch">
+        เทียบเฉพาะปีที่จบแล้ว และนับเฉพาะปีที่มีเอกสารมากพอจะบอกอะไรได้ · "เปลี่ยนมือ"
+        ที่นี่หมายถึงหน่วยงานที่ออกเอกสารมากที่สุดเปลี่ยนไป ซึ่งอาจเป็นการโอนอำนาจ
+        หรือเป็นการเปลี่ยนว่าใครเป็นคนยื่นก็ได้ — จำนวนเอกสารแยกสองอย่างนี้ไม่ออก
+      </p>
+      <ul class="handoverlist">
+        {rows.map((r) => (
+          <li key={`${r.topic}:${r.year}`}>
+            <button
+              onClick={() => {
+                onPick(r.topic, nameOf(r.topic))
+              }}
+            >
+              <span class="nm">{nameOf(r.topic)}</span>
+              <span class="flow">
+                <span class="was">{r.was.name}</span>
+                <span class="arrow" aria-hidden="true">
+                  →
+                </span>
+                <span class="now">{r.now.name}</span>
+              </span>
+              <span class="muted">
+                พ.ศ. {beYear(r.since)} → {beYear(r.year)} · {r.now.n.toLocaleString('th-TH')} จาก{' '}
+                {r.now.of.toLocaleString('th-TH')} ฉบับปีนั้น
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 /** "Whose rules am I under?" answered from the counts the facet page already carries.
  *
  *  For a subject: which bodies issue under it, how much each one accounts for, and — the part a
@@ -619,7 +691,10 @@ function Authority({
       : rows.map((r) => ({ ...r, name: tax.data.topics[r.name]?.thai ?? r.name }))
   const sp = spread(named, facet.total)
   const top = shares(named, facet.total).slice(0, 8)
-  if (top.length === 0) return null
+  const overlap = (kind === 'agency' && 'overlap' in facet ? (facet.overlap ?? []) : []).filter(
+    (o) => o.n > 0,
+  )
+  if (top.length === 0 && overlap.length === 0) return null
   return (
     <>
       <h3 class="nodepanel-h">{kind === 'topic' ? 'ใครออกเรื่องนี้' : 'หน่วยงานนี้ออกเรื่องอะไร'}</h3>
@@ -645,6 +720,26 @@ function Authority({
         <p class="muted" style="font-size:.8rem;margin:-2px 0 0">
           แสดง {top.length} จาก {authorities.toLocaleString('th-TH')} หน่วยงานที่เคยออกเรื่องนี้
         </p>
+      )}
+      {kind === 'agency' && overlap.length > 0 && (
+        <>
+          <h3 class="nodepanel-h">ทำงานทับซ้อนกับใคร</h3>
+          <p class="muted" style="font-size:.8rem;margin:-6px 0 8px">
+            หน่วยงานอื่นที่ออกประกาศในเรื่องเดียวกัน — วัดจากพื้นที่ที่ทับกันจริง ไม่ใช่ขนาดของหน่วยงาน
+          </p>
+          <ul class="sharelist">
+            {overlap.slice(0, 5).map((o) => (
+              <li key={o.id}>
+                <a href={onExplore({ agency: o.id })}>
+                  <span class="nm">{o.name}</span>
+                  <span class="muted">
+                    ร่วม {o.n.toLocaleString('th-TH')} · {o.topics.length} เรื่อง
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </>
   )

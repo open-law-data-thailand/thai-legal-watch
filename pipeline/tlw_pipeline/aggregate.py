@@ -10,6 +10,29 @@ from dataclasses import dataclass, field
 
 from .model import Doc
 
+#: Words that sit in front of a body's name without changing which body it is. Upstream records
+#: the same office under more than one form — `ของสำนักงานการบินพลเรือนแห่งประเทศไทย` alongside
+#: `สำนักงานการบินพลเรือนแห่งประเทศไทย`, both in the same year — and without this the largest
+#: "change of issuer" in the archive is an office handing a subject to itself.
+LEAD_NOISE = ("ของ", "พนักงานเจ้าหน้าที่")
+
+
+def same_body(a: str, b: str) -> bool:
+    """Whether two agency strings are plainly the same office written two ways.
+
+    Deliberately narrow: containment after stripping a leading noise word. Anything looser starts
+    merging bodies that really are different — `สำนักงานคณะกรรมการกำกับหลักทรัพย์และตลาดหลักทรัพย์`
+    and `คณะกรรมการกำกับตลาดทุน` share fifteen characters and are not the same authority.
+    """
+    def norm(x: str) -> str:
+        x = "".join(x.split())
+        for w in LEAD_NOISE:
+            if x.startswith(w):
+                x = x[len(w):]
+        return x
+    na, nb = norm(a), norm(b)
+    return bool(na) and bool(nb) and (na in nb or nb in na)
+
 RECENT = 30        # recent docs kept per topic/agency/province page
 TOP_AGENCIES = 50
 
@@ -145,6 +168,100 @@ class Aggregator:
             self.extracted_stage[(x.get("court") or "?", x["stage"])] += 1
 
     # ---- outputs -------------------------------------------------------------------------------
+    def overlaps(self, agency_ids: dict[str, str], only: set[str], per_topic: int = 25,
+                 limit: int = 6) -> dict[str, list[dict]]:
+        """For each agency, the other bodies working the same subjects.
+
+        "Whose rules am I under" has a second half that nobody publishes: when several bodies
+        share a subject, who else is in it. Overlap is measured as min(mine, theirs) summed over
+        the subjects we both issue in — symmetric, and not simply a list of the largest agencies
+        in the country, which is what a plain count would give.
+
+        `only` keeps this to agencies that get a page; the rest are reachable by search and would
+        double the work for nothing.
+        """
+        out: dict[str, list[dict]] = {}
+        for name in only:
+            mine = self.agencies[name].by_topic
+            if not mine:
+                continue
+            shared: Counter = Counter()
+            subjects: dict[str, set[str]] = defaultdict(set)
+            for topic, n_mine in mine.items():
+                for other, n_other in self.topics[topic].agencies.most_common(per_topic):
+                    if other == name or other not in agency_ids:
+                        continue
+                    shared[other] += min(n_mine, n_other)
+                    subjects[other].add(topic)
+            rows = [{"id": agency_ids[o], "name": o, "n": n, "topics": sorted(subjects[o])}
+                    for o, n in shared.most_common(limit)]
+            if rows:
+                out[name] = rows
+        return out
+
+    def handovers(self, min_year_total: int = 20, min_share: float = 0.3) -> list[dict]:
+        """Subjects where the body issuing most of them changed, and when.
+
+        A subject quietly moving from one authority to another is a fact about how the country is
+        governed, and it is invisible in any single year's view. Only changes with something
+        behind them are reported: a year needs `min_year_total` documents before its leader means
+        anything, and the new leader has to hold `min_share` of that year — otherwise a subject
+        with four documents a year appears to change hands constantly.
+
+        Part-finished years are left out entirely. The newest year is always short — the archive
+        stops at whatever was published this week — and a body that simply has not filed yet this
+        year is not a body that has lost a subject.
+
+        And a handover requires both bodies to still be in the field. Without that rule the
+        largest finding in this archive was อากาศยาน "changing hands" from
+        `ของสำนักงานการบินพลเรือนแห่งประเทศ` to `สำนักงานการบินพลเรือนแห่งประเทศไทย` — the same
+        office, under a name that had a stray `ของ` in front of it until upstream cleaned it up.
+        A renamed body stops appearing entirely; one that has genuinely been overtaken is still
+        there, issuing less. Checking that costs one lookup and removes a whole class of
+        non-findings that string comparison would never catch reliably.
+        """
+        whole = {y for y in self.all.by_year
+                 if len({m for m in self.all.by_month if m.startswith(f"{y}-")}) == 12}
+        leaders: dict[str, dict[str, tuple[str, int, int]]] = defaultdict(dict)
+        for year, counts in self.topic_agency_year.items():
+            if year not in whole:
+                continue
+            totals: Counter = Counter()
+            best: dict[str, tuple[str, int]] = {}
+            for (topic, agency), n in counts.items():
+                totals[topic] += n
+                if topic not in best or n > best[topic][1]:
+                    best[topic] = (agency, n)
+            for topic, (agency, n) in best.items():
+                total = totals[topic]
+                if total >= min_year_total and n >= total * min_share:
+                    leaders[topic][year] = (agency, n, total)
+        out: list[dict] = []
+        for topic, per_year in leaders.items():
+            years = sorted(per_year)
+            change = None
+            for a, b in zip(years, years[1:], strict=False):
+                if per_year[a][0] != per_year[b][0]:
+                    change = (a, b)
+            if not change:
+                continue
+            a, b = change
+            was, was_n, was_total = per_year[a]
+            now, now_n, now_total = per_year[b]
+            # still in the field in the year it lost? a rename simply vanishes
+            if same_body(was, now):
+                continue
+            still = self.topic_agency_year.get(b, Counter()).get((topic, was), 0)
+            if still < max(1, was_n * 0.1):
+                continue
+            out.append({
+                "topic": topic, "year": b, "since": a,
+                "was": {"name": was, "n": was_n, "of": was_total},
+                "now": {"name": now, "n": now_n, "of": now_total},
+            })
+        out.sort(key=lambda r: (r["year"], r["now"]["n"]), reverse=True)
+        return out
+
     def agency_ids(self) -> dict[str, str]:
         from .model import agency_id
         return {a: agency_id(a) for a in self.agencies}

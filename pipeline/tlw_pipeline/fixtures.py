@@ -40,7 +40,9 @@ def make_dataset(root: str, years=("2023", "2024"), per_month=40, seed=1) -> Non
                 day = f"{month}-{rnd.randint(1, 28):02d}"
                 if kind == "waste":
                     title, topic, action, gov, dtype = "ข้อบัญญัติ เรื่อง การจัดการมูลฝอย", "pollution_waste", "rulemaking", "local", "ข้อบัญญัติ"
-                    ag, atype, prov = AGENCIES[1]
+                    # two bodies share this subject, one per year — which is what makes the site's
+                    # "who else works this ground" list have anything in it to render
+                    ag, atype, prov = AGENCIES[1] if int(y) % 2 == 0 else AGENCIES[3]
                 elif kind == "bankrupt":
                     title, topic, action, gov, dtype = "ประกาศเจ้าพนักงานพิทักษ์ทรัพย์ เรื่อง คำสั่งพิทักษ์ทรัพย์เด็ดขาด", "bankruptcy", "court_order", "judiciary", "ประกาศ"
                     ag, atype, prov = AGENCIES[2]

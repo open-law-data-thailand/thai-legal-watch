@@ -2166,3 +2166,59 @@ code,
   color: var(--accent-ink);
   font-size: 0.85rem;
 }
+
+/* เรื่องที่ผู้ออกหลักเปลี่ยนมือ — one row per subject, the two bodies side by side so the change
+   itself is the thing you read rather than two numbers you have to compare. */
+.handovers {
+  margin-bottom: 18px;
+}
+.handoverlist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.handoverlist li > button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-left: 3px solid var(--line);
+  padding: 4px 0 6px 11px;
+  cursor: pointer;
+}
+.handoverlist li > button:hover {
+  border-left-color: var(--accent);
+}
+.handoverlist .nm {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.handoverlist .flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+.handoverlist .was {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.handoverlist .arrow {
+  color: var(--accent);
+  font-weight: 700;
+}
+.handoverlist .now {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.handoverlist .muted {
+  font-size: 0.78rem;
+}

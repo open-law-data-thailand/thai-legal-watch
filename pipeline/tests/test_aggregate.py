@@ -281,3 +281,93 @@ def test_cube_months_are_in_order_and_cover_every_shard(tmp_path):
     for m in months:
         assert m["start"] == at
         at += m["n"]
+
+
+# ── who issues most of a subject, and when that changed ─────────────────────────────────────────
+
+def test_same_body_sees_through_a_stray_prefix():
+    from tlw_pipeline.aggregate import same_body
+    # both forms appear in the same year upstream; without this the biggest "handover" in the
+    # archive is an office handing a subject to itself
+    assert same_body("ของสำนักงานการบินพลเรือนแห่งประเทศไทย", "สำนักงานการบินพลเรือนแห่งประเทศไทย")
+    assert same_body("สำนักงานการบินพลเรือน", "สำนักงานการบินพลเรือนแห่งประเทศไทย")
+
+
+def test_same_body_does_not_merge_authorities_that_merely_look_alike():
+    from tlw_pipeline.aggregate import same_body
+    assert not same_body("สำนักงานคณะกรรมการกำกับหลักทรัพย์และตลาดหลักทรัพย์", "คณะกรรมการกำกับตลาดทุน")
+    assert not same_body("นายทะเบียนสมาคม", "นายทะเบียนมูลนิธิ")
+    assert not same_body("กรมทรัพยากรธรณี", "กรมป่าไม้")
+    assert not same_body("อธิบดีกรมสรรพากร", "กรมสรรพสามิต")
+
+
+def _from_rows(docs):
+    """An Aggregator fed a list of (year, month, topic, agency) tuples."""
+    from tlw_pipeline.aggregate import Aggregator
+    from tlw_pipeline.model import Doc
+    a = Aggregator({"topics": {"t": {"thai": "ที", "parent": None}, "u": {"thai": "ยู", "parent": None}}})
+    for i, (year, month, topic, agency) in enumerate(docs):
+        a.add(Doc(id=f"{year}-{i:06d}", year=year, month=month, title="x", date=f"{month}-01",
+                  volume=1, part="1 ง", part_class="ง", page=1, doc_type="ประกาศ", agency=agency,
+                  agency_type=None, province=None, topic=topic, action=None, govlevel=None,
+                  topic_c=True, action_c=False, govlevel_c=False))
+    return a
+
+
+def _full_year(year, topic, agency, n):
+    """n documents spread over all twelve months, so the year counts as complete."""
+    return [(year, f"{year}-{m:02d}", topic, agency) for m in range(1, 13) for _ in range(n)]
+
+
+def test_handover_is_reported_when_the_leading_issuer_changes():
+    a = _from_rows(_full_year("2023", "t", "ก", 3) + _full_year("2024", "t", "ข", 3)
+             + _full_year("2024", "t", "ก", 1))
+    h = a.handovers()
+    assert len(h) == 1
+    assert h[0]["topic"] == "t"
+    assert h[0]["was"]["name"] == "ก" and h[0]["now"]["name"] == "ข"
+    assert h[0]["since"] == "2023" and h[0]["year"] == "2024"
+
+
+def test_a_part_finished_year_is_not_a_handover():
+    # the newest year is always short; a body that has not filed yet has not lost anything
+    a = _from_rows(_full_year("2023", "t", "ก", 3) + [("2024", "2024-01", "t", "ข")] * 40)
+    assert a.handovers() == []
+
+
+def test_a_renamed_body_is_not_a_handover():
+    # the old name stops appearing entirely; a body genuinely overtaken is still there
+    a = _from_rows(_full_year("2023", "t", "ก", 3) + _full_year("2024", "t", "ข", 3))
+    assert a.handovers() == []
+
+
+def test_one_office_does_not_hand_a_subject_to_itself():
+    # both forms are in the archive in the same year — see LEAD_NOISE
+    a = _from_rows(_full_year("2023", "t", "ของสำนักงานการบิน", 3)
+             + _full_year("2024", "t", "สำนักงานการบิน", 3)
+             + _full_year("2024", "t", "ของสำนักงานการบิน", 1))
+    assert a.handovers() == []
+
+
+def test_a_thin_year_is_not_evidence_of_anything():
+    a = _from_rows(_full_year("2023", "t", "ก", 1) + _full_year("2024", "t", "ข", 1))
+    assert a.handovers(min_year_total=100) == []
+
+
+def test_overlap_finds_bodies_sharing_a_subject_not_merely_large_ones():
+    a = _from_rows([("2024", "2024-01", "t", "ก")] * 10 + [("2024", "2024-01", "t", "ข")] * 4
+             + [("2024", "2024-01", "u", "ค")] * 99)
+    ids = a.agency_ids()
+    ov = a.overlaps(ids, {"ก", "ข", "ค"})
+    names = [o["name"] for o in ov["ก"]]
+    assert names == ["ข"], "ค is larger but shares no subject"
+    # the measure is the shared ground, not either side's size
+    assert ov["ก"][0]["n"] == 4
+    assert ov["ก"][0]["topics"] == ["t"]
+
+
+def test_overlap_is_symmetric_and_skips_agencies_without_a_page():
+    a = _from_rows([("2024", "2024-01", "t", "ก")] * 10 + [("2024", "2024-01", "t", "ข")] * 4)
+    ids = a.agency_ids()
+    assert a.overlaps(ids, {"ก", "ข"})["ข"][0]["n"] == 4
+    assert "ก" not in a.overlaps(ids, {"ข"})

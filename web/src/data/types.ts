@@ -129,7 +129,10 @@ export interface TopicPage extends Facet {
 export interface AgencyPage extends Facet {
   id: string
   name: string
+  /** the agency page keeps this; the *index* dropped it, because nothing read it there */
   type: string | null
+  /** other bodies issuing under the same subjects, largest shared ground first */
+  overlap?: { id: string; name: string; n: number; topics: string[] }[]
 }
 export interface ProvincePage extends Facet {
   name: string
@@ -202,6 +205,15 @@ export interface Graph {
   agencies: { id: string; name: string; n: number }[]
   topic_agency: { t: string; a: string; n: number }[]
   topic_topic: { a: string; b: string; n: number }[]
+  /** subjects where the body issuing most of them changed, newest first. Complete years only,
+   *  and only where the previous leader is still issuing — a renamed body simply disappears. */
+  handovers?: {
+    topic: string
+    year: string
+    since: string
+    was: { name: string; n: number; of: number }
+    now: { name: string; n: number; of: number }
+  }[]
 }
 export interface Bankruptcy {
   by_court_stage: { court: string; stage: string; n: number }[]
