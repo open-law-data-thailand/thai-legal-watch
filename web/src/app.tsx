@@ -12,6 +12,7 @@ import { Latest } from './routes/Latest'
 import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
 import { onJump } from './lib/jump'
+import { focusSearch } from './lib/searchkey'
 import { Boundary } from './ui/Boundary'
 
 // "วันนี้" is gone: it was the same destination as the wordmark beside it, and a nav that
@@ -33,6 +34,23 @@ export function App({ client }: { client?: DataClient }) {
   // wraps onto its own row on a phone. Both offsets used to be numbers in the stylesheet, and
   // both were wrong the moment the header's contents changed: taking the search box out left a
   // date heading sitting thirty pixels below where the header now ends.
+  // "/" focuses the page's search box. It is handled here, not in the box, because the box now
+  // lives on the home page behind that page's data fetch — a shortcut that exists only after a
+  // request finishes is a shortcut that silently does nothing on a slow connection.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/') return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      // preventDefault even with no box on this page: the reader meant to search, and the
+      // browser's own quick-find opening instead would be worse than nothing happening
+      e.preventDefault()
+      focusSearch()
+    }
+    addEventListener('keydown', onKey)
+    return () => {
+      removeEventListener('keydown', onKey)
+    }
+  }, [])
   useEffect(() => {
     const el = bar.current
     if (!el || typeof ResizeObserver === 'undefined') return

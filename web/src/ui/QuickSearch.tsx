@@ -1,5 +1,6 @@
 /** One box that jumps anywhere: topics, provinces, agencies, a document id. "/" focuses it. */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { claimPendingFocus } from '../lib/searchkey'
 import { docIdOk } from '../data/client'
 import { parseCitation } from '../lib/coords'
 import { partLabel } from '../lib/thai'
@@ -107,25 +108,11 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
   const wake = () => {
     setWanted(true)
   }
+  // "/" is handled by the application, which is mounted before this is. If it was pressed while
+  // this page was still loading, take it now. Focusing fires onFocus, which starts the index
+  // loading, so nothing else has to be arranged here.
   useEffect(() => {
-    // "/" used to belong to the header box, which was on every page. With the header box gone
-    // the hero box is the only one mounted anywhere, so it takes the key rather than the
-    // shortcut disappearing along with the header.
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.key === '/' &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement)
-      ) {
-        e.preventDefault()
-        setWanted(true)
-        input.current?.focus()
-      }
-    }
-    addEventListener('keydown', onKey)
-    return () => {
-      removeEventListener('keydown', onKey)
-    }
+    claimPendingFocus(input.current)
   }, [])
   const go = (h: Hit) => {
     if (h.citation) {

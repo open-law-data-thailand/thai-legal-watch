@@ -224,6 +224,33 @@ test.describe('quick search on the home page', () => {
     await sane(page)
   })
 
+  test('"/" is honoured even when pressed before the box has loaded', async ({ page }) => {
+    // The regression this guards: the search box moved out of the header and onto the home page,
+    // where it renders only after that page's data arrives. The listener lived inside the box, so
+    // an early "/" reached nothing and did nothing — silently, and only when slow, which is how
+    // it passed here and failed on the build machine.
+    let release: () => void = () => undefined
+    const held = new Promise<void>((r) => {
+      release = r
+    })
+    await page.route('**/agg/home.json', async (route) => {
+      await held
+      await route.continue()
+    })
+    await page.goto('/#/')
+
+    // the box genuinely is not on the page yet
+    await expect(page.locator('.hero-search input')).toHaveCount(0)
+    await page.keyboard.press('/')
+    release()
+
+    // and the press is taken by the box when it arrives
+    const box = page.locator('.hero-search').getByRole('combobox', { name: 'ค้นหาด่วน' })
+    await expect(box).toBeFocused()
+    await box.fill('ขยะ')
+    await expect(page.locator('#qs-list-hero li').first()).toBeVisible()
+  })
+
   test('a gazette citation typed into the box opens that document', async ({ page, request }) => {
     const months = await data.months(request)
     const docs = await data.docs(request, months[months.length - 1] as string)
