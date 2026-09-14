@@ -64,6 +64,7 @@ class OpenLawDataSoc:
         self.root = root
         self.meta_dir = os.path.join(root, "meta")
         self.tax_dir = os.path.join(root, "taxonomy")
+        self.textindex_dir = os.path.join(root, "textindex")
 
     def years(self) -> list[str]:
         have = lambda d: {n for n in os.listdir(d) if n.isdigit()} if os.path.isdir(d) else set()  # noqa: E731
@@ -89,7 +90,28 @@ class OpenLawDataSoc:
                     out[m["pdf_file"][:-4]] = m
         return out
 
+    def _textindex(self, year: str) -> dict[str, tuple[int, int]]:
+        """Where each of this year's records sits in its month file, if the publisher says.
+
+        Optional by design: a year with no index just produces documents without a position, and
+        the site falls back to searching the file. Read once per year — the file is a few
+        megabytes and holds every month at once."""
+        p = os.path.join(self.textindex_dir, year, "index.ndjson")
+        out: dict[str, tuple[int, int]] = {}
+        if not os.path.exists(p):
+            return out
+        with open(p, encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                did, off, ln = r.get("doc_id"), r.get("offset"), r.get("length")
+                if isinstance(did, str) and isinstance(off, int) and isinstance(ln, int) and ln > 0:
+                    out[did] = (off, ln)
+        return out
+
     def iter_docs(self, year: str) -> Iterator[Doc]:
+        textat = self._textindex(year)
         for month in self._months(year):
             meta = self._meta(year, month)
             with open(os.path.join(self.tax_dir, year, f"{month}.jsonl"), encoding="utf-8") as f:
@@ -120,6 +142,7 @@ class OpenLawDataSoc:
                         # id itself, so the site can still build the link; the years in between
                         # have neither, and that gap is what this field will close.
                         source_url=m.get("source_url") or None,
+                        text_at=textat.get(did),
                     )
 
 

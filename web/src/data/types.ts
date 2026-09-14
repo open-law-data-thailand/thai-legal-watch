@@ -30,6 +30,10 @@ export interface SlimDoc {
    *  all the URL varies by; a string is a URL that did not match that shape. Absent for the
    *  years upstream has not backfilled yet — the site falls back to deriving it from `id`. */
   u?: number | string
+  /** [offset, length] of this document's record inside its month file in the text layer, from
+   *  the publisher's index. Turns reading the full text into one range request instead of
+   *  seventeen. Absent where the index does not reach; the reader just waits longer. */
+  tx?: [number, number]
   x?: Record<string, string>
 }
 

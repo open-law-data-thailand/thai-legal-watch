@@ -75,6 +75,10 @@ class Doc:
     extracted: dict = field(default_factory=dict)
     source: str = "openlawdata-soc"
     source_url: str | None = None   # the publisher's own link to the PDF, when it gives one
+    #: (offset, length) of this record inside its month file in the text layer, from the
+    #: publisher's index. Lets the site read the text in one request instead of searching a file
+    #: it cannot download — the search costs seventeen requests and about seven seconds.
+    text_at: tuple[int, int] | None = None
 
     @property
     def agency_ref(self) -> str | None:
@@ -89,6 +93,8 @@ class Doc:
         ref = source_ref(self.source_url)
         if ref is not None:
             d["u"] = ref
+        if self.text_at:
+            d["tx"] = list(self.text_at)
         if self.extracted:
             d["x"] = self.extracted
         return d

@@ -64,7 +64,18 @@ interface Kept {
   doc: DocText | null
 }
 
-export function FullText({ base, id, month }: { base: string; id: string; month: string }) {
+export function FullText({
+  base,
+  id,
+  month,
+  at,
+}: {
+  base: string
+  id: string
+  month: string
+  /** [offset, length] from the build, when the publisher's index reached this document */
+  at?: [number, number]
+}) {
   const [st, setSt] = useState<State>({ s: 'idle' })
   const [all, setAll] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -88,7 +99,7 @@ export function FullText({ base, id, month }: { base: string; id: string; month:
   const load = () => {
     setSt({ s: 'loading' })
     const t0 = performance.now()
-    fetchDocText({ base }, id, month).then(
+    fetchDocText({ base }, id, month, at && { offset: at[0], length: at[1] }).then(
       ({ doc }) => {
         setSt(doc ? { s: 'ok', doc, ms: Math.round(performance.now() - t0) } : { s: 'none' })
         void keep(cacheKey(id), { doc } satisfies Kept)

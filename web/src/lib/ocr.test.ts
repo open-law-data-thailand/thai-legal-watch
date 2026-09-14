@@ -273,3 +273,69 @@ describe('how much of a document to show first', () => {
     expect(hidden).toBeGreaterThan(0)
   })
 })
+
+describe('reading the text from the published index', () => {
+  const src = (f: typeof fetch) => ({ base: 'https://h/ocr', fetchImpl: f })
+
+  /** Byte offsets of every line in the fake file, the way the publisher's index gives them. */
+  const offsets = (lines: string[]) => {
+    const enc = new TextEncoder()
+    let at = 0
+    return lines.map((l) => {
+      const length = enc.encode(l).length
+      const offset = at
+      at += length + 1 // the newline
+      return { offset, length }
+    })
+  }
+
+  it('reads one record in a single request, with no size lookup at all', async () => {
+    forgetSizes()
+    const recs = many(200)
+    const { f, ranges, lines } = server(recs)
+    const want = 137
+    const at = offsets(lines)[want]
+    if (!at) throw new Error('no offset for that line')
+
+    const r = await fetchDocText(src(f), recs[want]?.doc_id ?? '', '2026-09', at)
+    expect(r.doc?.id).toBe(recs[want]?.doc_id)
+    expect(r.requests).toBe(1)
+    expect(ranges).toHaveLength(1)
+    // and specifically not the one-byte probe the search begins with
+    expect(ranges[0]).toEqual([at.offset, at.offset + at.length - 1])
+  })
+
+  it('searches instead when the offset lands on a different record', async () => {
+    // an index that has drifted from the file it describes. Being slow is recoverable; showing
+    // somebody a different document than the one they opened is not.
+    forgetSizes()
+    const recs = many(200)
+    const { f, ranges, lines } = server(recs)
+    const wrong = offsets(lines)[40]
+    if (!wrong) throw new Error('no offset')
+
+    const r = await fetchDocText(src(f), recs[137]?.doc_id ?? '', '2026-09', wrong)
+    expect(r.doc?.id).toBe(recs[137]?.doc_id)
+    expect(r.requests).toBeGreaterThan(1)
+    expect(ranges.length).toBeGreaterThan(1)
+  })
+
+  it('ignores a position that could not be one', async () => {
+    forgetSizes()
+    const recs = many(60)
+    const { f } = server(recs)
+    for (const at of [
+      { offset: 0, length: 0 },
+      { offset: -1, length: 100 },
+    ]) {
+      const r = await fetchDocText(src(f), recs[10]?.doc_id ?? '', '2026-09', at)
+      expect(r.doc?.id).toBe(recs[10]?.doc_id)
+    }
+  })
+
+  it('still reports a month the layer does not have', async () => {
+    forgetSizes()
+    const f = vi.fn(() => Promise.resolve(new Response('', { status: 404 }))) as unknown as typeof fetch
+    await expect(fetchDocText(src(f), 'x', '1999-01', { offset: 10, length: 20 })).rejects.toThrow(TextError)
+  })
+})

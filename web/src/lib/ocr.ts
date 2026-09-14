@@ -267,20 +267,50 @@ export interface TextResult {
   requests: number
 }
 
+/** Where a record sits inside its month file, as the published index says.
+ *
+ *  With it the text is one range request. Without it the file has to be searched, which is
+ *  seventeen requests and about seven seconds — the slowest thing on the site. */
+export interface TextAt {
+  offset: number
+  length: number
+}
+
 /**
  * The text of one document, or null when the layer does not have it.
  *
  * `month` is the file the document is published in (`2026-09`), not the month of its publication
  * date — 160 of 732,143 documents disagree about that, and the file layout decides which file
  * holds a record.
+ *
+ * `at` is the position the build read out of the publisher's index. It is checked, not trusted:
+ * a byte range that lands on a different record means the index and the file have drifted apart,
+ * and showing somebody else's document would be far worse than being slow, so that falls through
+ * to the search.
  */
-export async function fetchDocText(src: TextSource, id: string, month: string): Promise<TextResult> {
+export async function fetchDocText(
+  src: TextSource,
+  id: string,
+  month: string,
+  at?: TextAt,
+): Promise<TextResult> {
   const f = src.fetchImpl ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init))
   const url = textUrl(src.base, month)
+  // a request spent here still counts, so a drifted index shows up as slower rather than free
+  let spent = 0
+  if (at && at.length > 0 && at.offset >= 0) {
+    const end = at.offset + at.length - 1
+    const r = await f(url, { headers: { Range: `bytes=${at.offset}-${end}` } })
+    spent = 1
+    if (r.status === 404) throw new TextError('the text layer has no file for this month', 'missing')
+    if (!r.ok && r.status !== 206) throw new TextError(`${r.status} for the text layer`, 'network')
+    const hit = (await r.text()).split('\n', 1)[0] ?? ''
+    if (idOf(hit) === id) return { doc: parseRecord(hit), requests: spent }
+  }
   const size = await sizeOf(f, url)
   if (!size) throw new TextError('the text layer did not report a size (no range support)', 'network')
   const { line, requests } = await findRecord(f, url, size, id)
-  return { doc: line ? parseRecord(line) : null, requests }
+  return { doc: line ? parseRecord(line) : null, requests: requests + spent }
 }
 
 /** Tests and long sessions should not inherit a stale size table. */

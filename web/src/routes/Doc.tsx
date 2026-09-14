@@ -398,7 +398,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
         </section>
       </div>
       {readable && st.data.meta.text?.base && (
-        <FullText base={st.data.meta.text.base} id={d.id} month={st.data.month} />
+        <FullText base={st.data.meta.text.base} id={d.id} month={st.data.month} at={d.tx} />
       )}
       <Next d={d} tax={tax} agency={agency} facet={facet} provinces={provinces} />
     </article>

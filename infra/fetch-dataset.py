@@ -3,8 +3,9 @@
 
     infra/fetch-dataset.py --out ~/tlw-data [--years 2005-2026]
 
-The dataset is public, so no token is needed. Only `meta/` and
-`taxonomy/openlawdata-taxonomy/` are fetched — not `ocr/` (hundreds of GB) and not `zip/`.
+The dataset is public, so no token is needed. Only `meta/`,
+`taxonomy/openlawdata-taxonomy/` and the small `index.ndjson` of each OCR year are fetched —
+not the OCR text itself (about ten gigabytes) and not `zip/`.
 
 Years are *discovered*, not assumed: whatever the taxonomy layer has published, intersected with
 --years, is what gets built. The day 2002–2004 go up, the next run picks them up on its own.
@@ -21,6 +22,10 @@ import urllib.request
 
 REPO = "open-law-data-thailand/soc-ratchakitcha"
 TAXONOMY = "taxonomy/openlawdata-taxonomy"
+#: The publisher's map of where each record sits inside its month file. Sixty-odd megabytes for
+#: the whole archive, against ten gigabytes for the text itself — small enough to read at build
+#: time so the site can fetch a document's text in one request instead of searching for it.
+TEXTINDEX = "ocr/openlawdata-ocr"
 API = f"https://huggingface.co/api/datasets/{REPO}/tree/main/"
 
 
@@ -118,7 +123,12 @@ def main(argv: list[str] | None = None) -> int:
         print(" ".join(years))
         return 0
 
-    patterns = [f"meta/{y}/*" for y in years] + [f"{TAXONOMY}/{y}/*" for y in years] + [f"{TAXONOMY}/taxonomy.json"]
+    patterns = (
+        [f"meta/{y}/*" for y in years]
+        + [f"{TAXONOMY}/{y}/*" for y in years]
+        + [f"{TAXONOMY}/taxonomy.json"]
+        + [f"{TEXTINDEX}/{y}/index.ndjson" for y in years]
+    )
     snapshot_download(
         repo_id=REPO, repo_type="dataset", local_dir=a.out, allow_patterns=patterns,
         token=token or False, max_workers=8,
@@ -128,7 +138,12 @@ def main(argv: list[str] | None = None) -> int:
     # taxonomy one level deeper because `taxonomy/` is shared by several publishers
     root = a.root or os.path.join(a.out, "root")
     os.makedirs(root, exist_ok=True)
-    for name, target in (("meta", os.path.join(a.out, "meta")), ("taxonomy", os.path.join(a.out, TAXONOMY))):
+    for name, target in (
+        ("meta", os.path.join(a.out, "meta")),
+        ("taxonomy", os.path.join(a.out, TAXONOMY)),
+        # optional: a year without an index simply has no offsets, and the site searches as before
+        ("textindex", os.path.join(a.out, TEXTINDEX)),
+    ):
         link = os.path.join(root, name)
         if os.path.islink(link) or os.path.exists(link):
             os.remove(link) if os.path.islink(link) else shutil.rmtree(link)
