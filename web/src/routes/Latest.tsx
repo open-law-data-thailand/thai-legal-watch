@@ -1,6 +1,6 @@
 /** The last 90 days, raw and in order, for somebody who opens this every morning to see what came
  *  out. No facets, no charts: a dated list with a filter that narrows as you type. */
-import { useEffect, useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { useHref, useLoad } from '../data/context'
 import type { SlimDoc, Taxonomy } from '../data/types'
 import { highlight } from '../lib/highlight'
@@ -70,6 +70,29 @@ export function Latest({ q }: { q: URLSearchParams }) {
   }, [text, href])
 
   const needle = text.replace(/\s+/g, '')
+  // The date headings stick below the filter bar, so they need its height. It wraps to two rows
+  // on a narrow screen, which is why this is measured rather than written into the stylesheet.
+  //
+  // `st.state` is a dependency and has to stay one: on the first render this component returns a
+  // loading placeholder, so the bar is not in the document yet and the ref is null. Without it
+  // the effect looks once at nothing and never runs again, every date heading then sticking at
+  // the same offset as the filter bar and scrolling underneath it.
+  const barRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = barRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const set = () => {
+      document.documentElement.style.setProperty('--latestbar-h', `${el.offsetHeight}px`)
+    }
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      document.documentElement.style.removeProperty('--latestbar-h')
+    }
+  }, [st.state])
+
   // a fresh [] every render would invalidate the filter memo on every keystroke and re-scan
   // fourteen thousand records for nothing
   const all = useMemo(() => (st.state === 'ok' ? st.data.latest.docs : EMPTY), [st])
@@ -99,7 +122,7 @@ export function Latest({ q }: { q: URLSearchParams }) {
         ค้นในชื่อเรื่อง ผู้ออก จังหวัด ประเภทเอกสาร และรหัส
       </p>
 
-      <div class="latestbar">
+      <div class="latestbar" ref={barRef}>
         <label class="check" style="flex:1">
           <span class="sr-only">กรองรายการล่าสุด</span>
           <input

@@ -1,5 +1,5 @@
-/** "ท้องถิ่นฉัน" — find your province on the map, then read what was published about it. */
-import { useMemo, useState } from 'preact/hooks'
+/** "ท้องถิ่น" — find your province on the map, then read what was published about it. */
+import { useMemo, useRef, useState } from 'preact/hooks'
 import { useLoad } from '../data/context'
 import type { ProvinceIndexItem } from '../data/types'
 import { PROVINCES, REGIONS, type Region } from '../lib/provinces'
@@ -10,6 +10,9 @@ import { Crumbs } from '../ui/Crumbs'
 import { ErrorBox, Kicker, Loading, Metric } from '../ui/bits'
 
 const BANDS = 5
+
+/** The region a province belongs to, for the hover card. Unknown names simply say nothing. */
+const regionOf = (name: string): Region | undefined => PROVINCES.find((p) => p.name === name)?.region
 
 export function Provinces() {
   const href = useHref()
@@ -30,8 +33,8 @@ export function Provinces() {
   const match = (name: string) => !needle || name.includes(needle)
   return (
     <>
-      <Crumbs items={[{ label: 'สำรวจ', to: href.explore({ scope: 'all' }) }, { label: 'ท้องถิ่นฉัน' }]} />
-      <Kicker>ท้องถิ่นฉัน</Kicker>
+      <Crumbs items={[{ label: 'สำรวจ', to: href.explore({ scope: 'all' }) }, { label: 'ท้องถิ่น' }]} />
+      <Kicker>ท้องถิ่น</Kicker>
       <h1 style="margin:6px 0 10px">จังหวัดของคุณมีอะไรประกาศบ้าง</h1>
       <p style="max-width:70ch">
         ราชกิจจานุเบกษาไม่ได้มีแต่เรื่องส่วนกลาง ผังเมือง เขตควบคุมอาคาร ป่าสงวน เขตเลือกตั้ง
@@ -123,14 +126,48 @@ function Choropleth({
       ),
     [byName],
   )
+  // Rank and share cost nothing — the whole list is already here — and they are what turns
+  // "1,240 ฉบับ" into something a reader can place: 1,240 out of what, and where in the order.
+  const stats = useMemo(() => {
+    const sorted = [...byName.values()].sort((a, b) => b.n - a.n)
+    const total = sorted.reduce((s, p) => s + p.n, 0)
+    return {
+      total,
+      rank: new Map(sorted.map((p, i) => [p.name, i + 1])),
+      of: sorted.length,
+    }
+  }, [byName])
   const shown = hover ? byName.get(hover) : null
+  // The card follows the pointer. Keyboard focus does not move a pointer, so it keeps using the
+  // status line below the map, which a screen reader announces and this card deliberately does not.
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
+  const wrap = useRef<HTMLDivElement>(null)
   return (
-    <div class="provmap" data-testid="province-map">
+    <div class="provmap" data-testid="province-map" ref={wrap}>
+      {shown && pointer && (
+        <div class="maptip" aria-hidden="true" style={`left:${pointer.x}px;top:${pointer.y}px`}>
+          <b>{shown.name}</b>
+          <span class="n">{shown.n.toLocaleString('th-TH')} ฉบับ</span>
+          <span class="muted">
+            อันดับ {stats.rank.get(shown.name)} จาก {stats.of} · {percent(shown.n, stats.total, 1)}{' '}
+            ของฉบับที่ระบุจังหวัดได้
+            {regionOf(shown.name) && <> · {regionOf(shown.name)}</>}
+          </span>
+          <span class="go">คลิกเพื่อเปิดหน้าจังหวัด</span>
+        </div>
+      )}
       <svg
         viewBox={`0 0 ${map.width} ${map.height}`}
         width="100%"
         role="group"
         aria-label="แผนที่ประเทศไทยรายจังหวัด สีเข้มขึ้นตามจำนวนเอกสาร"
+        onMouseMove={(e) => {
+          const box = wrap.current?.getBoundingClientRect()
+          if (box) setPointer({ x: e.clientX - box.left + 14, y: e.clientY - box.top + 16 })
+        }}
+        onMouseLeave={() => {
+          setPointer(null)
+        }}
       >
         {Object.entries(map.provinces).map(([name, d]) => {
           const item = byName.get(name)

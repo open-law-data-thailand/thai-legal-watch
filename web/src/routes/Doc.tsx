@@ -54,8 +54,7 @@ export interface DocLinks {
  *  honoured only when it really is a gazette document link — another host, or a `javascript:`
  *  scheme, is discarded rather than written into an href. */
 export function sourceHref(u: number | string | null | undefined): string | null {
-  if (typeof u === 'number')
-    return Number.isSafeInteger(u) && u > 0 ? `${GAZETTE}/documents/${u}.pdf` : null
+  if (typeof u === 'number') return Number.isSafeInteger(u) && u > 0 ? `${GAZETTE}/documents/${u}.pdf` : null
   if (typeof u !== 'string' || !u.trim()) return null
   try {
     const url = new URL(u.trim())
@@ -75,15 +74,9 @@ export function sourceHref(u: number | string | null | undefined): string | null
  *  per-year sequence number, and the sole copy sits inside a monthly archive of several hundred
  *  megabytes, far too big to hand someone who wants one page. Those get sent to the gazette's own
  *  site to look the citation up, with the dataset's file *page* (not the download) as a fallback. */
-export function docLinks(
-  id: string,
-  month: string | undefined,
-  u?: number | string | null,
-): DocLinks {
+export function docLinks(id: string, month: string | undefined, u?: number | string | null): DocLinks {
   const modern = /^\d{4}-\d{2}-\d{2}-(\d{8})$/.exec(id)
-  const href =
-    sourceHref(u) ??
-    (modern ? `${GAZETTE}/documents/${modern[1].replace(/^0+/, '')}.pdf` : null)
+  const href = sourceHref(u) ?? (modern ? `${GAZETTE}/documents/${modern[1].replace(/^0+/, '')}.pdf` : null)
   if (href) return { primary: { href, label: 'เปิด PDF ต้นฉบับ' }, fromSource: true }
   const m = month ?? `${id.slice(0, 4)}-01`
   return {

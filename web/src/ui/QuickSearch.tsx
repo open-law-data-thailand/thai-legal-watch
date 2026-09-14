@@ -108,9 +108,9 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
     setWanted(true)
   }
   useEffect(() => {
-    // the header box is on every page, so it owns "/" — otherwise two instances race on the
-    // home page and the shortcut lands wherever the last one mounted
-    if (big) return
+    // "/" used to belong to the header box, which was on every page. With the header box gone
+    // the hero box is the only one mounted anywhere, so it takes the key rather than the
+    // shortcut disappearing along with the header.
     const onKey = (e: KeyboardEvent) => {
       if (
         e.key === '/' &&
@@ -126,7 +126,7 @@ export function QuickSearch({ big = false }: { big?: boolean } = {}) {
     return () => {
       removeEventListener('keydown', onKey)
     }
-  }, [big])
+  }, [])
   const go = (h: Hit) => {
     if (h.citation) {
       setNote('กำลังเปิดฉบับตามเลขอ้างอิง…')

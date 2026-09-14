@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { useHref, useLoad } from '../data/context'
 import type { Taxonomy } from '../data/types'
-import { crossFilter } from '../lib/cubequery'
+import { crossFilter, descendantCodes } from '../lib/cubequery'
 import { completeYears, movers, yearOverYear, type Move } from '../lib/trends'
 import { reducedMotion } from '../lib/motion'
 import { beYear, percent, thaiDate } from '../lib/thai'
@@ -19,6 +19,50 @@ import { Bars, ErrorBox, Kicker, Loading, Metric, actionName, govName, topicName
 import { STAGE } from './Doc'
 
 const RULE_ACTIONS = ['rulemaking', 'amendment', 'repeal']
+
+/** What the reader has narrowed to, beyond the year. One value per dimension: this page is for
+ *  reading a shape, and a multi-select per axis turns every number on it into a question about
+ *  which combination produced it. สำรวจ is where a complicated query belongs. */
+export interface Picks {
+  topic?: string
+  action?: string
+  gov?: string
+  prov?: string
+  dtype?: string
+  agency?: string
+}
+
+/** Which URL parameter สำรวจ knows each pick by, so "ไปสำรวจ" arrives with the same filter. */
+const AS_PARAM: Record<keyof Picks, string> = {
+  topic: 'topic',
+  action: 'action',
+  gov: 'govlevel',
+  prov: 'province',
+  dtype: 'dtype',
+  agency: 'agency',
+}
+
+/** Which sections a reader has folded away. localStorage throws outright where site data is
+ *  blocked, so every access is guarded and a failure just means everything opens. */
+const FOLD_KEY = 'tlw.stats.folded'
+function foldedSet(): Set<string> {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(FOLD_KEY) ?? '[]')
+    return new Set(Array.isArray(raw) ? (raw as string[]) : [])
+  } catch {
+    return new Set()
+  }
+}
+function remember(id: string, open: boolean) {
+  try {
+    const s = foldedSet()
+    if (open) s.delete(id)
+    else s.add(id)
+    localStorage.setItem(FOLD_KEY, JSON.stringify([...s]))
+  } catch {
+    // a reader who blocks site data still gets a page that folds, just not one that remembers
+  }
+}
 const TH_MONTH_SHORT = [
   'ม.ค.',
   'ก.พ.',
@@ -55,6 +99,10 @@ export function Dashboard() {
     return { years, tax, bk, trends, meta, cube, agencyName: new Map(agencies.map((a) => [a.id, a.name])) }
   }, [])
   const [year, setYear] = useState<string | null>(null)
+  const [pick, setPick] = useState<Picks>({})
+  const toggle = (axis: keyof Picks, k: string) => {
+    setPick((p) => ({ ...p, [axis]: p[axis] === k ? undefined : k }))
+  }
   const yearsRef = useRef<HTMLDivElement>(null)
 
   const ok = st.state === 'ok'
@@ -66,13 +114,34 @@ export function Dashboard() {
   const prevYear = year ? (allYears[allYears.indexOf(year) - 1] ?? null) : null
 
   const byMonth = ok ? st.data.years.by_month : null
-  const now = useMemo(
-    () => (cube && byMonth ? crossFilter(cube, tax, range(byMonth, year), 0) : null),
-    [cube, tax, year, byMonth],
+  // Everything the reader has narrowed to except the year, which is a shard filter and so is
+  // added per query. A topic carries its descendants, the way it does everywhere else here.
+  const narrowed = useMemo(
+    () =>
+      cube
+        ? {
+            ...(pick.topic ? { topics: descendantCodes(cube, tax, pick.topic) } : {}),
+            action: pick.action,
+            gov: pick.gov,
+            prov: pick.prov,
+            dtype: pick.dtype,
+            agency: pick.agency,
+          }
+        : {},
+    [cube, tax, pick],
   )
+  const now = useMemo(
+    () => (cube && byMonth ? crossFilter(cube, tax, { ...range(byMonth, year), ...narrowed }, 0) : null),
+    [cube, tax, year, byMonth, narrowed],
+  )
+  // The comparison carries the same narrowing: with a topic picked, "เทียบปีก่อน" has to mean
+  // that topic last year, not the whole year last year.
   const before = useMemo(
-    () => (cube && byMonth && prevYear ? crossFilter(cube, tax, range(byMonth, prevYear), 0) : null),
-    [cube, tax, prevYear, byMonth],
+    () =>
+      cube && byMonth && prevYear
+        ? crossFilter(cube, tax, { ...range(byMonth, prevYear), ...narrowed }, 0)
+        : null,
+    [cube, tax, prevYear, byMonth, narrowed],
   )
 
   // The chart is created once and then only re-styled. Re-running echarts.init on the same
@@ -193,8 +262,28 @@ export function Dashboard() {
   const baseline = (all: string): string | undefined =>
     year ? (prevYear ? undefined : `ปี ${beYear(year)} เป็นปีแรกของคลัง ไม่มีปีก่อนหน้าให้เทียบ`) : all
 
-  const link = (patch: Record<string, string>) =>
-    href.explore({ ...(year ? { scope: 'year', year } : { scope: 'all' }), ...patch })
+  // สำรวจ gets the whole state, not just the one thing clicked: the point of narrowing here is
+  // to arrive there with the same population and finally see the documents in it.
+  const link = (patch: Record<string, string> = {}) => {
+    const q: Record<string, string> = year ? { scope: 'year', year } : { scope: 'all' }
+    for (const axis of Object.keys(AS_PARAM) as (keyof Picks)[]) {
+      const v = pick[axis]
+      if (v) q[AS_PARAM[axis]] = v
+    }
+    return href.explore({ ...q, ...patch })
+  }
+
+  const nameOfPick: Record<keyof Picks, (k: string) => string> = {
+    topic: (k) => topicName(st.data.tax, k),
+    action: (k) => actionName(st.data.tax, k),
+    gov: (k) => govName(st.data.tax, k),
+    prov: (k) => k,
+    dtype: (k) => k,
+    agency: (k) => agencyName.get(k) ?? k,
+  }
+  const active = (Object.keys(AS_PARAM) as (keyof Picks)[])
+    .filter((a) => pick[a])
+    .map((a) => ({ axis: a, key: pick[a] as string }))
 
   return (
     <>
@@ -314,88 +403,150 @@ export function Dashboard() {
 
       <div class="two">
         <section>
-          <h2 class="sec">ช่วงเวลาในรอบปี · {focusLabel}</h2>
-          <p class="muted" style="font-size:.85rem;margin-bottom:10px">
-            {year
-              ? `เดือนไหนของปี ${beYear(year)} ที่งานหนาแน่นที่สุด`
-              : 'ทุกปีซ้อนกัน เห็นจังหวะของงานราชการ — สิ้นปีงบประมาณและปลายปีปฏิทินหนาแน่นที่สุด'}{' '}
-            · เดือนที่มากที่สุดคือ <b>{TH_MONTH_SHORT[Number(busiest[0]) - 1]}</b> (
-            {busiest[1].toLocaleString('th-TH')} ฉบับ)
-          </p>
-          <Bars rows={monthRows} nameOf={(k) => TH_MONTH_SHORT[Number(k) - 1] ?? k} />
+          <Fold id="months" title={`ช่วงเวลาในรอบปี · ${focusLabel}`}>
+            <p class="muted" style="font-size:.85rem;margin-bottom:10px">
+              {year
+                ? `เดือนไหนของปี ${beYear(year)} ที่งานหนาแน่นที่สุด`
+                : 'ทุกปีซ้อนกัน เห็นจังหวะของงานราชการ — สิ้นปีงบประมาณและปลายปีปฏิทินหนาแน่นที่สุด'}{' '}
+              · เดือนที่มากที่สุดคือ <b>{TH_MONTH_SHORT[Number(busiest[0]) - 1]}</b> (
+              {busiest[1].toLocaleString('th-TH')} ฉบับ)
+              {active.length > 0 && <> · ตามตัวกรองที่เลือกไว้</>}
+            </p>
+            <Bars rows={monthRows} nameOf={(k) => TH_MONTH_SHORT[Number(k) - 1] ?? k} />
+          </Fold>
 
-          <h2 class="sec" style="margin-top:28px">
-            คดีล้มละลายตามขั้นตอน
-          </h2>
-          <StageBars bk={bk} />
+          <Fold id="bankruptcy" title="คดีล้มละลายตามขั้นตอน">
+            <StageBars bk={bk} />
+          </Fold>
         </section>
 
         <section>
-          <h2 class="sec">
-            หมวดที่มาแรง
-            <span class="muted" style="font-weight:400;font-size:.85rem">
-              {' '}
-              · {movesAgainst}
-            </span>
-          </h2>
-          <MoveTable moves={moves.filter((m) => m.change > 0).slice(0, 6)} tax={st.data.tax} />
-          <h2 class="sec" style="margin-top:26px">
-            หมวดที่เงียบลง
-            <span class="muted" style="font-weight:400;font-size:.85rem">
-              {' '}
-              · {movesAgainst}
-            </span>
-          </h2>
-          <MoveTable moves={moves.filter((m) => m.change < 0).slice(0, 6)} tax={st.data.tax} />
+          <Fold id="rising" title="หมวดที่มาแรง" aside={movesAgainst}>
+            <MoveTable moves={moves.filter((m) => m.change > 0).slice(0, 6)} tax={st.data.tax} />
+          </Fold>
+          <Fold id="falling" title="หมวดที่เงียบลง" aside={movesAgainst}>
+            <MoveTable moves={moves.filter((m) => m.change < 0).slice(0, 6)} tax={st.data.tax} />
+          </Fold>
         </section>
       </div>
 
       <h2 class="sec" style="margin:30px 0 4px">
         {focusLabel} แยกตามด้านต่าง ๆ
       </h2>
-      <p class="muted" style="font-size:.85rem;margin-bottom:14px">
-        คลิกแถบใดก็ได้เพื่อเปิดรายการฉบับจริงในหน้าสำรวจ โดยยังคง
-        {year ? `ปี ${beYear(year)}` : 'ช่วงทั้งคลัง'}ไว้
+      <p class="muted" style="font-size:.85rem;margin-bottom:10px">
+        คลิกแถบใดก็ได้เพื่อ<b>กรองทั้งหน้านี้</b> — ตัวเลขทุกช่องจะขยับตามทันที เลือกได้หลายด้านพร้อมกัน
+        กดซ้ำเพื่อเอาออก · พอได้ชุดที่ต้องการแล้ว ค่อยกดไปดูฉบับจริงในหน้าสำรวจ
       </p>
+
+      <div class="pickbar" data-testid="pickbar">
+        <div class="pickchips">
+          <span class="muted">กำลังดู</span>
+          <span class="pickchip fixed">{focusLabel}</span>
+          {active.map(({ axis, key }) => (
+            <button
+              key={`${axis}:${key}`}
+              type="button"
+              class="pickchip"
+              onClick={() => {
+                toggle(axis, key)
+              }}
+            >
+              {nameOfPick[axis](key)} <span aria-hidden="true">×</span>
+              <span class="sr-only">เอาตัวกรองนี้ออก</span>
+            </button>
+          ))}
+          {active.length === 0 && <span class="muted">ยังไม่ได้กรองด้านใด</span>}
+        </div>
+        <div class="pickgo">
+          <b>{(now?.total ?? 0).toLocaleString('th-TH')}</b> ฉบับ
+          {active.length > 0 && (
+            <button
+              type="button"
+              class="chip"
+              onClick={() => {
+                setPick({})
+              }}
+            >
+              ล้างตัวกรอง ({active.length}) ×
+            </button>
+          )}
+          <a class="btn primary" href={link()}>
+            ดูฉบับจริงในหน้าสำรวจ →
+          </a>
+        </div>
+      </div>
+
+      {now && now.total === 0 && (
+        <p class="emptyhint" style="margin:12px 0">
+          ไม่มีฉบับไหนตรงทุกเงื่อนไขที่เลือกพร้อมกัน — เอาตัวกรองออกสักอย่างแล้วลองใหม่
+        </p>
+      )}
+
       <div class="statgrid">
-        <Panel title="หมวด" total={now?.topicTotal}>
+        <Panel id="topic" title="หมวด" total={now?.topicTotal}>
           <Bars
             rows={topRows(now?.topics, (s) => !st.data.tax.topics[s]?.parent)}
             nameOf={(k) => topicName(st.data.tax, k)}
-            hrefOf={(k) => link({ topic: k })}
+            onPick={(k) => {
+              toggle('topic', k)
+            }}
+            pickedOf={(k) => pick.topic === k}
           />
         </Panel>
-        <Panel title="สิ่งที่เอกสารทำ">
+        <Panel id="action" title="สิ่งที่เอกสารทำ">
           <Bars
             rows={topRows(now?.actions)}
             nameOf={(k) => actionName(st.data.tax, k)}
-            hrefOf={(k) => link({ action: k })}
+            onPick={(k) => {
+              toggle('action', k)
+            }}
+            pickedOf={(k) => pick.action === k}
           />
         </Panel>
-        <Panel title="ระดับผู้ออก">
+        <Panel id="gov" title="ระดับผู้ออก">
           <Bars
             rows={topRows(now?.govs)}
             nameOf={(k) => govName(st.data.tax, k)}
-            hrefOf={(k) => link({ govlevel: k })}
+            onPick={(k) => {
+              toggle('gov', k)
+            }}
+            pickedOf={(k) => pick.gov === k}
           />
         </Panel>
-        <Panel title="ประเภทเอกสาร">
-          <Bars rows={topRows(now?.dtypes)} nameOf={(k) => k} hrefOf={(k) => link({ dtype: k })} />
+        <Panel id="dtype" title="ประเภทเอกสาร">
+          <Bars
+            rows={topRows(now?.dtypes)}
+            nameOf={(k) => k}
+            onPick={(k) => {
+              toggle('dtype', k)
+            }}
+            pickedOf={(k) => pick.dtype === k}
+          />
         </Panel>
-        <Panel title="จังหวัด" note="เฉพาะฉบับที่ระบุจังหวัดได้จากชื่อหน่วยงาน">
-          <Bars rows={topRows(now?.provinces)} nameOf={(k) => k} hrefOf={(k) => link({ province: k })} />
+        <Panel id="prov" title="จังหวัด" note="เฉพาะฉบับที่ระบุจังหวัดได้จากชื่อหน่วยงาน">
+          <Bars
+            rows={topRows(now?.provinces)}
+            nameOf={(k) => k}
+            onPick={(k) => {
+              toggle('prov', k)
+            }}
+            pickedOf={(k) => pick.prov === k}
+          />
         </Panel>
-        <Panel title="หน่วยงานที่ออกมากที่สุด">
+        <Panel id="agency" title="หน่วยงานที่ออกมากที่สุด">
           <Bars
             rows={topRows(now?.agencies)}
             nameOf={(k) => agencyName.get(k) ?? k}
-            hrefOf={(k) => link({ agency: k })}
+            onPick={(k) => {
+              toggle('agency', k)
+            }}
+            pickedOf={(k) => pick.agency === k}
           />
         </Panel>
       </div>
 
       <p class="muted" style="margin-top:22px;font-size:.9rem">
-        อยากดูรายจังหวัดบนแผนที่? <a href={href.provinces()}>ท้องถิ่นฉัน →</a> · อยากดูว่าหมวดไหนมาคู่กัน?{' '}
+        อยากดูรายจังหวัดบนแผนที่? <a href={href.provinces()}>ท้องถิ่น →</a> · อยากดูว่าหมวดไหนมาคู่กัน?{' '}
         <a href={href.graph()}>ความสัมพันธ์ของหมวด →</a> · อยากไล่ดูฉบับจริง?{' '}
         <a href={link({})}>สำรวจ{year ? ` ปี ${beYear(year)}` : ''} →</a>
       </p>
@@ -424,32 +575,80 @@ function topRows(counts: Map<string, number> | undefined, keep?: (k: string) => 
     .slice(0, 8)
 }
 
+/** Open unless this reader folded it away last time, and remember either way. The page is long
+ *  on a phone, and the sections a given reader never looks at are not the same ones for everyone. */
+function useFold(id: string) {
+  const [open, setOpen] = useState(() => !foldedSet().has(id))
+  const onToggle = (e: Event) => {
+    const next = (e.currentTarget as HTMLDetailsElement).open
+    setOpen(next)
+    remember(id, next)
+  }
+  return { open, onToggle }
+}
+
 function Panel({
+  id,
   title,
   total,
   note,
   children,
 }: {
+  id: string
   title: string
   total?: number
   note?: string
   children: preact.ComponentChildren
 }) {
+  const fold = useFold(`panel:${id}`)
   return (
-    <section class="statpanel">
-      <h3>
-        {title}
-        {total !== undefined && total > 0 && (
-          <span class="muted"> · {total.toLocaleString('th-TH')} ฉบับ</span>
-        )}
-      </h3>
+    <details class="statpanel" open={fold.open} onToggle={fold.onToggle}>
+      <summary>
+        <h3>
+          {title}
+          {total !== undefined && total > 0 && (
+            <span class="muted"> · {total.toLocaleString('th-TH')} ฉบับ</span>
+          )}
+        </h3>
+      </summary>
       {note && (
         <p class="muted" style="font-size:.8rem;margin:-4px 0 8px">
           {note}
         </p>
       )}
       {children}
-    </section>
+    </details>
+  )
+}
+
+/** A foldable block with an h2 — the bigger sections above the breakdown grid. */
+function Fold({
+  id,
+  title,
+  aside,
+  children,
+}: {
+  id: string
+  title: string
+  aside?: preact.ComponentChildren
+  children: preact.ComponentChildren
+}) {
+  const fold = useFold(`fold:${id}`)
+  return (
+    <details class="fold" open={fold.open} onToggle={fold.onToggle}>
+      <summary>
+        <h2 class="sec">
+          {title}
+          {aside && (
+            <span class="muted" style="font-weight:400;font-size:.85rem">
+              {' '}
+              · {aside}
+            </span>
+          )}
+        </h2>
+      </summary>
+      {children}
+    </details>
   )
 }
 

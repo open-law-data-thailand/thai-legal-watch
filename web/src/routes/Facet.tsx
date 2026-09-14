@@ -240,11 +240,11 @@ export function Province({ file }: { file: string }) {
       <Crumbs
         items={[
           { label: 'สำรวจ', to: href.explore({ scope: 'all' }) },
-          { label: 'ท้องถิ่นฉัน', to: href.provinces() },
+          { label: 'ท้องถิ่น', to: href.provinces() },
           { label: page.name },
         ]}
       />
-      <Kicker>ท้องถิ่นฉัน · จังหวัด</Kicker>
+      <Kicker>ท้องถิ่น · จังหวัด</Kicker>
       <h1 style="margin-top:6px">{page.name}</h1>
       <FacetBody f={page} kind="province" feed={`province/${file}`} explore={{ province: page.name }} />
     </>

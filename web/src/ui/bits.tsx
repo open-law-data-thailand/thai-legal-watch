@@ -246,16 +246,26 @@ export function DocRow({
   )
 }
 
+/** A ranked list of counted things.
+ *
+ *  A row can be a link (`hrefOf`, which navigates away) or a filter (`onPick`, which does not).
+ *  สถิติ uses the second: clicking there narrows the page you are already reading rather than
+ *  throwing you into สำรวจ, so the counts around it become the answer to "and of those, how many
+ *  were…". A row that is currently picked says so, and clicking it again lets it go. */
 export function Bars({
   rows,
   total,
   nameOf,
   hrefOf,
+  onPick,
+  pickedOf,
 }: {
   rows: [string, number][]
   total?: number
   nameOf: (k: string) => string
   hrefOf?: (k: string) => string
+  onPick?: (k: string) => void
+  pickedOf?: (k: string) => boolean
 }) {
   // the largest value, not the first one: `rows` is sorted for most callers but the month-of-year
   // profile is in calendar order, and normalising against January clipped seven bars to 100% and
@@ -263,20 +273,38 @@ export function Bars({
   const max = Math.max(1, ...rows.map(([, n]) => n))
   return (
     <div class="grid" style="gap:8px">
-      {rows.map(([k, n]) => (
-        <div key={k}>
-          <div class="row">
-            {hrefOf ? <a href={hrefOf(k)}>{nameOf(k)}</a> : <span>{nameOf(k)}</span>}
-            <span class="muted">
-              {n.toLocaleString('th-TH')}
-              {total ? ` · ${Math.round((100 * n) / total)}%` : ''}
-            </span>
+      {rows.map(([k, n]) => {
+        const picked = pickedOf?.(k) ?? false
+        return (
+          <div key={k} class={picked ? 'barrow on' : 'barrow'}>
+            <div class="row">
+              {onPick ? (
+                <button
+                  type="button"
+                  class="barpick"
+                  aria-pressed={picked}
+                  onClick={() => {
+                    onPick(k)
+                  }}
+                >
+                  {nameOf(k)}
+                </button>
+              ) : hrefOf ? (
+                <a href={hrefOf(k)}>{nameOf(k)}</a>
+              ) : (
+                <span>{nameOf(k)}</span>
+              )}
+              <span class="muted">
+                {n.toLocaleString('th-TH')}
+                {total ? ` · ${Math.round((100 * n) / total)}%` : ''}
+              </span>
+            </div>
+            <div class="bar">
+              <i style={`width:${Math.max(1, Math.round((100 * n) / max))}%`} />
+            </div>
           </div>
-          <div class="bar">
-            <i style={`width:${Math.max(1, Math.round((100 * n) / max))}%`} />
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

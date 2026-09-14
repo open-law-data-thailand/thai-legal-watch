@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { ClientContext } from './data/context'
 import { DataClient } from './data/client'
 import { About } from './routes/About'
@@ -12,14 +12,13 @@ import { Latest } from './routes/Latest'
 import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
 import { Boundary } from './ui/Boundary'
-import { QuickSearch } from './ui/QuickSearch'
 
 // "วันนี้" is gone: it was the same destination as the wordmark beside it, and a nav that
 // repeats the logo spends a phone's whole first row saying nothing.
 const NAV: [string, () => string, Route['name'][]][] = [
   ['ล่าสุด', () => href.latest(), ['latest']],
   ['สำรวจ', () => href.explore(), ['explore', 'topic', 'agency', 'doc']],
-  ['ท้องถิ่นฉัน', href.provinces, ['provinces', 'province']],
+  ['ท้องถิ่น', href.provinces, ['provinces', 'province']],
   ['สถิติ', href.dashboard, ['dashboard']],
   ['ความสัมพันธ์', href.graph, ['graph']],
   ['เกี่ยวกับ', href.about, ['about']],
@@ -27,6 +26,25 @@ const NAV: [string, () => string, Route['name'][]][] = [
 
 export function App({ client }: { client?: DataClient }) {
   const [route, setRoute] = useState<Route>(() => parseHash(location.hash))
+  const bar = useRef<HTMLElement>(null)
+  // Things stick to the top of the viewport under this header — the filter on ล่าสุด, and the
+  // date headings under that — and the header's own height depends on the width, because the nav
+  // wraps onto its own row on a phone. Both offsets used to be numbers in the stylesheet, and
+  // both were wrong the moment the header's contents changed: taking the search box out left a
+  // date heading sitting thirty pixels below where the header now ends.
+  useEffect(() => {
+    const el = bar.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const set = () => {
+      document.documentElement.style.setProperty('--topbar-h', `${el.offsetHeight}px`)
+    }
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+    }
+  }, [])
   useEffect(
     () =>
       subscribe((r) => {
@@ -55,13 +73,12 @@ export function App({ client }: { client?: DataClient }) {
       <a class="skip" href="#main">
         ข้ามไปเนื้อหาหลัก
       </a>
-      <header class="topbar">
+      <header class="topbar" ref={bar}>
         <div class="wrap">
           {/* the wordmark is the home link, so it carries home's "you are here" now */}
           <a class="brand" href={href.home()} aria-current={route.name === 'home' ? 'page' : undefined}>
             <span class="name">Thai Legal Watch</span>
           </a>
-          <QuickSearch />
           <nav class="main" aria-label="หลัก">
             {NAV.map(([label, to, names]) => (
               <a key={label} href={to()} aria-current={names.includes(route.name) ? 'page' : undefined}>
@@ -168,7 +185,7 @@ export function titleFor(route: Route): string {
     case 'province':
       return `จังหวัด${route.file} — ${base}`
     case 'provinces':
-      return `ท้องถิ่นฉัน — ${base}`
+      return `ท้องถิ่น — ${base}`
     case 'latest':
       return `ล่าสุด 90 วัน — ${base}`
     case 'doc':

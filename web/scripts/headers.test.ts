@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { headersFor, matches, parseHeaders } from './headers'
+import { headersFor, matches, parseHeaders, productionHeaders } from './headers'
 
 const SAMPLE = `# a comment
 /data/*
@@ -81,5 +84,71 @@ describe('headersFor', () => {
       'Content-Security-Policy',
       'X-Content-Type-Options',
     ])
+  })
+})
+
+/** The middleware, driven directly. Pages answers a missing path with 404.html and
+ *  `Cache-Control: no-store` — checked against the deployed site — so preview has to as well. */
+function serve(url: string) {
+  const dir = mkdtempSync(join(tmpdir(), 'tlw-headers-'))
+  const dist = join(dir, 'dist')
+  mkdirSync(join(dist, 'data'), { recursive: true })
+  writeFileSync(join(dist, '404.html'), '<!doctype html>ไม่พบหน้านี้')
+  writeFileSync(join(dist, 'data', 'real.json'), '{}')
+  const headersFile = join(dir, '_headers')
+  writeFileSync(
+    headersFile,
+    '/data/*\n  Cache-Control: public, max-age=3600, stale-while-revalidate=86400\n\n/*\n  X-Content-Type-Options: nosniff\n',
+  )
+  const plugin = productionHeaders(headersFile)
+  let mw!: (req: unknown, res: unknown, next: () => void) => void
+  const configure = plugin.configurePreviewServer as (s: unknown) => void
+  configure({
+    config: { root: dir, build: { outDir: 'dist' } },
+    middlewares: {
+      use: (fn: (req: unknown, res: unknown, next: () => void) => void) => {
+        mw = fn
+      },
+    },
+  })
+  const headers: Record<string, string> = {}
+  const res = {
+    statusCode: 200,
+    setHeader: (k: string, v: string) => {
+      headers[k] = v
+    },
+    removeHeader: (k: string) => {
+      delete headers[k]
+    },
+    getHeaderNames: () => Object.keys(headers),
+    end: () => undefined,
+  }
+  let passedOn = false
+  mw({ method: 'GET', url }, res, () => {
+    passedOn = true
+  })
+  return { headers, status: res.statusCode, passedOn }
+}
+
+describe('the 404 a preview serves', () => {
+  it('does not let a missing data file inherit the long cache of /data/*', () => {
+    // This shipped: a 404 under /data/* carried max-age=3600 with a day of
+    // stale-while-revalidate, so the page said "โหลดข้อมูลไม่สำเร็จ" for an hour after the file
+    // was in place — and only in preview, which is the divergence this plugin exists to remove.
+    const r = serve('/data/ratchakitcha/agg/cube.json')
+    expect(r.status).toBe(404)
+    expect(r.headers['Cache-Control']).toBe('no-store')
+    expect(r.headers['Content-Type']).toBe('text/html; charset=utf-8')
+  })
+
+  it('keeps no rule from _headers on the 404 at all', () => {
+    expect(serve('/data/nope.json').headers['X-Content-Type-Options']).toBeUndefined()
+  })
+
+  it('leaves a file that exists to be served with its headers', () => {
+    const r = serve('/data/real.json')
+    expect(r.passedOn).toBe(true)
+    expect(r.status).toBe(200)
+    expect(r.headers['Cache-Control']).toContain('max-age=3600')
   })
 })

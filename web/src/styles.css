@@ -1064,7 +1064,7 @@ body {
   gap: 8px;
 }
 
-/* ท้องถิ่นฉัน */
+/* ท้องถิ่น */
 .provlayout {
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
@@ -1326,12 +1326,19 @@ body {
 }
 
 /* ล่าสุด: a dated list you scan, not a dashboard you read */
+/* The filter is this page's only control and the list under it runs to a thousand rows, so it
+   stays on screen: narrowing a search should not mean scrolling back to the top to retype. */
 .latestbar {
   display: flex;
   gap: 14px;
   align-items: center;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  position: sticky;
+  top: var(--topbar-h, 60px);
+  z-index: 5;
+  background: var(--paper);
+  padding: 10px 0 12px;
+  margin-bottom: 6px;
 }
 .latestfilter {
   width: 100%;
@@ -1346,10 +1353,12 @@ body {
 .latestfilter:focus-visible {
   outline: 2px solid var(--accent-2);
 }
-/* the date is the thing you navigate by, so it stays on screen while its run scrolls past */
+/* the date is the thing you navigate by, so it stays on screen while its run scrolls past —
+   below the filter bar, whose height is measured because it wraps to two rows on a phone and a
+   guessed offset hides a date heading behind it at exactly the widths where the list is longest */
 .daybar {
   position: sticky;
-  top: 60px;
+  top: calc(var(--topbar-h, 60px) + var(--latestbar-h, 0px));
   z-index: 3;
   display: flex;
   justify-content: space-between;
@@ -1368,11 +1377,6 @@ body {
   font-size: 0.85rem;
   font-weight: 400;
   white-space: nowrap;
-}
-@media (max-width: 700px) {
-  .daybar {
-    top: 100px;
-  }
 }
 
 /* A filter that finds nothing where the reader is standing, but something nearby. Warm rather
@@ -1774,4 +1778,162 @@ code,
   font-weight: 400;
   font-size: 0.82rem;
   font-family: var(--sans);
+}
+
+/* The hover card on the province map. The native <title> tooltip takes about a second to appear
+   and cannot be styled; this answers immediately and has room for the numbers that place a count
+   in context — rank and share — which a bare "1,240 ฉบับ" does not give a reader. Pointer only:
+   keyboard focus cannot move a pointer, so it keeps the status line under the map. */
+.provmap {
+  position: relative;
+}
+.maptip {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  max-width: 20rem;
+  display: grid;
+  gap: 2px;
+  padding: 8px 11px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.55);
+}
+.maptip b {
+  font-size: 0.95rem;
+}
+.maptip .n {
+  color: var(--accent);
+  font-weight: 600;
+}
+.maptip .go {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+/* ── สถิติ: folding, and picking a bar as a filter ──────────────────────────────────────────── */
+
+/* The page is long on a phone and which sections matter differs by reader, so every block below
+   the year chart folds. <details> rather than a toggle of our own: it is keyboard-operable,
+   announced correctly, and findable by the browser's own in-page search when closed. */
+.statpanel > summary,
+.fold > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.statpanel > summary::-webkit-details-marker,
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+.statpanel > summary::after,
+.fold > summary::after {
+  content: '−';
+  margin-left: auto;
+  color: var(--ink-2);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.statpanel:not([open]) > summary::after,
+.fold:not([open]) > summary::after {
+  content: '+';
+}
+.statpanel > summary:hover::after,
+.fold > summary:hover::after {
+  color: var(--accent);
+}
+.statpanel > summary h3,
+.fold > summary h2 {
+  margin: 0;
+}
+.statpanel > summary {
+  margin-bottom: 10px;
+}
+.statpanel:not([open]) > summary {
+  margin-bottom: 0;
+}
+.fold {
+  margin-bottom: 22px;
+}
+.fold > summary {
+  margin-bottom: 10px;
+}
+
+/* A bar whose label is a filter rather than a link. It has to read as pressable and, once
+   pressed, as the reason every other number on the page just changed. */
+.barpick {
+  font: inherit;
+  /* matches what the link in this row used to look like, so folding filtering into the same
+     place does not also restyle it — a { color: inherit } is the rule these rows follow */
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--line);
+}
+.barpick:hover {
+  color: var(--accent-ink);
+  border-bottom-color: currentColor;
+}
+.barrow.on .barpick {
+  color: var(--accent-2);
+  font-weight: 600;
+  border-bottom-style: solid;
+  border-bottom-color: currentColor;
+}
+.barrow.on .bar i {
+  background: var(--accent-2);
+}
+
+/* What is currently being counted, and the way out to the documents themselves. */
+.pickbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--accent-bg);
+  font-size: 0.9rem;
+}
+.pickchips,
+.pickgo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pickchip {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+.pickchip:hover {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+.pickchip.fixed {
+  cursor: default;
+  border-style: dashed;
+  color: var(--ink-2);
 }

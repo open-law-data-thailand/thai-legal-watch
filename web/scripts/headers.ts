@@ -96,8 +96,16 @@ export function productionHeaders(file = '../infra/_headers'): Plugin {
           existsSync(notFound) &&
           !resolveAsset(root, path)
         ) {
+          // Pages does NOT apply `_headers` to a 404 — it answers `Cache-Control: no-store`,
+          // verified against the deployed site. Leaving the matched rules on meant a missing
+          // file under `/data/*` was cached as a 404 for an hour, with a day of
+          // stale-while-revalidate behind it: the page kept saying "โหลดข้อมูลไม่สำเร็จ" long
+          // after the file was there, and only here, which is the exact divergence this
+          // plugin exists to remove.
+          for (const name of res.getHeaderNames()) res.removeHeader(name)
           res.statusCode = 404
           res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-store')
           res.end(readFileSync(notFound))
           return
         }

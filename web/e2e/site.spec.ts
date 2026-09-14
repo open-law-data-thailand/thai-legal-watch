@@ -66,7 +66,7 @@ test.describe('every route', () => {
       ['#/', /วันนี้ในราชกิจจานุเบกษา/],
       ['#/ratchakitcha/explore', /สำรวจ/],
       ['#/ratchakitcha/explore?scope=all', /สำรวจ/],
-      ['#/ratchakitcha/provinces', /ท้องถิ่นฉัน/],
+      ['#/ratchakitcha/provinces', /ท้องถิ่น/],
       ['#/ratchakitcha/latest', /ล่าสุด 90 วัน/],
       [`#/ratchakitcha/province/${encodeURIComponent(provinces[0]?.file ?? '')}`, /จังหวัด/],
       [`#/ratchakitcha/agency/${withPage.id}`, /หน่วยงาน/],
@@ -121,6 +121,32 @@ test.describe('home', () => {
 })
 
 test.describe('ล่าสุด', () => {
+  test('the filter stays on screen, and the dates stack under it rather than behind it', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/latest')
+    const bar = page.locator('.latestbar')
+    await expect(bar).toBeVisible()
+    await page.mouse.wheel(0, 2500)
+    // still there after scrolling: narrowing a long list should not mean scrolling back to retype
+    await expect(bar).toBeInViewport()
+
+    // and the date headings, which stick too, sit below it — the offset is measured, because the
+    // bar wraps to two rows on a phone and a guessed one hides a heading behind it
+    const offsets = await page.evaluate(() => {
+      const b = document.querySelector('.latestbar')
+      const d = document.querySelector('.daybar')
+      if (!b || !d) return null
+      return {
+        barH: (b as HTMLElement).offsetHeight,
+        barTop: parseFloat(getComputedStyle(b).top),
+        dayTop: parseFloat(getComputedStyle(d).top),
+      }
+    })
+    expect(offsets, 'the page must have both sticky elements').not.toBeNull()
+    const o = offsets as { barH: number; barTop: number; dayTop: number }
+    expect(o.barH).toBeGreaterThan(0)
+    expect(o.dayTop).toBeGreaterThanOrEqual(o.barTop + o.barH)
+  })
+
   test('lists every recent document newest first, with a count on each date', async ({ page, request }) => {
     const latest = (await (await request.get('/data/ratchakitcha/agg/latest.json')).json()) as {
       days: number
@@ -173,14 +199,25 @@ test.describe('ล่าสุด', () => {
   })
 })
 
-test.describe('header search', () => {
+test.describe('quick search on the home page', () => {
+  test('the header carries no search box of its own any more', async ({ page }) => {
+    // It duplicated the hero box on the one page that has it and was dead weight on every other,
+    // spending a phone's whole first row. Searching lives on the home page and in สำรวจ.
+    for (const hash of ['#/', '#/ratchakitcha/latest', '#/ratchakitcha/dashboard'])
+      await test.step(hash, async () => {
+        await page.goto(`/${hash}`)
+        await expect(page.locator('header.topbar')).toBeVisible()
+        await expect(page.locator('header.topbar input')).toHaveCount(0)
+      })
+  })
+
   test('finds a topic by name and the keyboard alone can reach it', async ({ page }) => {
     await page.goto('/#/')
     await page.keyboard.press('/')
-    const box = page.locator('.topbar').getByRole('combobox', { name: 'ค้นหาด่วน' })
+    const box = page.locator('.hero-search').getByRole('combobox', { name: 'ค้นหาด่วน' })
     await expect(box).toBeFocused()
     await box.fill('ขยะ')
-    const list = page.locator('#qs-list li')
+    const list = page.locator('#qs-list-hero li')
     await expect(list.first()).toBeVisible()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/topic\/pollution_waste/)
@@ -196,8 +233,8 @@ test.describe('header search', () => {
     const [part, cls] = target.p.split(' ')
     const typed = `เล่ม ${target.v} ตอน${special ? 'พิเศษ' : 'ที่'} ${part} ${cls} หน้า ${target.pg}`
     await page.goto('/#/')
-    await page.locator('.topbar').getByRole('combobox', { name: 'ค้นหาด่วน' }).fill(typed)
-    await page.locator('.topbar').locator('#qs-list li', { hasText: 'เปิดฉบับนี้' }).click()
+    await page.locator('.hero-search').getByRole('combobox', { name: 'ค้นหาด่วน' }).fill(typed)
+    await page.locator('.hero-search').locator('#qs-list-hero li', { hasText: 'เปิดฉบับนี้' }).click()
     await expect(page.getByTestId('doc-title')).toHaveText(target.t)
   })
 })
@@ -580,7 +617,7 @@ test.describe('facet pages', () => {
     if (!first) throw new Error('fixture has no provinces')
     await page.goto(`/#/ratchakitcha/province/${encodeURIComponent(first.file)}`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(first.name)
-    await expect(page.locator('.crumbs a', { hasText: 'ท้องถิ่นฉัน' })).toBeVisible()
+    await expect(page.locator('.crumbs a', { hasText: 'ท้องถิ่น' })).toBeVisible()
     const agencies = await data.agencies(request)
     const withPage = agencies.find((a) => a.page)
     if (!withPage) throw new Error('fixture has no agency page')
@@ -709,7 +746,28 @@ test.describe('document', () => {
   })
 })
 
-test.describe('ท้องถิ่นฉัน', () => {
+test.describe('ท้องถิ่น', () => {
+  test('hovering a province says how much is there before you click', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/provinces')
+    const shape = page.locator('.provmap svg a').first()
+    await expect(shape).toBeVisible()
+    const name = ((await shape.getAttribute('aria-label')) ?? '').split(' ')[0] as string
+    await shape.hover()
+    const tip = page.locator('.maptip')
+    await expect(tip).toBeVisible()
+    await expect(tip).toContainText(name)
+    await expect(tip).toContainText('ฉบับ')
+    // the numbers that place the count: where it ranks and what share it is
+    await expect(tip).toContainText(/อันดับ\s*\d+\s*จาก\s*\d+/)
+    await expect(tip).toContainText('%')
+
+    // a pointer-only flourish: it must not be in the accessibility tree, because the status line
+    // under the map already says the same thing and a screen reader should hear it once
+    await expect(tip).toHaveAttribute('aria-hidden', 'true')
+    await page.mouse.move(2, 2)
+    await expect(tip).toBeHidden()
+  })
+
   test('draws the country, keys the colours, and reaches a province page', async ({ page, request }) => {
     await page.goto('/#/ratchakitcha/provinces')
     const map = page.getByTestId('province-map')
@@ -877,6 +935,62 @@ test.describe('dashboard, graph and about', () => {
     await a11y(page)
   })
 
+  test('a breakdown narrows the page it is on rather than throwing you into สำรวจ', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    const bar = page.getByTestId('pickbar')
+    await expect(bar).toBeVisible()
+    const before = Number((await bar.locator('b').innerText()).replace(/[^0-9]/g, ''))
+    expect(before).toBeGreaterThan(0)
+
+    const first = page.locator('.statgrid .barpick').first()
+    const label = (await first.innerText()).trim()
+    await first.click()
+
+    // the page stays where it is, says what it is now counting, and the count actually moved
+    await expect(page).toHaveURL(/#\/ratchakitcha\/dashboard/)
+    await expect(bar.locator('.pickchip', { hasText: label })).toBeVisible()
+    await expect(first).toHaveAttribute('aria-pressed', 'true')
+    const after = Number((await bar.locator('b').innerText()).replace(/[^0-9]/g, ''))
+    expect(after).toBeLessThanOrEqual(before)
+
+    // and only then is there a way out to the documents, carrying the filter with it
+    const go = bar.getByRole('link', { name: /สำรวจ/ })
+    await expect(go).toHaveAttribute('href', /[?&](topic|action|govlevel|province|dtype|agency)=/)
+
+    // clicking the same row again lets it go
+    await first.click()
+    await expect(first).toHaveAttribute('aria-pressed', 'false')
+    await expect(bar).toContainText('ยังไม่ได้กรองด้านใด')
+    await sane(page)
+  })
+
+  test('two breakdowns can be combined, and the year stays on top of both', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    const bar = page.getByTestId('pickbar')
+    // a year first, by the keyboard-reachable chip rather than by clicking the canvas
+    await page.locator('.yearpick .chip[aria-pressed]').nth(1).click()
+    await page.locator('.statgrid .barpick').first().click()
+    const href = (await bar.getByRole('link', { name: /สำรวจ/ }).getAttribute('href')) ?? ''
+    expect(href, 'the year must survive alongside the picked dimension').toMatch(/scope=year/)
+    expect(href).toMatch(/[?&](topic|action|govlevel|province|dtype|agency)=/)
+    await expect(bar.locator('.pickchip')).not.toHaveCount(1) // the year chip plus the pick
+  })
+
+  test('sections fold away and are still folded on the next visit', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    const panel = page.locator('details.statpanel').first()
+    await expect(panel).toHaveAttribute('open', '')
+    await panel.locator('summary').click()
+    await expect(panel).not.toHaveAttribute('open', '')
+    // `toggle` fires asynchronously by specification, so the fold is in the DOM before it is in
+    // storage. Wait for what is actually being claimed — that it was remembered — rather than
+    // reloading into a race the reader would never notice but the test loses half the time.
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('tlw.stats.folded'))).toContain('panel:')
+    // the page is long and which parts matter differs by reader, so the choice has to survive
+    await page.reload()
+    await expect(page.locator('details.statpanel').first()).not.toHaveAttribute('open', '')
+  })
+
   test('the about page hands the data over, and its links are real files', async ({ page, request }) => {
     // an open-data site that cannot be reused is a screenshot of open data
     await page.goto('/#/about')
@@ -956,15 +1070,15 @@ test.describe('keyboard and screen reader', () => {
 
   test('arrowing through quick search names the highlighted result', async ({ page }) => {
     await page.goto('/#/')
-    const box = page.locator('.topbar').getByRole('combobox', { name: 'ค้นหาด่วน' })
+    const box = page.locator('.hero-search').getByRole('combobox', { name: 'ค้นหาด่วน' })
     await box.fill('ขยะ')
-    await expect(page.locator('.topbar #qs-list li').first()).toBeVisible()
+    await expect(page.locator('.hero-search #qs-list-hero li').first()).toBeVisible()
     const first = await box.getAttribute('aria-activedescendant')
     expect(first, 'the highlighted option must be named').toBeTruthy()
     // whatever it points at must exist and be the option marked selected
     await expect(page.locator(`#${first as string}`)).toHaveAttribute('role', 'option')
     await expect(page.locator(`#${first as string}`)).toHaveAttribute('aria-selected', 'true')
-    const options = page.locator('.topbar #qs-list li')
+    const options = page.locator('.hero-search #qs-list-hero li')
     if ((await options.count()) > 1) {
       await page.keyboard.press('ArrowDown')
       const second = await box.getAttribute('aria-activedescendant')

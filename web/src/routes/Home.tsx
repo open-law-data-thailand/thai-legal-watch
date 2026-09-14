@@ -86,7 +86,7 @@ export function Home() {
               ไล่ดูล่าสุด 90 วัน
             </a>
             <a class="btn" href={href.provinces()}>
-              ท้องถิ่นฉัน
+              ท้องถิ่น
             </a>
             <a class="btn" href={href.graph()}>
               ความสัมพันธ์ของหมวด
