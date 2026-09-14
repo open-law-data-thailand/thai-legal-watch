@@ -26,6 +26,10 @@ export interface SlimDoc {
   ac: boolean
   gc: boolean
   labels: SlimLabel[]
+  /** The publisher's own link to the PDF. An integer is the gazette document number, which is
+   *  all the URL varies by; a string is a URL that did not match that shape. Absent for the
+   *  years upstream has not backfilled yet — the site falls back to deriving it from `id`. */
+  u?: number | string
   x?: Record<string, string>
 }
 
@@ -40,6 +44,7 @@ export interface RecentDoc {
   govlevel: string | null
   tc: boolean
   ac: boolean
+  u?: number | string
 }
 
 export interface SourceCredit {

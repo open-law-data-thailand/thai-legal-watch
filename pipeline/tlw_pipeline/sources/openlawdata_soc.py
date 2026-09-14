@@ -110,6 +110,11 @@ class OpenLawDataSoc:
                                       list(lb.get("matched_by") or [])) for lb in r.get("labels") or []],
                         extracted={k: v for k, v in (r.get("extracted") or {}).items() if v not in (None, "", [])},
                         source=self.id,
+                        # Being added upstream year by year — present for the older files, absent
+                        # for 2013 onward as of 2026-09. Modern ids carry the same number in the
+                        # id itself, so the site can still build the link; the years in between
+                        # have neither, and that gap is what this field will close.
+                        source_url=m.get("source_url") or None,
                     )
 
 

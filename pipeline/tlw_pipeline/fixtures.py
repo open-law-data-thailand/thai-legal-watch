@@ -48,9 +48,14 @@ def make_dataset(root: str, years=("2023", "2024"), per_month=40, seed=1) -> Non
                     title, topic, action, gov, dtype = "ประกาศสำนักนายกรัฐมนตรี เรื่อง แต่งตั้งข้าราชการ", "public_admin", "appointment", "central", "ประกาศ"
                     ag, atype, prov = AGENCIES[0]
                 corr = rnd.random() < 0.8
-                mf.write(json.dumps({"no": str(n), "doctitle": f"  {title}  [{did}] ", "bookNo": "141", "section": "17",
-                                     "category": "ง พิเศษ" if kind == "waste" else "ง", "publishDate": day, "pageNo": str(i + 1),
-                                     "pdf_file": f"{did}.pdf"}, ensure_ascii=False) + "\n")
+                # upstream is adding source_url year by year, so half the fixture carries it and
+                # half does not — the absent half is the path most of the archive is still on
+                mrec = {"no": str(n), "doctitle": f"  {title}  [{did}] ", "bookNo": "141", "section": "17",
+                        "category": "ง พิเศษ" if kind == "waste" else "ง", "publishDate": day, "pageNo": str(i + 1),
+                        "pdf_file": f"{did}.pdf"}
+                if i % 2 == 0:
+                    mrec["source_url"] = f"https://ratchakitcha.soc.go.th/documents/{900000 + n}.pdf"
+                mf.write(json.dumps(mrec, ensure_ascii=False) + "\n")
                 rec = {"pdf_file": f"{did}.pdf", "doc_id": did, "year": y, "month": month, "volume": 141, "part": "17 ง",
                        "part_class": "ง", "publish_date": day, "doc_type": dtype, "agency": ag, "agency_type": atype,
                        "province": prov, "topic": topic, "action": action, "govlevel": gov,

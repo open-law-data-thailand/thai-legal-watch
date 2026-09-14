@@ -50,21 +50,41 @@ export interface DocLinks {
   fromSource: boolean
 }
 
-/** Modern ids carry the gazette's own document number, so the PDF opens straight from the source.
- *  Older years do not: the published dataset keeps only a per-year sequence, and the only copy is
- *  inside a monthly archive of several hundred megabytes — far too big to hand someone who wants
- *  one page. Those get sent to the gazette's own site to look the citation up, with the dataset's
- *  file *page* (not the download) as a second-best. */
-export function docLinks(id: string, month: string | undefined): DocLinks {
+/** Turn a slim record's `u` back into a URL. The dataset is someone else's text, so a string is
+ *  honoured only when it really is a gazette document link — another host, or a `javascript:`
+ *  scheme, is discarded rather than written into an href. */
+export function sourceHref(u: number | string | null | undefined): string | null {
+  if (typeof u === 'number')
+    return Number.isSafeInteger(u) && u > 0 ? `${GAZETTE}/documents/${u}.pdf` : null
+  if (typeof u !== 'string' || !u.trim()) return null
+  try {
+    const url = new URL(u.trim())
+    return url.origin === GAZETTE ? url.href : null
+  } catch {
+    return null
+  }
+}
+
+/** Where to send someone who wants the actual document, best first.
+ *
+ *  The dataset's own `source_url` wins when it is there. Failing that, a modern id *contains* the
+ *  gazette's document number, so the same link can be built without the field — verified against
+ *  the publisher: the PDF at the derived URL is byte-identical to the one in the dataset.
+ *
+ *  The years with neither — 2013 to 2024-11, which upstream is still backfilling — have only a
+ *  per-year sequence number, and the sole copy sits inside a monthly archive of several hundred
+ *  megabytes, far too big to hand someone who wants one page. Those get sent to the gazette's own
+ *  site to look the citation up, with the dataset's file *page* (not the download) as a fallback. */
+export function docLinks(
+  id: string,
+  month: string | undefined,
+  u?: number | string | null,
+): DocLinks {
   const modern = /^\d{4}-\d{2}-\d{2}-(\d{8})$/.exec(id)
-  if (modern)
-    return {
-      primary: {
-        href: `${GAZETTE}/documents/${modern[1].replace(/^0+/, '')}.pdf`,
-        label: 'เปิด PDF ต้นฉบับ',
-      },
-      fromSource: true,
-    }
+  const href =
+    sourceHref(u) ??
+    (modern ? `${GAZETTE}/documents/${modern[1].replace(/^0+/, '')}.pdf` : null)
+  if (href) return { primary: { href, label: 'เปิด PDF ต้นฉบับ' }, fromSource: true }
   const m = month ?? `${id.slice(0, 4)}-01`
   return {
     primary: { href: `${GAZETTE}/`, label: 'ค้นฉบับนี้ที่เว็บราชกิจจานุเบกษา' },
@@ -114,7 +134,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   const title = displayTitle(d, agency?.name)
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
-  const links = docLinks(d.id, st.data.month)
+  const links = docLinks(d.id, st.data.month, d.u)
   // Clipboard access needs a secure context and can be refused; the optional chain used to mean
   // the button simply did nothing, forever, with no explanation. These buttons are the page's
   // whole point for a lawyer, so a failure has to say so and leave the text selectable.
@@ -251,9 +271,10 @@ export function Doc({ id, month }: { id: string; month?: string }) {
             </p>
             {!links.fromSource && (
               <p class="muted" style="font-size:.8rem;margin:10px 0 0">
-                ฉบับก่อน พ.ศ. 2566 เว็บราชกิจจานุเบกษาไม่มีลิงก์ตรงรายฉบับ ให้ค้นด้วยเล่ม ตอน และหน้า ด้านบน
-                (กดคัดลอกการอ้างอิงไปวางได้เลย) · สำเนาในชุดข้อมูลเปิดอยู่รวมกันทั้งเดือน จึงมีขนาดใหญ่มาก
-                และของปีเก่าบางส่วนยังจับคู่กับเลขที่เอกสารผิดฉบับ <a href={href.about()}>(ดูข้อจำกัด)</a>
+                ชุดข้อมูลยังไม่มีลิงก์ตรงของฉบับนี้ (กำลังทยอยเพิ่มอยู่) ระหว่างนี้ให้ค้นด้วยเล่ม ตอน และหน้า
+                ด้านบน — กดคัดลอกการอ้างอิงไปวางได้เลย · สำเนาในชุดข้อมูลเปิดอยู่รวมกันทั้งเดือน
+                จึงมีขนาดใหญ่มาก และของปีเก่าบางส่วนยังจับคู่กับเลขที่เอกสารผิดฉบับ
+                <a href={href.about()}>(ดูข้อจำกัด)</a>
               </p>
             )}
           </div>
