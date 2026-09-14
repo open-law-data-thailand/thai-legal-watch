@@ -19,6 +19,7 @@ interface EChart {
 }
 import { useClient, useLoad } from '../data/context'
 import type { AgencyPage, Graph as GraphData, TopicPage } from '../data/types'
+import { shares, spread, verdict } from '../lib/authority'
 import { FAMILY_PALETTE, rootOf } from '../lib/family'
 import { reducedMotion } from '../lib/motion'
 import { beYear } from '../lib/thai'
@@ -344,7 +345,13 @@ export function Graph() {
         ความสัมพันธ์ · {year ? `ปี ${beYear(year)}` : 'ทั้งคลัง'} · {stats.topic_topic.length}{' '}
         คู่ที่ปรากฏร่วมกัน · {stats.agencies.length} หน่วยงานหลัก
       </Kicker>
-      <h1 style="margin:6px 0 12px">หมวดไหนมักออกมาพร้อมกัน</h1>
+      <h1 style="margin:6px 0 12px">เรื่องนี้ใครดูแล และอะไรมาคู่กับอะไร</h1>
+      <AuthoritySpread
+        topics={g.topics}
+        onPick={(slug, name) => {
+          setSel({ id: `t:${slug}`, name, kind: 'topic' })
+        }}
+      />
       <p class="muted" style="margin:0 0 14px;max-width:72ch">
         วงกลมคือหมวด ขนาดตามจำนวนฉบับ สีตามหมวดแม่ · เส้นที่เชื่อมกันคือสองหมวดที่มักถูกจำแนกให้ฉบับเดียวกัน
         ยิ่งหนายิ่งพบบ่อย · ติ๊ก "แสดงหน่วยงาน" เพื่อซ้อนจุดสีเทาของหน่วยงานที่ออกเอกสารในหมวดนั้นมากที่สุด ·
@@ -507,6 +514,9 @@ export function Graph() {
             node={sel}
             model={model}
             year={year}
+            authorities={
+              sel.kind === 'topic' ? g.topics.find((t) => t.slug === sel.id.slice(2))?.agencies_n : undefined
+            }
             onPick={(id, name, kind) => {
               setSel({ id, name, kind })
             }}
@@ -523,16 +533,135 @@ export function Graph() {
 /** What a node actually is: how much of the archive it accounts for, what it sits next to, and
  *  the three ways out — its own page, the documents themselves, and a feed to follow it. A graph
  *  that only draws relationships leaves the reader to guess what to do with one. */
+/** How many separate bodies issue under each subject — the first thing somebody arriving with a
+ *  practical question needs, and a finding in its own right. Public health carries thousands of
+ *  issuing authorities because every municipality writes its own ordinance; foreign affairs
+ *  carries one. Both extremes are shown, because which end a subject sits at decides whether the
+ *  reader is looking for a document or for a door. */
+function AuthoritySpread({
+  topics,
+  onPick,
+}: {
+  topics: GraphData['topics']
+  onPick: (slug: string, name: string) => void
+}) {
+  const known = topics.filter((t) => t.n > 0 && (t.agencies_n ?? 0) > 0)
+  // "spread across many" has to mean more than one, or the heading contradicts its own rows —
+  // which is exactly what a narrow slice of the archive produces
+  const many = known
+    .filter((t) => (t.agencies_n ?? 0) > 1)
+    .sort((a, b) => (b.agencies_n ?? 0) - (a.agencies_n ?? 0))
+    .slice(0, 5)
+  const one = known
+    .filter((t) => (t.agencies_n ?? 0) === 1)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 5)
+  if (many.length === 0 && one.length === 0) return null
+  const row = (t: GraphData['topics'][number]) => (
+    <li key={t.slug}>
+      <button
+        onClick={() => {
+          onPick(t.slug, t.thai ?? t.slug)
+        }}
+      >
+        <span class="nm">{t.thai ?? t.slug}</span>
+        <span class="muted">
+          {(t.agencies_n ?? 0).toLocaleString('th-TH')} หน่วยงาน · {t.n.toLocaleString('th-TH')} ฉบับ
+        </span>
+      </button>
+    </li>
+  )
+  return (
+    <div class="spreadpair" data-testid="authority-spread">
+      {many.length > 0 && (
+        <section>
+          <h2 class="sec">เรื่องที่กระจายอยู่หลายหน่วยงาน</h2>
+          <p class="muted">ถ้าธุรกิจของคุณอยู่ในเรื่องพวกนี้ แปลว่าไม่ได้มีประตูเดียวให้เคาะ</p>
+          <ul class="sharelist plain">{many.map(row)}</ul>
+        </section>
+      )}
+      {one.length > 0 && (
+        <section>
+          <h2 class="sec">เรื่องที่มีเจ้าภาพรายเดียว</h2>
+          <p class="muted">รู้ชื่อหน่วยงานเดียวก็ตามเรื่องได้ครบ</p>
+          <ul class="sharelist plain">{one.map(row)}</ul>
+        </section>
+      )}
+    </div>
+  )
+}
+
+/** "Whose rules am I under?" answered from the counts the facet page already carries.
+ *
+ *  For a subject: which bodies issue under it, how much each one accounts for, and — the part a
+ *  reader actually wants — whether that is one door or a hundred. For a body: what it spends its
+ *  time on. Every row is a way into สำรวจ with both halves of the pair already filtered, because
+ *  the next question is always "show me those". */
+function Authority({
+  kind,
+  facet,
+  authorities,
+  onExplore,
+}: {
+  kind: 'topic' | 'agency'
+  facet: TopicPage | AgencyPage
+  authorities?: number
+  onExplore: (extra: Record<string, string>) => string
+}) {
+  const tax = useLoad((c) => c.taxonomy(), [])
+  const rows =
+    kind === 'topic'
+      ? facet.agencies
+      : Object.entries(facet.by_topic).map(([slug, n]) => ({ id: slug, name: slug, n }))
+  const named =
+    kind === 'topic' || tax.state !== 'ok'
+      ? rows
+      : rows.map((r) => ({ ...r, name: tax.data.topics[r.name]?.thai ?? r.name }))
+  const sp = spread(named, facet.total)
+  const top = shares(named, facet.total).slice(0, 8)
+  if (top.length === 0) return null
+  return (
+    <>
+      <h3 class="nodepanel-h">{kind === 'topic' ? 'ใครออกเรื่องนี้' : 'หน่วยงานนี้ออกเรื่องอะไร'}</h3>
+      <p class="verdict">{verdict(sp, kind === 'topic' ? authorities : undefined)}</p>
+      <ul class="sharelist">
+        {top.map((r) => (
+          <li key={r.id ?? r.name}>
+            <a href={onExplore(kind === 'topic' ? { agency: r.id ?? '' } : { topic: r.id ?? '' })}>
+              <span class="nm">{r.name}</span>
+              <span class="muted">
+                {r.n.toLocaleString('th-TH')} ·{' '}
+                {/* a real share that rounds to nothing should read as small, not as absent */}
+                {r.share > 0 && r.share < 0.005 ? '<1%' : `${Math.round(r.share * 100)}%`}
+              </span>
+            </a>
+            <div class="bar">
+              <i style={`width:${Math.max(1, Math.round((100 * r.share) / (sp.top || 1)))}%`} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      {kind === 'topic' && authorities !== undefined && authorities > top.length && (
+        <p class="muted" style="font-size:.8rem;margin:-2px 0 0">
+          แสดง {top.length} จาก {authorities.toLocaleString('th-TH')} หน่วยงานที่เคยออกเรื่องนี้
+        </p>
+      )}
+    </>
+  )
+}
+
 function NodePanel({
   node,
   model,
   year,
+  authorities,
   onPick,
   onClose,
 }: {
   node: { id: string; name: string; kind: 'topic' | 'agency' }
   model: GraphModel
   year: string
+  authorities?: number
   onPick: (id: string, name: string, kind: 'topic' | 'agency') => void
   onClose: () => void
 }) {
@@ -576,6 +705,20 @@ function NodePanel({
               <> · {Object.keys(facet.data.provinces).length} จังหวัด</>
             )}
           </p>
+
+          <Authority
+            kind={node.kind}
+            facet={facet.data}
+            authorities={authorities}
+            onExplore={(extra) =>
+              href.explore({
+                ...(year ? { scope: 'year', year } : { scope: 'all' }),
+                ...(node.kind === 'topic' ? { topic: key } : { agency: key }),
+                ...extra,
+              })
+            }
+          />
+
           <h3 class="nodepanel-h">ฉบับล่าสุด</h3>
           <div class="doclist tight">
             {facet.data.recent.slice(0, 3).map((d) => (

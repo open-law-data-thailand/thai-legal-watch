@@ -190,7 +190,15 @@ export interface Years {
   by_month: Record<string, number>
 }
 export interface Graph {
-  topics: { slug: string; thai: string | null; parent: string | null; n: number }[]
+  topics: {
+    slug: string
+    thai: string | null
+    parent: string | null
+    n: number
+    /** how many distinct bodies have issued under this topic — the whole count, unlike the
+     *  `topic_agency` edges below, which keep only the six largest per topic */
+    agencies_n?: number
+  }[]
   agencies: { id: string; name: string; n: number }[]
   topic_agency: { t: string; a: string; n: number }[]
   topic_topic: { a: string; b: string; n: number }[]

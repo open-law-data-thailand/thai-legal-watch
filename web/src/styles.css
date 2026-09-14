@@ -2096,3 +2096,73 @@ code,
 .skeleton {
   min-height: 1.6em;
 }
+
+/* ความสัมพันธ์: who is responsible for what, before the network picture. */
+.spreadpair {
+  display: grid;
+  gap: 18px;
+  margin: 0 0 18px;
+}
+@media (min-width: 900px) {
+  .spreadpair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.spreadpair .muted {
+  font-size: 0.85rem;
+  margin: -4px 0 8px;
+}
+.sharelist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 7px;
+}
+.sharelist li > a,
+.sharelist li > button {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.sharelist li > a:hover .nm,
+.sharelist li > button:hover .nm {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+.sharelist .nm {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sharelist .muted {
+  white-space: nowrap;
+  font-size: 0.8rem;
+  margin: 0;
+}
+.sharelist .bar {
+  margin-top: 3px;
+}
+.sharelist.plain li > button {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 7px;
+}
+/* the one-line reading of how concentrated a subject is — the answer, above the numbers */
+.verdict {
+  margin: 0 0 10px;
+  padding: 7px 11px;
+  border-radius: 9px;
+  background: var(--accent-bg);
+  color: var(--accent-ink);
+  font-size: 0.85rem;
+}

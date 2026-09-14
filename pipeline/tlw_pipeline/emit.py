@@ -147,7 +147,12 @@ class Emitter:
         })
         top_agencies = {a for f in agg.topics.values() for a, _ in f.agencies.most_common(6)}
         graph = {
-            "topics": [{"slug": s, "thai": v["thai"], "parent": v["parent"], "n": v["n"]}
+            # `agencies_n` is how many distinct bodies have issued under this topic — the whole
+            # count, not the six the edges below are trimmed to. It is the one number that says
+            # whether a subject has one authority to deal with or a dozen, and counting it here
+            # costs nothing because the tally already exists.
+            "topics": [{"slug": s, "thai": v["thai"], "parent": v["parent"], "n": v["n"],
+                        "agencies_n": len(agg.topics[s].agencies)}
                        for s, v in topics_out.items() if v["n"]],
             "agencies": [{"id": ids[a], "name": a, "n": agg.agencies[a].total} for a in top_agencies if a in ids],
             "topic_agency": [{"t": s, "a": ids[a], "n": n} for s, f in agg.topics.items()

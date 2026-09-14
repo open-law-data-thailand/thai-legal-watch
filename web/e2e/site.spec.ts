@@ -889,6 +889,29 @@ test.describe('dashboard, graph and about', () => {
     await a11y(page)
   })
 
+  test('the relationship page answers who is responsible before it draws anything', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/graph')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('ใครดูแล')
+
+    // The standing answer: which subjects have one authority and which have hundreds. It is the
+    // question people arrive with — "whose rules am I under" — and it needs no interaction.
+    const spread = page.getByTestId('authority-spread')
+    await expect(spread).toBeVisible()
+    const rows = spread.locator('li button')
+    await expect(rows.first()).toBeVisible()
+    await expect(rows.first()).toContainText('หน่วยงาน')
+
+    // picking one drives the panel, which explains the concentration rather than listing numbers
+    await rows.first().click()
+    const panel = page.locator('.nodepanel')
+    await expect(panel).toBeVisible()
+    await expect(panel.locator('.verdict')).toBeVisible()
+    // every row is a way into สำรวจ with both halves of the pair already filtered
+    const out = panel.locator('.sharelist a').first()
+    if (await out.count()) await expect(out).toHaveAttribute('href', /explore\?/)
+    await sane(page)
+  })
+
   test('the graph can be zoomed and reset from buttons, not only the wheel', async ({ page }) => {
     await page.goto('/#/ratchakitcha/graph')
     await expect(page.getByTestId('graph')).toHaveAttribute('data-ready', '1')
