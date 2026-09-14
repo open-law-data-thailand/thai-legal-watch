@@ -294,6 +294,29 @@ export function Doc({ id, month }: { id: string; month?: string }) {
                 </a>
               )}
             </p>
+            {links.fromSource && (
+              <p class="muted" style="font-size:.8rem;margin:10px 0 0" data-testid="link-recovery">
+                {/* A small share of these links 404 at the gazette — measured at one in a few
+                    hundred across every year. We cannot check three quarters of a million links
+                    at build time without hammering their server, and a cross-origin page cannot
+                    tell whether the tab it opened arrived at anything. So the way back is simply
+                    always on the page, and a dead link stops being a dead end. */}
+                ถ้าลิงก์เปิดไม่ได้ ให้ค้นด้วยเล่ม ตอน และหน้า ด้านบน — กดคัดลอกการอ้างอิงไปวางที่{' '}
+                <a href={GAZETTE} target="_blank" rel="noopener">
+                  เว็บราชกิจจานุเบกษา
+                </a>{' '}
+                ได้เลย
+                {readable && (
+                  <>
+                    {' '}
+                    · หรือ
+                    <a href="#fulltext" onClick={onJump('fulltext')}>
+                      อ่านเนื้อหาเต็มที่ด้านล่าง
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
             {!links.fromSource && (
               <p class="muted" style="font-size:.8rem;margin:10px 0 0">
                 {readable ? (

@@ -683,6 +683,34 @@ test.describe('document', () => {
     await a11y(page)
   })
 
+  test('a document with a PDF link still shows the way back if it does not open', async ({
+    page,
+    request,
+  }) => {
+    // Measured across 400 links spread over every year: 399 serve a PDF, one 404s. A page cannot
+    // tell whether the tab it opened arrived anywhere — the gazette is another origin — and
+    // checking three quarters of a million links at build time would mean hammering their
+    // server. So the recovery route is simply always on the page.
+    const months = await data.months(request)
+    let target: { id: string; month: string } | null = null
+    for (const m of months) {
+      const docs = await data.docs(request, m)
+      const withLink = docs.find((d: { u?: unknown }) => typeof d.u === 'number')
+      if (withLink) {
+        target = { id: withLink.id, month: m }
+        break
+      }
+    }
+    if (!target) throw new Error('fixture has no document with a source url')
+
+    await page.goto(`/#/ratchakitcha/doc/${target.id}?m=${target.month}`)
+    await expect(page.getByRole('link', { name: /เปิด PDF ต้นฉบับ/ })).toBeVisible()
+    const recovery = page.getByTestId('link-recovery')
+    await expect(recovery).toBeVisible()
+    await expect(recovery).toContainText('เล่ม ตอน และหน้า')
+    await sane(page)
+  })
+
   test('a legacy id is never handed a hundred-megabyte download', async ({ page, request }) => {
     const months = await data.months(request)
     const docs = await data.docs(request, months[months.length - 1] as string)
