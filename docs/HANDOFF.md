@@ -61,9 +61,11 @@ Kill a stale preview on 4173 before e2e: `lsof -ti tcp:4173 | xargs kill`.
 ### infra/ and CI
 `infra/deploy.sh <dist-data>` (build → copy data → `wrangler pages deploy`), `_headers`
 (cache/CORS/atom), `wrangler.toml`; `.github/workflows/ci.yml` runs pipeline + web checks.
-**Not yet deployed** — needs a Cloudflare Pages project (suggested `thai-legal-watch`), an API token
-(Pages:Edit) and account id in `~/src/.env` on the build box (`CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_ACCOUNT_ID`).
+**Deployed and self-updating** since 2026-09-13 — https://thai-legal-watch.pages.dev. The
+Cloudflare credentials live in the repository's Actions secrets, so a push to `main` and the
+16:00 UTC schedule both build from Hugging Face and deploy with nobody touching a machine; no
+laptop rsync is in that path. `infra/deploy.sh` (which reads `~/src/.env`) is the manual
+fallback. `docs/DEPLOY.md` is the runbook.
 
 ### Data on the Mac
 `~/olw-build/data/{taxonomy,meta}` — rsync from the box (`spicydog@192.168.21.124:olw-build/ontology/`
