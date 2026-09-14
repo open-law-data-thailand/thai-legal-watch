@@ -1322,6 +1322,40 @@ test.describe('keyboard and screen reader', () => {
   })
 })
 
+test.describe('changing page', () => {
+  test('the footer does not fly up while the next page loads', async ({ page }) => {
+    // Changing page empties <main> before the next page's data arrives — measured at 32,878px
+    // collapsing to 27 — and the footer followed it up under the header and back down again,
+    // once per navigation. That one frame is the flicker.
+    await page.goto('/#/ratchakitcha/explore')
+    await expect(page.locator('footer')).toBeVisible()
+
+    // watch from inside the page: the collapse lasts a frame, so sampling from the test misses it
+    const lowest = await page.evaluate(async () => {
+      const footer = document.querySelector('footer')
+      if (!footer) return null
+      let min = Infinity
+      const tick = () => {
+        min = Math.min(min, footer.getBoundingClientRect().top)
+      }
+      const id = setInterval(tick, 8)
+      location.hash = '#/ratchakitcha/dashboard'
+      await new Promise((r) => setTimeout(r, 1200))
+      clearInterval(id)
+      return { min: Math.round(min), viewport: innerHeight, header: 60 }
+    })
+    expect(lowest, 'the page has a footer to watch').not.toBeNull()
+    const seen = lowest as { min: number; viewport: number }
+
+    // it must stay below the fold entirely: this footer is nearly six hundred pixels tall, so
+    // "at the bottom of the window" would still put its top a hundred and thirty pixels down
+    expect(
+      seen.min,
+      `footer reached ${seen.min}px from the top of a ${seen.viewport}px window`,
+    ).toBeGreaterThanOrEqual(seen.viewport - 4)
+  })
+})
+
 test.describe('dead ends', () => {
   test('a topic that does not exist says so instead of blaming the network', async ({ page }) => {
     await page.goto('/#/ratchakitcha/topic/no_such_topic')

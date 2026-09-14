@@ -142,6 +142,29 @@ h3 {
 }
 body {
   overflow-x: clip;
+  /* The footer used to fly up under the header for one frame on every navigation. Changing page
+     empties <main> before the next page's data arrives — measured at 32,878px collapsing to 27
+     — and the footer simply followed it up the screen and back down again.
+     Nothing is hidden to fix that: the page is a column that is always at least a screen tall,
+     with <main> taking the slack, so the footer has nowhere to rise to. Short pages get the same
+     treatment for free, instead of leaving the footer stranded mid-screen. */
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+main.wrap {
+  flex: 1 0 auto;
+  /* At least a screenful, so the footer starts below the fold and stays there while a page
+     loads. `flex: 1` alone was not enough: this footer is nearly six hundred pixels tall, so
+     "pushed to the bottom of the window" still left its top a hundred and thirty pixels down —
+     which is the flash, just lower. The header's height is measured (see app.tsx) because the
+     nav wraps onto a second row on a phone. */
+  min-height: calc(100vh - var(--topbar-h, 60px));
+  min-height: calc(100svh - var(--topbar-h, 60px));
+}
+body > footer {
+  flex: 0 0 auto;
 }
 .topbar {
   border-bottom: 1px solid var(--line);
