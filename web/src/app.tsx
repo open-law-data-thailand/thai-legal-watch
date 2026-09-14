@@ -22,7 +22,7 @@ const NAV: [string, () => string, Route['name'][]][] = [
   ['ท้องถิ่น', href.provinces, ['provinces', 'province']],
   ['สถิติ', href.dashboard, ['dashboard']],
   ['ความสัมพันธ์', href.graph, ['graph']],
-  ['เกี่ยวกับ', href.about, ['about']],
+  ['เกี่ยวกับเรา', href.about, ['about']],
 ]
 
 export function App({ client }: { client?: DataClient }) {
@@ -196,7 +196,7 @@ export function titleFor(route: Route): string {
     case 'graph':
       return `ความสัมพันธ์ของหมวด — ${base}`
     case 'about':
-      return `เกี่ยวกับ — ${base}`
+      return `เกี่ยวกับเรา — ${base}`
     case 'notfound':
       return `ไม่พบหน้า — ${base}`
   }

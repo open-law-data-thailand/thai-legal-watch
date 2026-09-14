@@ -1978,3 +1978,48 @@ code,
 .pickgo .btn.primary {
   white-space: nowrap;
 }
+
+/* เกี่ยวกับเรา: the technical essay runs full width under the two columns. It is prose meant to
+   be read rather than scanned, so it gets a measure and generous spacing — unlike the reference
+   material above it, which people arrive at looking for one specific fact. */
+.techtalk {
+  max-width: 78ch;
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.techtalk h3 {
+  font-size: 1.02rem;
+  margin: 26px 0 8px;
+}
+.techtalk p {
+  max-width: 78ch;
+}
+.techtalk ul {
+  max-width: 78ch;
+  padding-left: 1.1rem;
+}
+.techtalk li {
+  margin-bottom: 10px;
+}
+/* the four stages of the build, which is the one thing here worth seeing rather than reading */
+.pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 18px;
+  font-size: 0.88rem;
+}
+.pipeline > span {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper-2);
+}
+.pipeline > span[aria-hidden] {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  color: var(--accent);
+  font-weight: 700;
+}

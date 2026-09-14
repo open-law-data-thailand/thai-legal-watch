@@ -74,7 +74,7 @@ test.describe('every route', () => {
       [`#/ratchakitcha/doc/${docs[0]?.id ?? ''}`, /Thai Legal Watch/],
       ['#/ratchakitcha/dashboard', /สถิติ/],
       ['#/ratchakitcha/graph', /ความสัมพันธ์ของหมวด/],
-      ['#/about', /เกี่ยวกับ/],
+      ['#/about', /เกี่ยวกับเรา/],
     ]
     for (const [hash, title] of routes) {
       await page.goto(`/${hash}`)
@@ -1094,6 +1094,35 @@ test.describe('dashboard, graph and about', () => {
       expect(r.headers()['content-type'], href).toContain('json')
       expect(r.headers()['access-control-allow-origin'] ?? '*', href).toBe('*')
     }
+  })
+
+  test('the about page explains how the thing is built, limits included', async ({ page }) => {
+    await page.goto('/#/about')
+    await expect(page.locator('.kicker')).toHaveText('เกี่ยวกับเรา')
+    const tech = page.locator('.techtalk')
+    await expect(tech).toBeVisible()
+
+    // the four stages of the build, which is the one thing here worth seeing rather than reading
+    await expect(page.locator('.pipeline > span')).not.toHaveCount(0)
+
+    // A page that lists only what the design buys and never what it costs is advertising. These
+    // are the sections that make it an account rather than a pitch.
+    for (const said of [
+      'ไม่มีเซิร์ฟเวอร์',
+      'ขีดจำกัด',
+      'ค้นข้อความเต็มทั้งคลังไม่ได้',
+      'ข้อมูลช้าได้ถึงหนึ่งวัน',
+      'ศูนย์บาทต่อเดือน',
+    ])
+      await expect(tech, said).toContainText(said)
+
+    // and the numbers in it are the build's own, not written into the prose by hand
+    const files = await page.evaluate(async () => {
+      const r = await fetch('/data/ratchakitcha/agg/meta.json')
+      return ((await r.json()) as { files: number }).files
+    })
+    await expect(tech).toContainText(files.toLocaleString('th-TH'))
+    await sane(page)
   })
 
   test('the about page states the accuracy', async ({ page }) => {
