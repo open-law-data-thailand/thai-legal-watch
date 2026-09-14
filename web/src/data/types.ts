@@ -82,7 +82,17 @@ export interface Meta {
   /** Where the full text of a document can be read from, one record at a time. Not part of the
    *  build — the layer is about 10 GB — so the site range-reads it from the publisher. Absent
    *  means this build simply does not offer full text. */
-  text?: { base: string; layer?: string; credit?: string; from?: string }
+  text?: {
+    base: string
+    layer?: string
+    credit?: string
+    /** the first year the layer reaches */
+    from?: string
+    /** years whose position index the build read. Inside one of these, a document with no `tx`
+     *  is a document the layer does not have — the index accounts for every byte of the files it
+     *  describes, so there is nothing for a search to find. */
+    indexed?: string[]
+  }
 }
 
 export interface TopicNode {

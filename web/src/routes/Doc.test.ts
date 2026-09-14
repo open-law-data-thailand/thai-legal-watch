@@ -126,6 +126,25 @@ describe('whether the text layer reaches a document', () => {
     expect(hasFullText(layer, undefined, '1998-001218')).toBe(false)
   })
 
+  it('says no inside an indexed year when the document has no position', () => {
+    // Proven against the live layer: the index accounts for every byte of each month file, and
+    // reading the real bytes where 2021-007568 would sit shows the file step from 2021-007567
+    // straight to 2021-007611. Searching for it would cost seventeen requests to find nothing.
+    const indexed = { ...layer, indexed: ['2021', '2002'] }
+    expect(hasFullText(indexed, '2021-01', '2021-007568')).toBe(false)
+    expect(hasFullText(indexed, '2021-01', '2021-005366', [0, 8202])).toBe(true)
+  })
+
+  it('still offers a search in a year the build could not index', () => {
+    // no index for that year means no evidence either way, and being slow beats refusing
+    const indexed = { ...layer, indexed: ['2021'] }
+    expect(hasFullText(indexed, '2013-11', '2013-028472')).toBe(true)
+  })
+
+  it('a position always wins, whatever the index list says', () => {
+    expect(hasFullText({ ...layer, indexed: [] }, '2005-01', 'x', [10, 20])).toBe(true)
+  })
+
   it('says no when the build publishes no text layer at all', () => {
     expect(hasFullText(undefined, '2010-01', 'x')).toBe(false)
     expect(hasFullText({ from: '2002' }, '2010-01', 'x')).toBe(false)

@@ -58,13 +58,24 @@ class OpenLawDataSoc:
     name = "openlawdata-soc"
     id = SOURCE_ID
     credit = CREDIT
-    text = TEXT
 
     def __init__(self, root: str):
         self.root = root
         self.meta_dir = os.path.join(root, "meta")
         self.tax_dir = os.path.join(root, "taxonomy")
         self.textindex_dir = os.path.join(root, "textindex")
+        self._indexed: list[str] = []
+
+    @property
+    def text(self) -> dict:
+        """Where the text layer is, and which years this build could read a position index for.
+
+        That list is what lets the site say "there is no text" instead of taking seven seconds to
+        discover it. The index accounts for *every byte* of each month file it describes — checked
+        across 48 month files in four years, first entry at offset 0, each record's end exactly
+        the next one's start, the last ending exactly at the file size — so inside a year it
+        covers, a document with no position is a document the layer does not have."""
+        return TEXT | ({"indexed": sorted(self._indexed)} if self._indexed else {})
 
     def years(self) -> list[str]:
         have = lambda d: {n for n in os.listdir(d) if n.isdigit()} if os.path.isdir(d) else set()  # noqa: E731
@@ -100,6 +111,7 @@ class OpenLawDataSoc:
         out: dict[str, tuple[int, int]] = {}
         if not os.path.exists(p):
             return out
+        self._indexed.append(year)
         with open(p, encoding="utf-8") as f:
             for line in f:
                 if not line.strip():

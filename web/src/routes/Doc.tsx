@@ -45,19 +45,28 @@ const provinceFile = (name: string, list: { name: string; file: string }[]) =>
 
 const GAZETTE = 'https://ratchakitcha.soc.go.th'
 
-/** Whether the published text layer reaches this document. It starts part-way through the
- *  archive and only grows forward, so the year it starts at is the whole test. Offering the
- *  button outside that range costs the reader seven seconds and seventeen requests to be told
- *  there is nothing — and it is exactly the years with no PDF link where being told to "read it
- *  below" would be a lie. */
+/** Whether the published text layer reaches this document.
+ *
+ *  Two tests, both about not promising text that is not there — offering the button costs the
+ *  reader seventeen requests and about seven seconds before it can say "nothing".
+ *
+ *  The layer starts part-way through the archive and only grows forward, so the year it starts
+ *  at rules out everything before it. And within a year whose position index the build read, a
+ *  document with no position is a document the layer does not have: the index accounts for every
+ *  byte of every month file it describes, so a search would read the file and find the ids step
+ *  straight over the one it wants. 21,152 documents are in exactly that state — classified
+ *  upstream after the text layer was last built. */
 export function hasFullText(
-  text: { base?: string; from?: string } | undefined,
+  text: { base?: string; from?: string; indexed?: string[] } | undefined,
   month: string | undefined,
   id: string,
+  at?: [number, number],
 ): boolean {
   if (!text?.base) return false
   const year = (month ?? id).slice(0, 4)
-  return !text.from || year >= text.from
+  if (text.from && year < text.from) return false
+  if (at) return true
+  return !text.indexed?.includes(year)
 }
 
 export interface DocLinks {
@@ -144,7 +153,7 @@ export function Doc({ id, month }: { id: string; month?: string }) {
   const coords = { volume: d.v, part: d.p, page: d.pg, date: d.d }
   const cite = formatCitation(fmt, d.t, coords)
   const links = docLinks(d.id, st.data.month, d.u)
-  const readable = hasFullText(st.data.meta.text, st.data.month, d.id)
+  const readable = hasFullText(st.data.meta.text, st.data.month, d.id, d.tx)
   // Clipboard access needs a secure context and can be refused; the optional chain used to mean
   // the button simply did nothing, forever, with no explanation. These buttons are the page's
   // whole point for a lawyer, so a failure has to say so and leave the text selectable.
