@@ -145,6 +145,18 @@ describe('whether the text layer reaches a document', () => {
     expect(hasFullText({ ...layer, indexed: [] }, '2005-01', 'x', [10, 20])).toBe(true)
   })
 
+  it("takes the publisher's own answer over anything inferred", () => {
+    // `has_text: false` is authoritative and arrived after the inference below was written. Most
+    // of those documents are held back on purpose — the file on disk could not be proved to
+    // belong to the record — so no rebuild is coming and no search would find them.
+    const indexed = { ...layer, indexed: ['2021'] }
+    expect(hasFullText(indexed, '2021-01', '2021-007568', undefined, false)).toBe(false)
+    // it even overrides a position, which should never happen but must not promise text if it does
+    expect(hasFullText(indexed, '2021-01', 'x', [0, 10], false)).toBe(false)
+    // and where the publisher says nothing, the inference still stands
+    expect(hasFullText(indexed, '2021-01', 'y', [0, 10])).toBe(true)
+  })
+
   it('says no when the build publishes no text layer at all', () => {
     expect(hasFullText(undefined, '2010-01', 'x')).toBe(false)
     expect(hasFullText({ from: '2002' }, '2010-01', 'x')).toBe(false)

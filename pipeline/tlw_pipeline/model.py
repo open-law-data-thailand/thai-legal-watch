@@ -75,6 +75,11 @@ class Doc:
     extracted: dict = field(default_factory=dict)
     source: str = "openlawdata-soc"
     source_url: str | None = None   # the publisher's own link to the PDF, when it gives one
+    #: The publisher's own answer to "is there text for this one". Authoritative, and not the
+    #: same question as "did the build find a position for it": text can exist for a record the
+    #: position index does not reach, and a record can be deliberately withheld while its PDF
+    #: sits on disk. Only `False` is worth carrying — most documents have text.
+    has_text: bool | None = None
     #: (offset, length) of this record inside its month file in the text layer, from the
     #: publisher's index. Lets the site read the text in one request instead of searching a file
     #: it cannot download — the search costs seventeen requests and about seven seconds.
@@ -95,6 +100,8 @@ class Doc:
             d["u"] = ref
         if self.text_at:
             d["tx"] = list(self.text_at)
+        if self.has_text is False:
+            d["ht"] = False
         if self.extracted:
             d["x"] = self.extracted
         return d

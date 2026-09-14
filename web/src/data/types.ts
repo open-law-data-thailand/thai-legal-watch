@@ -34,6 +34,11 @@ export interface SlimDoc {
    *  the publisher's index. Turns reading the full text into one range request instead of
    *  seventeen. Absent where the index does not reach; the reader just waits longer. */
   tx?: [number, number]
+  /** present, and false, only when the publisher states this document has no text layer. Its own
+   *  answer, and a different question from whether the build found a position: 10,912 documents
+   *  are deliberately withheld because the refile could not prove which file belongs to them,
+   *  7,263 are scans still being read, and 2,977 have no PDF at all. */
+  ht?: false
   x?: Record<string, string>
 }
 

@@ -155,6 +155,9 @@ class OpenLawDataSoc:
                         # have neither, and that gap is what this field will close.
                         source_url=m.get("source_url") or None,
                         text_at=textat.get(did),
+                        # published since 2026-09-14; absent in an older snapshot, and `None`
+                        # there means "not stated", which is not the same as "no"
+                        has_text=r["has_text"] if isinstance(r.get("has_text"), bool) else None,
                     )
 
 

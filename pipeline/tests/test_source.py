@@ -118,3 +118,19 @@ def test_a_compressed_number_survives_a_json_round_trip():
         url = f"https://ratchakitcha.soc.go.th/documents/{n}.pdf"
         ref = source_ref(url)
         assert str(json.loads(json.dumps({"u": ref}))["u"]) == n
+
+
+def test_a_document_the_publisher_says_has_no_text_says_so_in_the_slim_record():
+    """`has_text` is the publisher's own answer and it is not the same question as whether the
+    build found a byte offset. Text can exist where the position index does not reach, and a
+    record can be deliberately withheld while its PDF sits on disk — 10,912 of them are, because
+    the refile could not prove which document the file belongs to."""
+    from tlw_pipeline.model import Doc
+    base = dict(year="2021", month="2021-01", title="t", date="2021-01-01", volume=138,
+                part="1 ง", part_class="ง", page=1, doc_type="ประกาศ", agency=None,
+                agency_type=None, province=None, topic=None, action=None, govlevel=None,
+                topic_c=False, action_c=False, govlevel_c=False)
+    assert Doc(id="2021-007568", has_text=False, **base).slim()["ht"] is False
+    # true and unstated both stay out of the payload: only the minority costs bytes
+    assert "ht" not in Doc(id="a", has_text=True, **base).slim()
+    assert "ht" not in Doc(id="b", has_text=None, **base).slim()
