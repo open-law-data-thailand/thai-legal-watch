@@ -61,7 +61,7 @@ export function search(
       {
         kind: 'หน่วยงาน',
         name: a.name,
-        to: a.page === false ? href.explore({ agency: a.id, scope: 'all' }) : href.agency(a.id),
+        to: a.page ? href.agency(a.id) : href.explore({ agency: a.id, scope: 'all' }),
         n: a.n,
       },
       [a.name],

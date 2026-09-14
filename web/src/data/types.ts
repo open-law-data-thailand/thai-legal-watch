@@ -152,8 +152,9 @@ export interface Home {
 export interface AgencyIndexItem {
   id: string
   name: string
-  type: string | null
   n: number
+  /** present only when the agency has a page of its own; absent means it does not */
+  page?: boolean
 }
 export interface ProvinceIndexItem {
   name: string
