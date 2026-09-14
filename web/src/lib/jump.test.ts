@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { jumpTo, onJump } from './jump'
 
-let scrolled: ReturnType<typeof vi.fn>
+// typed to the member it replaces, not to a bare mock: `tsc -b` checks this file and a
+// `Mock<Procedure>` does not satisfy scrollIntoView's signature
+let scrolled: ReturnType<typeof vi.fn<Element['scrollIntoView']>>
 
 beforeEach(() => {
   document.body.innerHTML = '<main id="main">content</main><section id="fulltext">text</section>'
   // jsdom has no layout, so scrollIntoView is not implemented there at all
-  scrolled = vi.fn()
+  scrolled = vi.fn<Element['scrollIntoView']>()
   Element.prototype.scrollIntoView = scrolled
 })
 
