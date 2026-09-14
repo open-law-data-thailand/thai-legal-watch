@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (`/Users/spicydog/Development/OpenLawData/thai-legal-watch`, git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 52 · Vitest 200 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 52 · Vitest 200 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -68,8 +68,8 @@ laptop rsync is in that path. `infra/deploy.sh` (which reads `~/src/.env`) is th
 fallback. `docs/DEPLOY.md` is the runbook.
 
 ### Data on the Mac
-`~/olw-build/data/{taxonomy,meta}` — rsync from the box (`spicydog@192.168.21.124:olw-build/ontology/`
-and `/mnt/soc-ratchakitcha/huggingface/soc-ratchakitcha/meta/`), last synced 2026-09-13 14:28.
+`~/olw-build/data/{taxonomy,meta}` — rsync from the build box (`<host>:olw-build/ontology/` and its
+`…/huggingface/soc-ratchakitcha/meta/`), last synced 2026-09-13 14:28.
 Re-sync when the taxonomy changes. 2002–2004 are already complete locally but not yet on Hugging
 Face, so the build stays at `--years 2005-2026`. Built output in `~/olw-build/tlw-dist`.
 

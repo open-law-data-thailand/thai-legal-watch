@@ -161,6 +161,10 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
     setRestored(false)
   }
   const [copied, setCopied] = useState('')
+  // Declared here rather than beside `active` below: the chart effect closes over it, and the
+  // effect is registered before this component's early returns — a `const` declared after one of
+  // them is still in its temporal dead zone when the effect runs.
+  const filtering = year !== null || Object.values(pick).some(Boolean)
   const toggle = (axis: keyof Picks, k: string) => {
     touched()
     setPick((p) => ({ ...p, [axis]: p[axis] === k ? undefined : k }))
@@ -280,15 +284,24 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
     }
   }, [byYear])
 
-  // highlight the focused year and the one it is compared against, without rebuilding the chart
+  // Restyle and re-value the chart without rebuilding it: the focused year and the one it is
+  // compared against get their own colour, and the heights follow the filter.
+  //
+  // The bars are the cross-filter's own per-year counts, not the archive's. This chart is the
+  // page's period control, so it has to answer the same question every other panel answers —
+  // "of what you have narrowed to, how much is in each year" — otherwise it sits above six
+  // panels that moved and quietly claims nothing happened. The axis stays on the archive's full
+  // list of years so the chart never reflows and a year that drops to zero still shows as zero,
+  // which is itself the answer to "was there any that year".
   useEffect(() => {
     if (!byYear) return
     const ys = Object.keys(byYear).sort()
+    const count = (k: string) => (filtering ? (now?.years.get(k) ?? 0) : byYear[k])
     chartRef.current?.setOption({
       series: [
         {
           data: ys.map((k) => ({
-            value: byYear[k],
+            value: count(k),
             itemStyle: {
               color: k === year ? '#c9502a' : k === prevYear ? '#d8a08c' : '#6b4fd8',
               borderRadius: [3, 3, 0, 0],
@@ -297,7 +310,7 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
         },
       ],
     })
-  }, [year, prevYear, byYear])
+  }, [year, prevYear, byYear, now, filtering])
 
   if (st.state === 'loading') return <Loading what="สถิติ" />
   if (st.state === 'error') return <ErrorBox error={st.error} />
@@ -307,7 +320,9 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
   const partialYear = meta.latest_date?.slice(0, 4) ?? ''
   const focusLabel = year ? `ปี ${beYear(year)}` : 'ทุกปีรวมกัน'
   const focusIsPartial = year !== null && year === partialYear
-  const window = complete.slice(-3)
+  // not `window`: a local of that name shadows the global one for the whole component, and any
+  // later line that reaches for the real `window` gets a temporal-dead-zone error instead
+  const recent = complete.slice(-3)
   const prior = complete.slice(-6, -3)
 
   // Every metric is a pair: the number, and the number it is being compared against.
@@ -337,7 +352,7 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
     ? prevYear
       ? `ปี ${beYear(year)} เทียบปี ${beYear(prevYear)}`
       : 'ไม่มีปีก่อนหน้าให้เทียบ'
-    : `${beYear(window[0] ?? '')}–${beYear(window[window.length - 1] ?? '')} เทียบ ${beYear(prior[0] ?? '')}–${beYear(prior[prior.length - 1] ?? '')}`
+    : `${beYear(recent[0] ?? '')}–${beYear(recent[recent.length - 1] ?? '')} เทียบ ${beYear(prior[0] ?? '')}–${beYear(prior[prior.length - 1] ?? '')}`
 
   // A focused year with no year before it has nothing to compare against, and saying "ทั้งคลัง"
   // there would describe the wrong population entirely.
@@ -366,10 +381,6 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
   const active = (Object.keys(AS_PARAM) as (keyof Picks)[])
     .filter((a) => pick[a])
     .map((a) => ({ axis: a, key: pick[a] as string }))
-  // A chosen year narrows the page as surely as a chosen topic does, so it counts: the notice
-  // this drives is about the numbers not being the archive's, not about which control was used.
-  const filtering = year !== null || active.length > 0
-
   // The address already is the filtered view — the effect above keeps it that way — so copying
   // it is copying what is on screen. Clipboard access needs a secure context and can be refused;
   // when it is, say so and point at the address bar rather than failing silently.
@@ -417,6 +428,11 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
         <div class="yearpick-head">
           <h2 class="sec" style="margin:0">
             ฉบับต่อปี
+            {active.length > 0 && (
+              <span class="filtered" data-testid="chart-filtered">
+                เฉพาะ {active.map(({ axis, key }) => nameOfPick[axis](key)).join(' · ')}
+              </span>
+            )}
           </h2>
           <p class="muted" style="margin:0;font-size:.85rem">
             {year ? (
@@ -433,6 +449,8 @@ export function Dashboard({ q }: { q: URLSearchParams }) {
                   ล้างการเลือก ({beYear(year)}) ×
                 </button>
               </>
+            ) : active.length > 0 ? (
+              'แท่งด้านล่างนับเฉพาะที่ตรงตัวกรอง — ปีที่เป็นศูนย์คือปีที่ไม่มีเลย'
             ) : (
               'คลิกแท่งหรือกดปีด้านล่างเพื่อให้ทั้งหน้าตอบเฉพาะปีนั้น'
             )}

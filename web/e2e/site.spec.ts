@@ -1093,6 +1093,52 @@ test.describe('dashboard, graph and about', () => {
     await sane(page)
   })
 
+  test('the year chart is part of the filter, not a bystander above it', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    const chart = page.getByTestId('chart-years')
+    await expect(chart).toHaveAttribute('data-ready', '1')
+    // The y-axis labels are the chart's own account of its scale. Picked out by position, not by
+    // value: the x-axis is Buddhist years, and 2567 is larger than any count in the fixture.
+    const scale = async () =>
+      await chart.locator('svg text').evaluateAll((els) => {
+        const left = Math.min(...els.map((e) => e.getBoundingClientRect().x))
+        return els
+          .filter((e) => e.getBoundingClientRect().x < left + 24)
+          .map((e) => Number((e.textContent ?? '').replace(/[^0-9]/g, '')))
+          .filter((n) => Number.isFinite(n))
+      })
+    const before = Math.max(...(await scale()))
+    expect(before, 'the value axis should have a scale to begin with').toBeGreaterThan(0)
+
+    await page.locator('.statgrid .barpick').first().click()
+    // it says it is filtered, in the heading, not only in the bar below
+    await expect(page.getByTestId('chart-filtered')).toBeVisible()
+    // and the bars actually moved: a narrower population cannot need the same axis
+    await expect.poll(async () => Math.max(...(await scale()))).toBeLessThan(before)
+  })
+
+  test('clicking a filter does not throw the reader back to the top', async ({ page }) => {
+    // สถิติ writes its filter into the address, which fires the same hashchange a navigation
+    // does — and the app scrolls to the top on those. Clicking a bar halfway down the page
+    // scrolled it away from under the cursor, every single time.
+    await page.goto('/#/ratchakitcha/dashboard')
+    const first = page.locator('.statgrid .barpick').first()
+    await first.scrollIntoViewIfNeeded()
+    const y = await page.evaluate(() => scrollY)
+    expect(y, 'the test needs to be scrolled down for this to mean anything').toBeGreaterThan(100)
+
+    await first.click()
+    await expect(page.getByTestId('pickbar')).toContainText('ล้าง')
+
+    // The page must not go back to the top. It may settle by a few tens of pixels: on a narrow
+    // screen the heading gains a "เฉพาะ …" chip that wraps, and the browser's own scroll
+    // anchoring moves the viewport with it — which is the behaviour that keeps the row under
+    // the finger, not a defect. What was wrong was a reset to zero from two thousand.
+    const moved = Math.abs((await page.evaluate(() => scrollY)) - y)
+    expect(moved, `scrolled ${moved}px after a filter click`).toBeLessThan(150)
+    expect(await page.evaluate(() => scrollY)).toBeGreaterThan(100)
+  })
+
   test('sections fold away and are still folded on the next visit', async ({ page }) => {
     await page.goto('/#/ratchakitcha/dashboard')
     const panel = page.locator('details.statpanel').first()

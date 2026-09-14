@@ -99,7 +99,7 @@ will not run on. `infra/node-env.sh` loads nvm if it is installed and refuses to
 anything older than Node 20, rather than failing halfway into a build. Check what cron would see:
 
 ```bash
-ssh spicydog@192.168.21.124 'bash -lc "node -v"; ssh-add -l >/dev/null; env -i bash -c "node -v"'
+ssh <build box> 'bash -lc "node -v"; ssh-add -l >/dev/null; env -i bash -c "node -v"'
 ```
 
 If the second one is older than v20, either `nvm install --lts` (the scripts will find it) or

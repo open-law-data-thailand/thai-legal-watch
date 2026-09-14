@@ -12,6 +12,7 @@ import { Latest } from './routes/Latest'
 import { Provinces } from './routes/Provinces'
 import { DEFAULT_SOURCE, href, parseHash, subscribe, type Route } from './router'
 import { onJump } from './lib/jump'
+import { reducedMotion } from './lib/motion'
 import { focusSearch } from './lib/searchkey'
 import { Boundary } from './ui/Boundary'
 
@@ -29,11 +30,6 @@ const NAV: [string, () => string, Route['name'][]][] = [
 export function App({ client }: { client?: DataClient }) {
   const [route, setRoute] = useState<Route>(() => parseHash(location.hash))
   const bar = useRef<HTMLElement>(null)
-  // Things stick to the top of the viewport under this header — the filter on ล่าสุด, and the
-  // date headings under that — and the header's own height depends on the width, because the nav
-  // wraps onto its own row on a phone. Both offsets used to be numbers in the stylesheet, and
-  // both were wrong the moment the header's contents changed: taking the search box out left a
-  // date heading sitting thirty pixels below where the header now ends.
   // "/" focuses the page's search box. It is handled here, not in the box, because the box now
   // lives on the home page behind that page's data fetch — a shortcut that exists only after a
   // request finishes is a shortcut that silently does nothing on a slow connection.
@@ -51,6 +47,11 @@ export function App({ client }: { client?: DataClient }) {
       removeEventListener('keydown', onKey)
     }
   }, [])
+  // Things stick to the top of the viewport under this header — the filter on ล่าสุด, and the
+  // date headings under that — and the header's own height depends on the width, because the nav
+  // wraps onto its own row on a phone. Both offsets used to be numbers in the stylesheet, and
+  // both were wrong the moment the header's contents changed: taking the search box out left a
+  // date heading sitting thirty pixels below where the header now ends.
   useEffect(() => {
     const el = bar.current
     if (!el || typeof ResizeObserver === 'undefined') return
@@ -64,17 +65,48 @@ export function App({ client }: { client?: DataClient }) {
       ro.disconnect()
     }
   }, [])
+  // Scroll to the top when the reader goes somewhere, and *only* then. สถิติ writes its filter
+  // into the address, which fires the same hashchange as a navigation — so clicking a bar
+  // halfway down the page threw the reader back to the top of it, every time. routeKey ignores
+  // the query for exactly this reason: same key means same page, whatever the filter says.
+  const wasAt = useRef(routeKey(parseHash(location.hash)))
   useEffect(
     () =>
       subscribe((r) => {
+        const key = routeKey(r)
+        if (key !== wasAt.current) {
+          wasAt.current = key
+          scrollTo(0, 0)
+        }
         setRoute(r)
-        scrollTo(0, 0)
       }),
     [],
   )
   useEffect(() => {
     document.title = titleFor(route)
   }, [route])
+  // A navigation replaces the whole of <main> at once, which reads as a flash: the old page
+  // vanishes, a loading line appears, the new one lands. A short slide turns that into a change
+  // rather than a jolt.
+  //
+  // Movement only — no fade. Text at partial opacity is text at reduced contrast, and this site
+  // is checked against WCAG AA on every page: the first version dipped the whole page to zero
+  // opacity and axe caught body text at 3.3:1 on the way up. A reader with low vision would have
+  // met the same thing, just without the report.
+  //
+  // Driven from script rather than CSS because it has to *restart* on each navigation, and
+  // `main` is not remounted — stylesheet rules depend on being its direct child, so it cannot be
+  // wrapped in a keyed element either.
+  const pageKey = routeKey(route)
+  useEffect(() => {
+    if (reducedMotion()) return
+    const el = document.getElementById('main')
+    if (!el?.animate) return
+    el.animate([{ transform: 'translateY(6px)' }, { transform: 'none' }], {
+      duration: 180,
+      easing: 'ease-out',
+    })
+  }, [pageKey])
   useEffect(() => {
     // the nav scrolls sideways on a phone; keep the page you are on from hiding off the edge
     const nav = document.querySelector('nav.main')

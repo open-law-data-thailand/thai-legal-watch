@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { useState } from 'preact/hooks'
-import { useCountUp } from '../lib/motion'
+import { useAfter, useCountUp } from '../lib/motion'
 import { highlight } from '../lib/highlight'
 import { familyColor, tint } from '../lib/family'
 import { DataError } from '../data/client'
@@ -79,9 +79,12 @@ export function StaleNotice({ generatedAt }: { generatedAt: string | undefined }
 }
 
 export function Loading({ what = 'ข้อมูล' }: { what?: string }) {
+  // held back a fifth of a second: see useAfter. The paragraph is there from the first frame so
+  // the text arriving does not push anything, and `aria-busy` is true throughout either way.
+  const late = useAfter(180)
   return (
-    <p class="skeleton" aria-busy="true">
-      กำลังโหลด{what}…
+    <p class="skeleton" aria-busy="true" role="status" data-testid="loading">
+      {late ? `กำลังโหลด${what}…` : ''}
     </p>
   )
 }

@@ -2023,3 +2023,53 @@ code,
   color: var(--accent);
   font-weight: 700;
 }
+
+/* "ฉบับต่อปี · เฉพาะ ล้มละลาย" — the chart is the page's period control, so when the bars stop
+   being the archive's it has to say so in the heading, not only in the bar below it. */
+.filtered {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: middle;
+  background: var(--paper);
+  color: var(--accent-2);
+  border: 1px solid var(--accent-2);
+}
+
+/* On a narrow screen the filter bar used to grow a row each time a chip was added, pushing the
+   list under it down by about ninety pixels — so the row you had just tapped moved out from
+   under your finger even though the page had not scrolled. Each half keeps to one line and
+   scrolls sideways instead, which makes the bar's height the same whatever is filtered. */
+@media (max-width: 800px) {
+  .pickbar {
+    flex-wrap: nowrap;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .pickchips,
+  .pickgo {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .pickchips::-webkit-scrollbar,
+  .pickgo::-webkit-scrollbar {
+    display: none;
+  }
+  .pickchips > *,
+  .pickgo > * {
+    flex: 0 0 auto;
+  }
+}
+
+/* The loading line holds its own height from the first frame, so the text appearing a fifth of a
+   second later pushes nothing down. It does not pulse: fading text is text at lower contrast,
+   and this one is on screen precisely when somebody is trying to read it. */
+.skeleton {
+  min-height: 1.6em;
+}
