@@ -157,7 +157,7 @@ function Page({ route }: { route: Route }) {
     case 'doc':
       return <Doc id={route.id} month={route.month} />
     case 'dashboard':
-      return <Dashboard />
+      return <Dashboard q={route.q} />
     case 'graph':
       return <Graph />
     case 'about':

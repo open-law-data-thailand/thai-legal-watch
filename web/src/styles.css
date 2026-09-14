@@ -1937,3 +1937,44 @@ code,
   border-style: dashed;
   color: var(--ink-2);
 }
+
+/* A filter restored from last time is the one case where the page shows numbers the reader did
+   not ask for on this visit. It says so before anything else, in the warm signpost colours the
+   site already uses for "you are not seeing everything", with the way out as a real button. */
+.restored {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+.restored .btn {
+  background: var(--paper);
+  white-space: nowrap;
+}
+
+/* The filter bar is quiet until something is filtered, then it is the loudest thing above the
+   breakdowns — a reader who scrolled straight to a number has to be able to tell at a glance
+   that it is not the whole archive's. */
+.pickbar.on {
+  border-color: var(--accent-2);
+  box-shadow: inset 3px 0 0 var(--accent-2);
+}
+.pickbar.on .pickchip:not(.fixed) {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.chip.clear {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+.pickgo .btn.primary {
+  white-space: nowrap;
+}

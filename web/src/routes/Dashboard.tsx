@@ -42,6 +42,55 @@ const AS_PARAM: Record<keyof Picks, string> = {
   agency: 'agency',
 }
 
+/** The last filter this reader used, so สถิติ opens where they left it. Restoring silently
+ *  would be a trap — the numbers would not be the archive's and nothing would say so — which is
+ *  why the page says out loud when a filter came from here, with one button to drop it. */
+const FILTER_KEY = 'tlw.stats.filter'
+
+interface Remembered {
+  year: string | null
+  pick: Picks
+}
+
+function rememberedFilter(): Remembered | null {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(FILTER_KEY) ?? 'null')
+    if (!raw || typeof raw !== 'object') return null
+    const r = raw as Partial<Remembered>
+    const pick: Picks = {}
+    for (const axis of Object.keys(AS_PARAM) as (keyof Picks)[]) {
+      const v = (r.pick ?? {})[axis]
+      if (typeof v === 'string' && v) pick[axis] = v
+    }
+    const year = typeof r.year === 'string' && /^\d{4}$/.test(r.year) ? r.year : null
+    return year || Object.keys(pick).length ? { year, pick } : null
+  } catch {
+    return null
+  }
+}
+
+function rememberFilter(year: string | null, pick: Picks) {
+  try {
+    if (!year && !Object.values(pick).some(Boolean)) localStorage.removeItem(FILTER_KEY)
+    else localStorage.setItem(FILTER_KEY, JSON.stringify({ year, pick }))
+  } catch {
+    // a reader who blocks site data still gets a working page, just not a remembered filter
+  }
+}
+
+/** What the address bar is asking for, if anything. An address always beats a memory: a link
+ *  someone was sent has to show them what the sender saw. */
+function filterFromQuery(q: URLSearchParams): Remembered | null {
+  const pick: Picks = {}
+  for (const axis of Object.keys(AS_PARAM) as (keyof Picks)[]) {
+    const v = q.get(AS_PARAM[axis])
+    if (v) pick[axis] = v
+  }
+  const y = q.get('year')
+  const year = y && /^\d{4}$/.test(y) ? y : null
+  return year || Object.keys(pick).length ? { year, pick } : null
+}
+
 /** Which sections a reader has folded away. localStorage throws outright where site data is
  *  blocked, so every access is guarded and a failure just means everything opens. */
 const FOLD_KEY = 'tlw.stats.folded'
@@ -84,7 +133,7 @@ const TH_MONTH_SHORT = [
 const range = (byMonth: Record<string, number>, year: string | null) =>
   year ? { shards: Object.keys(byMonth).filter((m) => m.startsWith(year)) } : {}
 
-export function Dashboard() {
+export function Dashboard({ q }: { q: URLSearchParams }) {
   const href = useHref()
   const st = useLoad(async (c) => {
     const [years, tax, bk, trends, meta, cube, agencies] = await Promise.all([
@@ -98,11 +147,43 @@ export function Dashboard() {
     ])
     return { years, tax, bk, trends, meta, cube, agencyName: new Map(agencies.map((a) => [a.id, a.name])) }
   }, [])
-  const [year, setYear] = useState<string | null>(null)
-  const [pick, setPick] = useState<Picks>({})
+  // The address wins over the memory: a link somebody was sent has to show them what the sender
+  // saw. Read once — this component is not remounted when the query changes, because it is the
+  // one writing it.
+  const opened = useState(() => filterFromQuery(q) ?? rememberedFilter())[0]
+  const [year, setYear] = useState<string | null>(opened?.year ?? null)
+  const [pick, setPick] = useState<Picks>(opened?.pick ?? {})
+  // True only while the filter on screen is one this reader left behind rather than one they
+  // just chose or were sent. It is what the restored-notice is saying, so it stops being true
+  // the moment they touch anything.
+  const [restored, setRestored] = useState(() => !filterFromQuery(q) && !!rememberedFilter())
+  const touched = () => {
+    setRestored(false)
+  }
+  const [copied, setCopied] = useState('')
   const toggle = (axis: keyof Picks, k: string) => {
+    touched()
     setPick((p) => ({ ...p, [axis]: p[axis] === k ? undefined : k }))
   }
+  const clearAll = () => {
+    touched()
+    setPick({})
+    setYear(null)
+  }
+  // Keep the address and the memory in step with what is on screen. `replace`, not a new history
+  // entry: six dimensions invite a lot of clicking, and Back should leave the page rather than
+  // walk the reader back through every narrowing one at a time.
+  useEffect(() => {
+    const params: Record<string, string> = {}
+    if (year) params.year = year
+    for (const axis of Object.keys(AS_PARAM) as (keyof Picks)[]) {
+      const v = pick[axis]
+      if (v) params[AS_PARAM[axis]] = v
+    }
+    const to = href.dashboard(params)
+    if (location.hash !== to) location.replace(to)
+    rememberFilter(year, pick)
+  }, [year, pick, href])
   const yearsRef = useRef<HTMLDivElement>(null)
 
   const ok = st.state === 'ok'
@@ -181,6 +262,7 @@ export function Dashboard() {
       })
       chart.on('click', (p: { dataIndex: number }) => {
         const clicked = ys[p.dataIndex] ?? null
+        setRestored(false)
         setYear((cur) => (cur === clicked ? null : clicked))
       })
       el.dataset.ready = '1'
@@ -284,6 +366,31 @@ export function Dashboard() {
   const active = (Object.keys(AS_PARAM) as (keyof Picks)[])
     .filter((a) => pick[a])
     .map((a) => ({ axis: a, key: pick[a] as string }))
+  // A chosen year narrows the page as surely as a chosen topic does, so it counts: the notice
+  // this drives is about the numbers not being the archive's, not about which control was used.
+  const filtering = year !== null || active.length > 0
+
+  // The address already is the filtered view — the effect above keeps it that way — so copying
+  // it is copying what is on screen. Clipboard access needs a secure context and can be refused;
+  // when it is, say so and point at the address bar rather than failing silently.
+  const copyLink = () => {
+    const clip = navigator.clipboard
+    if (!clip) {
+      setCopied('fail')
+      return
+    }
+    clip.writeText(location.href).then(
+      () => {
+        setCopied('ok')
+        setTimeout(() => {
+          setCopied('')
+        }, 1500)
+      },
+      () => {
+        setCopied('fail')
+      },
+    )
+  }
 
   return (
     <>
@@ -319,6 +426,7 @@ export function Dashboard() {
                 <button
                   class="chip"
                   onClick={() => {
+                    touched()
                     setYear(null)
                   }}
                 >
@@ -345,6 +453,7 @@ export function Dashboard() {
             class="chip"
             aria-pressed={year === null}
             onClick={() => {
+              touched()
               setYear(null)
             }}
           >
@@ -356,6 +465,7 @@ export function Dashboard() {
               class="chip"
               aria-pressed={year === y}
               onClick={() => {
+                touched()
                 setYear((cur) => (cur === y ? null : y))
               }}
             >
@@ -438,7 +548,25 @@ export function Dashboard() {
         กดซ้ำเพื่อเอาออก · พอได้ชุดที่ต้องการแล้ว ค่อยกดไปดูฉบับจริงในหน้าสำรวจ
       </p>
 
-      <div class="pickbar" data-testid="pickbar">
+      {restored && filtering && (
+        <p class="restored" data-testid="restored">
+          <span>
+            <b>หน้านี้กำลังกรองอยู่</b> — เป็นตัวกรองที่คุณเลือกไว้ครั้งก่อน
+            ตัวเลขทั้งหน้าจึงไม่ใช่ของทั้งคลัง
+          </span>
+          <button
+            type="button"
+            class="btn"
+            onClick={() => {
+              clearAll()
+            }}
+          >
+            ล้างทั้งหมด ดูทั้งคลัง ×
+          </button>
+        </p>
+      )}
+
+      <div class={filtering ? 'pickbar on' : 'pickbar'} data-testid="pickbar">
         <div class="pickchips">
           <span class="muted">กำลังดู</span>
           <span class="pickchip fixed">{focusLabel}</span>
@@ -455,26 +583,45 @@ export function Dashboard() {
               <span class="sr-only">เอาตัวกรองนี้ออก</span>
             </button>
           ))}
-          {active.length === 0 && <span class="muted">ยังไม่ได้กรองด้านใด</span>}
+          {!filtering && <span class="muted">ยังไม่ได้กรองด้านใด</span>}
         </div>
         <div class="pickgo">
           <b>{(now?.total ?? 0).toLocaleString('th-TH')}</b> ฉบับ
-          {active.length > 0 && (
+          {filtering && (
             <button
               type="button"
-              class="chip"
+              class="chip clear"
               onClick={() => {
-                setPick({})
+                clearAll()
               }}
             >
-              ล้างตัวกรอง ({active.length}) ×
+              ล้างตัวกรองทั้งหมด ×
             </button>
           )}
-          <a class="btn primary" href={link()}>
-            ดูฉบับจริงในหน้าสำรวจ →
+          <button
+            type="button"
+            class="chip"
+            onClick={() => {
+              copyLink()
+            }}
+          >
+            {copied === 'ok' ? 'คัดลอกแล้ว ✓' : copied === 'fail' ? 'คัดลอกไม่ได้' : 'คัดลอกลิงก์'}
+          </button>
+          {/* A new tab, not this one: the reader has spent several clicks building this filter,
+              and สำรวจ answering in its own tab means coming back to it is closing that tab
+              rather than rebuilding it. The href carries the whole filter either way, so the
+              link is also the thing to copy out of a context menu. */}
+          <a class="btn primary" href={link()} target="_blank" rel="noopener">
+            ดูฉบับจริงในหน้าสำรวจ <span aria-hidden="true">↗</span>
+            <span class="sr-only">(เปิดแท็บใหม่)</span>
           </a>
         </div>
       </div>
+      {copied === 'fail' && (
+        <p class="muted" style="font-size:.8rem;margin:-8px 0 12px">
+          เบราว์เซอร์ไม่ยอมให้คัดลอก — คัดลอกจากแถบที่อยู่ด้านบนได้เลย ลิงก์นั้นมีตัวกรองนี้อยู่แล้ว
+        </p>
+      )}
 
       {now && now.total === 0 && (
         <p class="emptyhint" style="margin:12px 0">

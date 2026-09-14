@@ -34,10 +34,27 @@ describe('parseHash', () => {
       month: undefined,
     })
     expect(parseHash(href.provinces())).toEqual({ name: 'provinces', source: 'ratchakitcha' })
-    expect(parseHash(href.dashboard())).toEqual({ name: 'dashboard', source: 'ratchakitcha' })
+    expect(parseHash(href.dashboard())).toEqual({
+      name: 'dashboard',
+      source: 'ratchakitcha',
+      q: new URLSearchParams(),
+    })
     expect(parseHash(href.graph())).toEqual({ name: 'graph', source: 'ratchakitcha' })
     expect(parseHash('#/ratchakitcha')).toMatchObject({ name: 'explore', source: 'ratchakitcha' })
   })
+  it('carries a สถิติ filter in the address so a narrowed page can be sent to somebody', () => {
+    const r = parseHash(href.dashboard({ year: '2025', topic: 'bankruptcy', agency: '', dtype: 'ประกาศ' }))
+    expect(r.name).toBe('dashboard')
+    if (r.name !== 'dashboard') return
+    expect(r.q.get('year')).toBe('2025')
+    expect(r.q.get('topic')).toBe('bankruptcy')
+    expect(r.q.get('dtype')).toBe('ประกาศ')
+    // an empty value is absent, not `agency=` — the same rule explore's links follow
+    expect(r.q.has('agency')).toBe(false)
+    // and the parameter names are explore's, so the link across is nearly the same query
+    expect(href.dashboard({ govlevel: 'local' })).toContain('govlevel=local')
+  })
+
   it('keeps explore filters as query params and other sources as their own prefix', () => {
     const r = parseHash(href.explore({ topic: 'health', govlevel: 'local', province: '' }))
     expect(r.name).toBe('explore')

@@ -12,7 +12,7 @@ export type Route =
   | { name: 'provinces'; source: string }
   | { name: 'latest'; source: string; q: URLSearchParams }
   | { name: 'doc'; source: string; id: string; month?: string }
-  | { name: 'dashboard'; source: string }
+  | { name: 'dashboard'; source: string; q: URLSearchParams }
   | { name: 'graph'; source: string }
   | { name: 'about' }
   | { name: 'notfound'; path: string }
@@ -46,7 +46,7 @@ export function parseHash(hash: string): Route {
     case 'doc':
       return segs[2] ? { name: 'doc', source, id: segs[2], month: q.get('m') ?? undefined } : nf()
     case 'dashboard':
-      return { name: 'dashboard', source }
+      return { name: 'dashboard', source, q }
     case 'graph':
       return { name: 'graph', source }
     default:
@@ -70,7 +70,14 @@ export function hrefFor(source: string) {
     provinces: () => `${base}/provinces`,
     latest: (q = '') => `${base}/latest${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     doc: (id: string, month?: string) => `${base}/doc/${encodeURIComponent(id)}${month ? `?m=${month}` : ''}`,
-    dashboard: () => `${base}/dashboard`,
+    // สถิติ carries its filter in the address, so a narrowed page can be refreshed, bookmarked
+    // and sent to somebody else. Same parameter names as สำรวจ, so the link across is nearly
+    // the same query and neither page invents its own vocabulary.
+    dashboard: (params: Record<string, string> = {}) => {
+      const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== ''))
+      const s = q.toString()
+      return `${base}/dashboard${s ? `?${s}` : ''}`
+    },
     graph: () => `${base}/graph`,
   }
 }

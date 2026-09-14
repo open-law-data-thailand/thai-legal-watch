@@ -976,6 +976,66 @@ test.describe('dashboard, graph and about', () => {
     await expect(bar.locator('.pickchip')).not.toHaveCount(1) // the year chip plus the pick
   })
 
+  test('the filter is in the address, so a narrowed page can be refreshed and sent on', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    await page.locator('.yearpick .chip[aria-pressed]').nth(1).click()
+    const first = page.locator('.statgrid .barpick').first()
+    const label = (await first.innerText()).trim()
+    await first.click()
+
+    await expect
+      .poll(() => page.evaluate(() => location.hash))
+      .toMatch(/dashboard\?.*(topic|action|govlevel|province|dtype|agency)=/)
+    await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/year=\d{4}/)
+
+    // the address is the page: reloading it puts the reader back where they were
+    const shared = await page.evaluate(() => location.hash)
+    await page.reload()
+    await expect(page.getByTestId('pickbar').locator('.pickchip', { hasText: label })).toBeVisible()
+    expect(await page.evaluate(() => location.hash)).toBe(shared)
+
+    // and someone else opening that link is not told it came from their own last visit
+    await expect(page.getByTestId('restored')).toHaveCount(0)
+  })
+
+  test('สำรวจ opens in its own tab, so the filter just built is not thrown away', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    await page.locator('.statgrid .barpick').first().click()
+    const go = page.getByTestId('pickbar').getByRole('link', { name: /สำรวจ/ })
+    await expect(go).toHaveAttribute('target', '_blank')
+    await expect(go).toHaveAttribute('rel', /noopener/)
+  })
+
+  test('a filter kept from last time says so, and one button drops it', async ({ page }) => {
+    await page.goto('/#/ratchakitcha/dashboard')
+    await page.locator('.statgrid .barpick').first().click()
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('tlw.stats.filter'))).toBeTruthy()
+    const narrowed = Number(
+      (await page.getByTestId('pickbar').locator('b').innerText()).replace(/[^0-9]/g, ''),
+    )
+
+    // come back with nothing in the address at all
+    await page.goto('/#/ratchakitcha/dashboard')
+    await page.reload()
+
+    // it is restored — and restoring silently would be a trap, so the page says it out loud
+    const notice = page.getByTestId('restored')
+    await expect(notice).toBeVisible()
+    await expect(notice).toContainText('กำลังกรองอยู่')
+    await expect(page.getByTestId('pickbar')).toHaveClass(/\bon\b/)
+    expect(Number((await page.getByTestId('pickbar').locator('b').innerText()).replace(/[^0-9]/g, ''))).toBe(
+      narrowed,
+    )
+
+    // and the way out is one click, from the notice itself
+    await notice.getByRole('button').click()
+    await expect(notice).toBeHidden()
+    await expect(page.getByTestId('pickbar')).not.toHaveClass(/\bon\b/)
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('tlw.stats.filter'))).toBeNull()
+    expect(await page.evaluate(() => location.hash)).toBe('#/ratchakitcha/dashboard')
+    await sane(page)
+  })
+
   test('sections fold away and are still folded on the next visit', async ({ page }) => {
     await page.goto('/#/ratchakitcha/dashboard')
     const panel = page.locator('details.statpanel').first()
