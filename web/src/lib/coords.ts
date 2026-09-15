@@ -42,3 +42,14 @@ export function pickByPage<T extends { pg: number | null }>(docs: T[], page: num
   for (const d of inPart) if ((d.pg ?? 0) <= page) best = d
   return best ?? inPart[0] ?? null
 }
+
+/** "341 ง" ↔ "341 ง พิเศษ" — the same ตอน of the same หมวด, labelled the other way.
+ *  A ตอน number is unique within its own series, so these two are never the same issue; this is
+ *  only ever used as a second try when the first finds nothing. */
+export function otherPart(part: string): string {
+  const bare = part
+    .replace(/\s*พิเศษ\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return /พิเศษ/.test(part) ? bare : `${bare} พิเศษ`
+}

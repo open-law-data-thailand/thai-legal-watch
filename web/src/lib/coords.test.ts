@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { parseCitation, pickByPage } from './coords'
+import { otherPart, parseCitation, pickByPage } from './coords'
 
 it('parses the long form with ตอนที่ / ตอนพิเศษ and Thai digits', () => {
   expect(parseCitation('เล่ม 143 ตอนพิเศษ 219 ง หน้า 23')).toEqual({
@@ -26,4 +26,10 @@ it('picks the document that starts at or before the cited page', () => {
   expect(pickByPage(docs, null)?.id).toBe('a')
   expect(pickByPage(docs, 0)?.id).toBe('a')
   expect(pickByPage([], 3)).toBeNull()
+})
+
+it('otherPart adds and removes the พิเศษ marker without touching the rest', () => {
+  expect(otherPart('341 ง')).toBe('341 ง พิเศษ')
+  expect(otherPart('341 ง พิเศษ')).toBe('341 ง')
+  expect(otherPart('17 ก')).toBe('17 ก พิเศษ')
 })

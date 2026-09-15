@@ -19,7 +19,7 @@ import type {
 } from './types'
 import { decodeAgencies } from './agencies'
 import { CONTRACT } from './types'
-import { pickByPage } from '../lib/coords'
+import { otherPart, pickByPage } from '../lib/coords'
 import type { Cube } from '../lib/cube'
 import { fetchCube } from '../lib/cubestore'
 
@@ -132,24 +132,34 @@ export class DataClient {
     return this.get(`index/volumes/${volume}.json`)
   }
 
-  /** เล่ม/ตอน/หน้า → the document that starts at or before that page in that ตอน. */
+  /** เล่ม/ตอน/หน้า → the document that starts at or before that page in that ตอน.
+   *
+   *  Tries the citation as given, then the same ตอน with the พิเศษ marker the other way round.
+   *  That second try is not pedantry: every ง document of เล่ม 142 arrives with no พิเศษ marker
+   *  at all — 33,093 of them sit in 173 ตอน that carry two publication dates, which is the
+   *  ordinary issue and the special issue merged under one number — so a reader typing what the
+   *  printed page says ("ตอนพิเศษ 341 ง") would otherwise be told the document does not exist.
+   *  When the marker is restored upstream the first try simply succeeds and this never runs. */
   async byCitation(c: {
     volume: number
     part: string
     page: number | null
   }): Promise<{ doc: SlimDoc; month: string } | null> {
     const v = await this.volume(c.volume).catch(() => null)
-    const months = v?.parts[c.part] ?? []
-    const candidates: { doc: SlimDoc; month: string }[] = []
-    for (const m of months) {
-      const docs = await this.month(m.slice(0, 4), m)
-      for (const d of docs) if (d.v === c.volume && d.p === c.part) candidates.push({ doc: d, month: m })
+    if (!v) return null
+    for (const part of [c.part, otherPart(c.part)]) {
+      const candidates: { doc: SlimDoc; month: string }[] = []
+      for (const m of v.parts[part] ?? []) {
+        const docs = await this.month(m.slice(0, 4), m)
+        for (const d of docs) if (d.v === c.volume && d.p === part) candidates.push({ doc: d, month: m })
+      }
+      const pick = pickByPage(
+        candidates.map((x) => ({ ...x, pg: x.doc.pg })),
+        c.page,
+      )
+      if (pick) return { doc: pick.doc, month: pick.month }
     }
-    const pick = pickByPage(
-      candidates.map((x) => ({ ...x, pg: x.doc.pg })),
-      c.page,
-    )
-    return pick ? { doc: pick.doc, month: pick.month } : null
+    return null
   }
 
   /** The whole corpus's dimensions as typed arrays, for filtering that no pre-built facet file

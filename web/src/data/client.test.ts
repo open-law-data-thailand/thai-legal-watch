@@ -222,4 +222,30 @@ describe('byCitation', () => {
     expect(await c.byCitation({ volume: 99, part: '1 ก', page: 1 })).toBeNull()
     expect(await c.byCitation({ volume: 143, part: 'ไม่มีตอนนี้', page: 1 })).toBeNull()
   })
+
+  it('still finds a ตอน the archive labels without its พิเศษ marker', async () => {
+    // เล่ม 142 arrives with no ง พิเศษ at all, so a reader typing what the page prints —
+    // "เล่ม 142 ตอนพิเศษ 341 ง หน้า 85" — must not be told the document does not exist
+    const { f } = fakeFetch({
+      'index/volumes/142.json': { volume: 142, parts: { '341 ง': ['2025-10'] } },
+      'docs/2025/2025-10.json': [{ id: 'x', v: 142, p: '341 ง', pg: 85 }],
+    })
+    const c = new DataClient({ fetchImpl: f })
+    expect((await c.byCitation({ volume: 142, part: '341 ง พิเศษ', page: 85 }))?.doc.id).toBe('x')
+    // and the plain form still resolves directly
+    expect((await c.byCitation({ volume: 142, part: '341 ง', page: 85 }))?.doc.id).toBe('x')
+  })
+
+  it('prefers the ตอน as written when both labels exist', async () => {
+    const { f } = fakeFetch({
+      'index/volumes/141.json': { volume: 141, parts: { '7 ง': ['2024-03'], '7 ง พิเศษ': ['2024-03'] } },
+      'docs/2024/2024-03.json': [
+        { id: 'plain', v: 141, p: '7 ง', pg: 3 },
+        { id: 'special', v: 141, p: '7 ง พิเศษ', pg: 3 },
+      ],
+    })
+    const c = new DataClient({ fetchImpl: f })
+    expect((await c.byCitation({ volume: 141, part: '7 ง พิเศษ', page: 3 }))?.doc.id).toBe('special')
+    expect((await c.byCitation({ volume: 141, part: '7 ง', page: 3 }))?.doc.id).toBe('plain')
+  })
 })
