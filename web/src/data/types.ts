@@ -174,6 +174,15 @@ export interface AgencyIndexItem {
   /** present only when the agency has a page of its own; absent means it does not */
   page?: boolean
 }
+/** How `index/agencies.json` is stored: three parallel arrays sorted by name, where each name
+ *  keeps only what it does not share with the one before it ("12|<the rest>"). The client hands
+ *  callers `AgencyIndexItem[]` as always — see `decodeAgencies`. */
+export interface AgencyIndexFile {
+  min_page: number
+  id: string[]
+  name: string[]
+  n: number[]
+}
 export interface ProvinceIndexItem {
   name: string
   file: string

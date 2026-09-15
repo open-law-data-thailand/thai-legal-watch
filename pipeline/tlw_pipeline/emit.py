@@ -7,7 +7,7 @@ import re
 import time
 from collections import Counter, defaultdict
 
-from . import CONTRACT_VERSION
+from . import CONTRACT_VERSION, agency_index
 from .aggregate import Aggregator
 from .cube import Cube
 from .feeds import atom
@@ -109,16 +109,16 @@ class Emitter:
             self.sizes[f"agg/province/{fn}"] = dump(os.path.join(self.out, "agg/province", fn), o)
             self._feed(f"province/{safe_name(name)}", name, o["recent"], site)
         # Every page that shows an agency name loads this file, so it is the one index whose
-        # size a reader actually feels. Two things are left out of it:
+        # size a reader actually feels. Three things are left out of it:
         #   `type` — declared, shipped, and read by nothing. The agency page's own "ประเภท" comes
         #     from that page's payload, not from here. It repeated `name` verbatim for 84% of
         #     rows, which made it a third of the file.
-        #   `page: false` — the common case, so the flag is present only when there is a page.
-        # Together that is about 40%, which is what the archive grew by when the taxonomy layer
-        # caught up with meta. Cutting a field beats raising a budget: the budget is what noticed.
+        #   `page` — always `n >= MIN_AGENCY_PAGE`, so agency_index derives it rather than store it.
+        #   the shared head of each name — see agency_index, which is where the 2.64 MB went 811 KB.
+        # Cutting what is already implied beats raising a budget: the budget is what noticed, twice.
         self.sizes["index/agencies.json"] = dump(os.path.join(self.out, "index/agencies.json"),
-            [{"id": ids[a], "name": a, "n": f.total} | ({"page": True} if f.total >= MIN_AGENCY_PAGE else {})
-             for a, f in sorted(agg.agencies.items(), key=lambda kv: -kv[1].total)])
+            agency_index.encode([{"id": ids[a], "name": a, "n": f.total}
+                                 for a, f in agg.agencies.items()], MIN_AGENCY_PAGE))
         self.sizes["index/provinces.json"] = dump(os.path.join(self.out, "index/provinces.json"),
             [{"name": p, "file": safe_name(p), "n": f.total}
              for p, f in sorted(agg.provinces.items(), key=lambda kv: -kv[1].total)])

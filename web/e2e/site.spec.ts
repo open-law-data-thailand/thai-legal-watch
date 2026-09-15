@@ -1,5 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page, type APIRequestContext } from '@playwright/test'
+import { decodeAgencies } from '../src/data/agencies'
+import type { AgencyIndexFile } from '../src/data/types'
 
 async function a11y(page: Page) {
   // entrance animations fade elements in; scanning mid-fade reads white-on-white and reports
@@ -44,12 +46,12 @@ const data = {
       n: number
     }[]
   },
+  /** Through the app's own decoder, so a build whose index the app could not read fails here. */
   async agencies(request: APIRequestContext) {
-    return (await (await request.get('/data/ratchakitcha/index/agencies.json')).json()) as {
-      id: string
-      name: string
-      page: boolean
-    }[]
+    const blob = (await (
+      await request.get('/data/ratchakitcha/index/agencies.json')
+    ).json()) as AgencyIndexFile
+    return decodeAgencies(blob)
   },
 }
 

@@ -13,6 +13,8 @@ import html
 import json
 import os
 
+from . import agency_index
+
 STYLE = """
 :root{color-scheme:light}
 body{margin:0;background:#fbfaf7;color:#17171a;font:16px/1.75 Anuphan,Sarabun,system-ui,sans-serif}
@@ -159,7 +161,8 @@ def write(out: str, source: str, site: str) -> list[str]:
 
     tax = load("agg/taxonomy.json", {}) or {}
     build = (load("agg/meta.json", {}) or {}).get("build") or {}
-    names = {a["id"]: a["name"] for a in (load("index/agencies.json", []) or [])}
+    agencies = agency_index.decode(load("index/agencies.json", []) or [])
+    names = {a["id"]: a["name"] for a in agencies}
     urls: list[str] = []
 
     def emit(rel_url: str, page: str) -> None:
@@ -186,7 +189,7 @@ def write(out: str, source: str, site: str) -> list[str]:
     for p in load("index/provinces.json", []) or []:
         facet(f"/{source}/province/{p['file']}", f"agg/province/{p['file']}.json", p["name"],
               "จังหวัด", f"/{source}/province/{p['file']}", f"province/{p['file']}")
-    for a in load("index/agencies.json", []) or []:
+    for a in agencies:
         if not a.get("page"):
             continue
         facet(f"/{source}/agency/{a['id']}", f"agg/agency/{a['id']}.json", a["name"],
@@ -201,7 +204,7 @@ def write(out: str, source: str, site: str) -> list[str]:
     provs = [(f"/{source}/province/{p['file']}", p["name"], p["n"])
              for p in (load("index/provinces.json", []) or [])]
     ags = [(f"/{source}/agency/{a['id']}", a["name"], a["n"])
-           for a in (load("index/agencies.json", []) or []) if a.get("page")]
+           for a in agencies if a.get("page")]
     meta = load("agg/meta.json", {}) or {}
     body = (
         f'<div class="k">สารบัญ</div><h1>ทุกหมวด ทุกจังหวัด ทุกหน่วยงาน</h1>'

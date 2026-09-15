@@ -2,6 +2,7 @@ import json
 import os
 import xml.etree.ElementTree as ET
 
+from tlw_pipeline import agency_index
 from tlw_pipeline.contract import validate
 from tlw_pipeline.emit import safe_name
 
@@ -26,8 +27,9 @@ def test_shards_are_per_month_and_sorted(built):
 def test_indexes_link_to_aggregate_files(built):
     out, _ = built
     out = os.path.join(out, "ratchakitcha")
-    for a in json.load(open(os.path.join(out, "index/agencies.json"), encoding="utf-8")):
-        assert os.path.exists(os.path.join(out, "agg/agency", f"{a['id']}.json")) == a["page"]
+    agencies = agency_index.decode(json.load(open(os.path.join(out, "index/agencies.json"), encoding="utf-8")))
+    for a in agencies:
+        assert os.path.exists(os.path.join(out, "agg/agency", f"{a['id']}.json")) == bool(a.get("page"))
     for p in json.load(open(os.path.join(out, "index/provinces.json"), encoding="utf-8")):
         assert os.path.exists(os.path.join(out, "agg/province", f"{p['file']}.json"))
     for t in json.load(open(os.path.join(out, "index/topics.json"), encoding="utf-8")):
@@ -90,3 +92,29 @@ def test_volume_index_points_a_part_at_its_months(built):
     assert v["volume"] == 141
     assert set(v["parts"]) == {"17 ง", "17 ง พิเศษ"}
     assert v["parts"]["17 ง"] == ["2023-01", "2023-02", "2024-01", "2024-02"]
+
+
+def test_agency_index_round_trips_every_name():
+    """The index is stored as shared-prefix names. Nothing may come back changed: a name that
+    itself looks like a marker, one with a character outside the BMP (where Python counts
+    characters and the browser counts UTF-16 units), and the ordinary Thai case."""
+    rows = [{"id": "a", "name": 'สำนักงานจังหวัดตาก', "n": 9},
+            {"id": "b", "name": 'สำนักงานจังหวัดตรัง', "n": 4},
+            {"id": "c", "name": '5|ชื่อที่ดูเหมือนตัวนับ', "n": 1},
+            {"id": "d", "name": 'ก🙂ข', "n": 1},
+            {"id": "e", "name": 'ก🙂ค', "n": 1}]
+    blob = agency_index.encode(rows, 5)
+    # nothing shared may reach past a non-BMP character, or the browser would slice differently
+    for packed in blob["name"]:
+        k = int(packed.split("|", 1)[0])
+        assert k == 0 or all(ord(c) <= agency_index.BMP_MAX for c in blob["name"][0][:k])
+    back = agency_index.decode(blob)
+    assert {r["id"]: r["name"] for r in back} == {r["id"]: r["name"] for r in rows}
+    assert [r["n"] for r in back] == sorted((r["n"] for r in rows), reverse=True)
+    assert [r["id"] for r in back if r.get("page")] == ["a"]
+
+
+def test_agency_index_still_reads_a_plain_list():
+    """Builds before this encoding wrote a plain array, and a reader can still have one cached."""
+    rows = [{"id": "a", "name": "ก", "n": 3, "page": True}]
+    assert agency_index.decode(rows) is rows

@@ -1,5 +1,6 @@
 /** Typed fetch layer over the static data contract. One in-memory cache per path. */
 import type {
+  AgencyIndexFile,
   AgencyIndexItem,
   AgencyPage,
   Bankruptcy,
@@ -16,6 +17,7 @@ import type {
   Trends,
   Years,
 } from './types'
+import { decodeAgencies } from './agencies'
 import { CONTRACT } from './types'
 import { pickByPage } from '../lib/coords'
 import type { Cube } from '../lib/cube'
@@ -57,6 +59,7 @@ export class DataClient {
   /** Aggregates are small and asked for constantly; month shards are up to 10 MB parsed and are
    *  usually read once. Keeping every one of them is how a long browse ends up holding a hundred
    *  megabytes, so the oldest shards are evicted once there are more than this many. */
+  private agencyIndex?: Promise<AgencyIndexItem[]>
   private readonly shards: string[] = []
   private static readonly MAX_SHARDS = 6
 
@@ -190,8 +193,16 @@ export class DataClient {
   province(file: string): Promise<ProvincePage> {
     return this.get(`agg/province/${encodeURIComponent(file)}.json`)
   }
+  /** Decoding is memoised, not just the fetch: six routes ask for this and rebuilding 17,000
+   *  names each time would be work the reader pays for on every navigation. */
   agencies(): Promise<AgencyIndexItem[]> {
-    return this.get('index/agencies.json')
+    this.agencyIndex ??= this.get<AgencyIndexFile | AgencyIndexItem[]>('index/agencies.json')
+      .then(decodeAgencies)
+      .catch((e: unknown) => {
+        this.agencyIndex = undefined
+        throw e
+      })
+    return this.agencyIndex
   }
   provinces(): Promise<ProvinceIndexItem[]> {
     return this.get('index/provinces.json')

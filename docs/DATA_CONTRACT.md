@@ -27,7 +27,7 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | `agg/topic/<slug>.json` | one topic: by year/action/govlevel, top agencies, provinces, recent docs | <150 KB |
 | `agg/agency/<id>.json` | one agency: topics, actions, timeline, provinces, recent docs | <100 KB |
 | `agg/province/<name>.json` | one province: local/provincial docs by topic, agencies, recent docs | <100 KB |
-| `index/agencies.json` | `[{id,name,type,n,page}]` for search and linking; `page` says whether `agg/agency/<id>.json` exists (agencies with ≥5 documents) | <2.5 MB |
+| `index/agencies.json` | `{min_page, id[], name[], n[]}` for search and linking — every page that names an agency loads it, so the names are sorted and each keeps only what it does not share with the one above it (`"12|<the rest>"`); a page at `agg/agency/<id>.json` exists exactly when `n >= min_page`. `decodeAgencies` (web) and `agency_index.decode` (pipeline) return the `[{id,name,n,page?}]` callers use | <2.5 MB (811 KB) |
 | `index/provinces.json` | `[{name,n}]` | <10 KB |
 | `index/volumes/<volume>.json` | `{volume, parts: {"219 ง": ["2026-09"]}}` — which month shard holds each ตอน of a เล่ม, for citation lookup | <200 KB |
 | `index/topics.json` | `[{slug,thai,parent,n}]` | <20 KB |
