@@ -14,10 +14,37 @@ from .feeds import atom
 from .model import Doc
 
 _SAFE = re.compile(r"[^\w฀-๿-]+")
+def coordinates(volume: int | None, part: str | None, page: int | None) -> str:
+    """"เล่ม 143 ตอนพิเศษ 223 ง หน้า 1" — what a lawyer writes down, same as the web's cite.ts."""
+    out = []
+    if volume:
+        out.append(f"เล่ม {volume}")
+    if part:
+        rest = re.sub(r"\s+", " ", part.replace("พิเศษ", "")).strip()
+        out.append(f"ตอนพิเศษ {rest}" if "พิเศษ" in part else f"ตอนที่ {rest}")
+    if page:
+        out.append(f"หน้า {page}")
+    return " ".join(out)
+
+
 MIN_AGENCY_PAGE = 5
 # how many days of raw listing the "ล่าสุด" page covers
 LATEST_DAYS = 90
 MIN_AGENCY_FEED = 50
+# A feed is read by a machine that polls, so it has to cover the gap between two polls. This
+# site rebuilds once a night and the gazette prints a median of 119 documents a day, 614 on its
+# busiest — 200 covers an ordinary day and most of a heavy one. The per-topic feeds keep the
+# aggregator's 30, which is right for a subject that sees a few documents a month.
+FEED_ENTRIES = 200
+# The gazette is four series, printed and numbered separately. Following all of them and
+# following ก are different needs: ก is where statutes appear, about 1.4 documents a day, while
+# ง is 98% of the volume. Anyone who wants "new law" and gets the firehose will stop reading.
+PART_FEEDS = {
+    "ก": ("laws", "ฉบับกฤษฎีกา", "พระราชบัญญัติ พระราชกฤษฎีกา กฎกระทรวง — กฎหมายที่ออกใหม่"),
+    "ข": ("honours", "ฉบับทะเบียนฐานันดร", "เครื่องราชอิสริยาภรณ์และฐานันดรศักดิ์"),
+    "ค": ("commerce", "ฉบับทะเบียนการค้า", "จดทะเบียนห้างหุ้นส่วน บริษัท เครื่องหมายการค้า"),
+    "ง": ("general", "ฉบับประกาศทั่วไป", "ประกาศ ระเบียบ คำสั่ง และงานทั่วไปของราชการ"),
+}
 
 
 def safe_name(s: str) -> str:
@@ -32,6 +59,14 @@ def dump(path: str, obj) -> int:
         json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
     os.replace(tmp, path)
     return os.path.getsize(path)
+
+
+def _feed_push(lst: list[dict], item: dict, n: int = FEED_ENTRIES) -> None:
+    """Keep the n newest by (date, id). Sorting every 4n keeps this off the hot path."""
+    lst.append(item)
+    if len(lst) > n * 4:
+        lst.sort(key=lambda x: (x["d"] or "", x["id"]), reverse=True)
+        del lst[n:]
 
 
 class Emitter:
@@ -49,6 +84,15 @@ class Emitter:
         # of the work. Kept as a date -> records map and trimmed after every year, so memory does
         # not grow with the corpus.
         self.latest: dict[str, list[dict]] = defaultdict(list)
+        # "" is every document; the other keys are the gazette's four series. Held apart from
+        # self.latest because a feed entry needs the citation and a listing row does not, and
+        # because these keep 200 while the listing keeps 90 days.
+        self.feeds: dict[str, list[dict]] = defaultdict(list)
+        self.feed_index: list[dict] = []
+        # counted here rather than on the Aggregator: only this one feed directory reads it, and
+        # a field on Facet would land in every topic, agency and province file unread
+        self.part_totals: Counter = Counter()
+        self.labels: dict[str, str] = {}
         self.cube = Cube()
 
     def add(self, d: Doc) -> None:
@@ -58,6 +102,14 @@ class Emitter:
             # labels are the evidence trail and x the bankruptcy extras: neither is shown in a
             # listing, and together they are half the bytes
             self.latest[d.date].append({k: v for k, v in slim.items() if k not in ("labels", "x")})
+            item = {"id": d.id, "t": d.title, "d": d.date, "pr": d.province, "topic": d.topic,
+                    "action": d.action, "govlevel": d.govlevel, "dt": d.doc_type, "ag": d.agency,
+                    "cite": coordinates(d.volume, d.part, d.page)}
+            _feed_push(self.feeds[""], item)
+            if d.part_class:
+                self.part_totals[d.part_class] += 1
+            if d.part_class in PART_FEEDS:
+                _feed_push(self.feeds[d.part_class], item)
 
     def flush_year(self, year: str) -> None:
         """Shards are written per year so memory does not grow with the corpus."""
@@ -78,6 +130,10 @@ class Emitter:
         self.site = site
         ids = agg.agency_ids()
         tax = agg.taxonomy
+        self.labels: dict[str, str] = {
+            **{slug: v.get("thai") or slug for slug, v in tax.get("topics", {}).items()},
+            **{slug: th for slug, th in tax.get("actions", {}).items()},
+            **{slug: th for slug, th in tax.get("govlevels", {}).items()}}
         topics_out = {}
         for slug, t in tax.get("topics", {}).items():
             f = agg.topics.get(slug)
@@ -90,7 +146,7 @@ class Emitter:
             o = f.out(ids) | {"slug": slug, "thai": tax["topics"].get(slug, {}).get("thai"),
                               "parent": agg.parents.get(slug), "children": topics_out.get(slug, {}).get("children", [])}
             self.sizes[f"agg/topic/{slug}.json"] = dump(os.path.join(self.out, "agg/topic", f"{slug}.json"), o)
-            self._feed(f"topic/{slug}", o["thai"] or slug, o["recent"], site)
+            self._feed(f"topic/{slug}", o["thai"] or slug, o["recent"], site, "topic", f.total)
         paged = {name for name, f in agg.agencies.items() if f.total >= MIN_AGENCY_PAGE}
         overlaps = agg.overlaps(ids, paged)
         for name, f in agg.agencies.items():
@@ -102,12 +158,12 @@ class Emitter:
                               "overlap": overlaps.get(name, [])}
             self.sizes[f"agg/agency/{ids[name]}.json"] = dump(os.path.join(self.out, "agg/agency", f"{ids[name]}.json"), o)
             if f.total >= MIN_AGENCY_FEED:
-                self._feed(f"agency/{ids[name]}", name, o["recent"], site)
+                self._feed(f"agency/{ids[name]}", name, o["recent"], site, "agency", f.total)
         for name, f in agg.provinces.items():
             o = f.out(ids) | {"name": name}
             fn = f"{safe_name(name)}.json"
             self.sizes[f"agg/province/{fn}"] = dump(os.path.join(self.out, "agg/province", fn), o)
-            self._feed(f"province/{safe_name(name)}", name, o["recent"], site)
+            self._feed(f"province/{safe_name(name)}", name, o["recent"], site, "province", f.total)
         # Every page that shows an agency name loads this file, so it is the one index whose
         # size a reader actually feels. Three things are left out of it:
         #   `type` — declared, shipped, and read by nothing. The agency page's own "ประเภท" comes
@@ -127,6 +183,14 @@ class Emitter:
         self.sizes["agg/years.json"] = dump(os.path.join(self.out, "agg/years.json"),
             {"by_year": dict(agg.all.by_year), "by_month": dict(agg.all.by_month)})
         self.sizes["agg/home.json"] = dump(os.path.join(self.out, "agg/home.json"), agg.home())
+        # The whole archive, newest first: the one feed for "tell me what came out today".
+        self._feed("latest", "ราชกิจจานุเบกษา ฉบับล่าสุด", self.feeds[""], site, "main",
+                   agg.all.total, "ทุกฉบับที่ประกาศใหม่ ไม่แยกหมวด", FEED_ENTRIES)
+        for letter, (slug, title, note) in PART_FEEDS.items():
+            rows = self.feeds.get(letter) or []
+            if rows:
+                self._feed(f"part/{slug}", title, rows, site, "part",
+                           self.part_totals.get(letter, 0), note, FEED_ENTRIES)
         days = sorted(self.latest, reverse=True)[:LATEST_DAYS]
         self.sizes["agg/latest.json"] = dump(os.path.join(self.out, "agg/latest.json"), {
             "days": LATEST_DAYS,
@@ -210,6 +274,14 @@ class Emitter:
                 # because more than one document claimed the same file
                 **({"links": links} if links else {})}
         self.sizes["agg/meta.json"] = dump(os.path.join(self.out, "agg/meta.json"), meta)
+        # One request behind the feeds page. It lives with the other indexes, not in feeds/,
+        # because the deploy gives everything under /data/<source>/feeds/ the Atom content type
+        # and this is JSON. Sorted so the file is reproducible: the main feed first, then the
+        # series, then the long tail by size within each group.
+        order = {"main": 0, "part": 1, "topic": 2, "province": 3, "agency": 4}
+        self.feed_index.sort(key=lambda f: (order.get(f["group"], 9), -f["n"], f["id"]))
+        self.sizes["index/feeds.json"] = dump(os.path.join(self.out, "index/feeds.json"),
+                                              {"feeds": self.feed_index})
         # the cross-source index the site boots from; other sources append themselves here
         idx_path = os.path.join(self.root, "sources.json")
         idx = {"contract": CONTRACT_VERSION, "sources": []}
@@ -224,10 +296,20 @@ class Emitter:
         dump(idx_path, idx)
         return meta
 
-    def _feed(self, feed_id: str, title: str, recent: list[dict], site: str) -> None:
+    def _feed(self, feed_id: str, title: str, recent: list[dict], site: str, group: str, n: int,
+              note: str = "", limit: int = 50) -> None:
         p = os.path.join(self.out, "feeds", f"{feed_id}.xml")
         os.makedirs(os.path.dirname(p), exist_ok=True)
+        items = sorted(recent, key=lambda x: (x["d"] or "", x["id"]), reverse=True)[:limit]
+        # A feed is read by a person in their own reader, where there is no taxonomy to look a
+        # slug up in: `public_admin · rulemaking` has to arrive as Thai or it says nothing.
+        items = [it | {k: self.labels.get(it.get(k) or "", it.get(k)) for k in
+                       ("topic", "action", "govlevel")} for it in items]
         with open(p, "w", encoding="utf-8") as f:
-            updated = recent[0]["d"] if recent else None
-            f.write(atom(f"{title} — Thai Legal Watch", feed_id, recent[:50], updated, site, self.source))
+            updated = items[0]["d"] if items else None
+            f.write(atom(f"{title} — Thai Legal Watch", feed_id, items, updated, site, self.source, note))
         self.sizes[f"feeds/{feed_id}.xml"] = os.path.getsize(p)
+        # written from the same call that writes the file, so the directory cannot list a feed
+        # that does not exist or miss one that does
+        self.feed_index.append({"id": feed_id, "title": title, "group": group, "n": n,
+                                "entries": len(items), **({"note": note} if note else {})})

@@ -232,3 +232,18 @@ export interface Graph {
 export interface Bankruptcy {
   by_court_stage: { court: string; stage: string; n: number }[]
 }
+
+/** One subscribable feed, as `index/feeds.json` lists it. `n` is how many documents the subject
+ *  has in the whole archive; `entries` is how many the file itself carries. */
+export interface FeedItem {
+  id: string
+  title: string
+  group: 'main' | 'part' | 'topic' | 'province' | 'agency'
+  n: number
+  entries: number
+  note?: string
+}
+
+export interface FeedIndex {
+  feeds: FeedItem[]
+}

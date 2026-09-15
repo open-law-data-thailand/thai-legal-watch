@@ -118,3 +118,60 @@ def test_agency_index_still_reads_a_plain_list():
     """Builds before this encoding wrote a plain array, and a reader can still have one cached."""
     rows = [{"id": "a", "name": "ก", "n": 3, "page": True}]
     assert agency_index.decode(rows) is rows
+
+
+def test_the_main_feed_covers_a_whole_day_of_the_gazette(tmp_path):
+    """The gazette prints a median of 119 documents a day and this site rebuilds once a night, so
+    a feed that held the aggregator's 30 would drop three quarters of an ordinary day."""
+    from tlw_pipeline.emit import FEED_ENTRIES
+    assert FEED_ENTRIES >= 120
+
+
+def test_every_feed_in_the_directory_is_a_file_that_exists(built):
+    """The page lists feeds from index.json and links straight to the xml; a name in there with no
+    file behind it is a dead subscribe button, which a reader only finds out about later."""
+    root = os.path.join(built[0], "ratchakitcha")
+    with open(os.path.join(root, "index/feeds.json"), encoding="utf-8") as f:
+        feeds = json.load(f)["feeds"]
+    assert feeds, "no feeds listed"
+    missing = [x["id"] for x in feeds if not os.path.exists(os.path.join(root, "feeds", f"{x['id']}.xml"))]
+    assert missing == [], f"listed but not written: {missing[:5]}"
+    on_disk = {os.path.relpath(os.path.join(d, n), os.path.join(root, "feeds"))[:-4]
+               for d, _, ns in os.walk(os.path.join(root, "feeds")) for n in ns if n.endswith(".xml")}
+    assert on_disk - {x["id"] for x in feeds} == set(), "written but not listed"
+
+
+def test_a_feed_entry_carries_the_citation(built):
+    """A row without เล่ม/ตอน/หน้า cannot be quoted or looked up, which is most of why someone
+    subscribes to a gazette in the first place."""
+    with open(os.path.join(built[0], "ratchakitcha", "feeds/latest.xml"), encoding="utf-8") as f:
+        xml = f.read()
+    assert "<summary>เล่ม " in xml
+    assert 'rel="self"' in xml, "a feed has to say where it lives, or a reader cannot re-find it"
+
+
+def test_the_directory_groups_and_counts_each_feed_correctly(built):
+    """Every feed was landing in the topic group with 30 as its size, because the group and the
+    total were optional arguments and three call sites simply did not pass them."""
+    import collections
+    root = os.path.join(built[0], "ratchakitcha")
+    with open(os.path.join(root, "index/feeds.json"), encoding="utf-8") as f:
+        feeds = json.load(f)["feeds"]
+    groups = collections.Counter(x["group"] for x in feeds)
+    assert groups["main"] == 1, "there is exactly one whole-gazette feed"
+    assert groups["topic"] and groups["province"], "subject feeds are not all one group"
+    main = next(x for x in feeds if x["group"] == "main")
+    assert main["n"] == 160, "n is the size of the subject, not the length of the file"
+    assert all(x["n"] >= x["entries"] for x in feeds), "a feed cannot hold more than exists"
+
+
+def test_a_feed_summary_is_readable_thai_not_slugs(built):
+    """The summary is read in someone else's feed reader, which has no taxonomy to resolve
+    `public_admin · rulemaking` against — so the words have to arrive already translated."""
+    with open(os.path.join(built[0], "ratchakitcha", "feeds/latest.xml"), encoding="utf-8") as f:
+        xml = f.read()
+    import re
+    summaries = re.findall(r"<summary>(.*?)</summary>", xml)
+    assert summaries, "no summaries in the feed"
+    leaked = [s for s in summaries if re.search(r"[a-z][a-z_]{3,}", s)]
+    assert leaked == [], f"untranslated slugs reached the feed: {leaked[:3]}"

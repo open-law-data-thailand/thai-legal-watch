@@ -11,8 +11,14 @@ BUDGETS = {  # bytes
     "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000, "agg/graph/": 400_000,
     "agg/topic/": 150_000, "agg/agency/": 100_000, "agg/province/": 100_000,
     "index/agencies.json": 2_500_000, "index/volumes/": 200_000, "index/provinces.json": 10_000,
-    "index/topics.json": 20_000,
-    "docs/": 12_000_000, "feeds/": 100_000,
+    "index/topics.json": 20_000, "index/feeds.json": 100_000,
+    "docs/": 12_000_000,
+    # A per-subject feed carries 30 entries; these carry 200, because they have to cover a day of
+    # a gazette that prints 119 documents on a median day and 614 on its busiest, and a reader
+    # that polls once a day must not lose the difference. Thai titles are three bytes a
+    # character, so 200 entries is about 200 KB before the edge gzips it.
+    "feeds/latest.xml": 400_000, "feeds/part/": 400_000,
+    "feeds/": 100_000,
 }
 REQUIRED_DOC_KEYS = {"id", "t", "d", "v", "p", "pg", "dt", "a", "pr", "topic", "action", "govlevel",
                      "tc", "ac", "gc", "labels"}

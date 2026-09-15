@@ -4,6 +4,7 @@ import type {
   AgencyIndexItem,
   AgencyPage,
   Bankruptcy,
+  FeedIndex,
   Graph,
   Home,
   Latest,
@@ -219,6 +220,9 @@ export class DataClient {
   }
   topics(): Promise<TopicIndexItem[]> {
     return this.get('index/topics.json')
+  }
+  feeds(): Promise<FeedIndex> {
+    return this.get('index/feeds.json')
   }
   /** Where a feed lives for this source. Built here because it is a data URL, not a route, so
    *  it has to follow the same base as everything else the client fetches. */

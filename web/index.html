@@ -11,6 +11,17 @@
     <meta name="theme-color" content="#1d1b3a" />
     <link rel="canonical" href="%VITE_SITE_URL%/" />
 
+    <!-- Feed auto-discovery. This is how a browser extension or a reader offers to subscribe
+         without the reader hunting for an address: one <link> in the shell covers every route,
+         because the shell is the only HTML the app ever serves. The rest of the feeds are on
+         the ติดตาม page; this is the one that means "everything, newest first". -->
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="ราชกิจจานุเบกษา ฉบับล่าสุด"
+      href="%VITE_SITE_URL%/data/ratchakitcha/feeds/latest.xml"
+    />
+
     <!-- What LINE, Slack, Facebook and X show when somebody shares the site. Without these a
          shared link is a bare URL, which for a public legal resource is most of the first
          impression. No og:image: an SVG is not reliably rendered by these scrapers, and a

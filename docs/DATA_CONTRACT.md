@@ -31,8 +31,10 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | `index/provinces.json` | `[{name,n}]` | <10 KB |
 | `index/volumes/<volume>.json` | `{volume, parts: {"219 ง": ["2026-09"]}}` — which month shard holds each ตอน of a เล่ม, for citation lookup | <200 KB |
 | `index/topics.json` | `[{slug,thai,parent,n}]` | <20 KB |
+| `index/feeds.json` | `{feeds:[{id,title,group,n,entries,note?}]}` — every feed the build wrote, so the ติดตาม page cannot list one that does not exist. JSON, so it sits here rather than under `feeds/`, which the deploy types as Atom | <100 KB |
 | `docs/<year>/<year-month>.json` | slim document records for one month (the only place with per-document data; also the title-search corpus) | <12 MB (2009–2012 months reach 6–10 MB raw, ~1.5 MB compressed) |
-
+| `feeds/latest.xml` | Atom, the whole gazette, 200 newest — a median day is 119 documents and a build is nightly, so a smaller feed would lose a day | <400 KB |
+| `feeds/part/{laws,honours,commerce,general}.xml` | Atom, 200 newest of one of the gazette's four series (ก ข ค ง) | <400 KB |
 | `feeds/topic/<slug>.xml`, `feeds/province/<name>.xml`, `feeds/agency/<id>.xml` | Atom, 50 newest | <100 KB |
 
 ## Slim document record (`docs/<year>/<month>.json` items)

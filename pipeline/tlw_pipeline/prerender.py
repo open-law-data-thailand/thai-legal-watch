@@ -66,8 +66,14 @@ def _build_line(build: dict) -> str:
     return " · รุ่น: " + " · ".join(parts) if parts else ""
 
 
-def _page(title: str, desc: str, canonical: str, body: str, site: str, build: dict) -> str:
+def _page(title: str, desc: str, canonical: str, body: str, site: str, build: dict,
+          feed: str | None = None) -> str:
     build_line = _build_line(build)
+    # A feed reader offers to subscribe from the page it is looking at, so the page has to name
+    # its own feed. Without this the link in the body is the only way to find it, and a reader
+    # that does not render the body never does.
+    alt = (f'\n<link rel="alternate" type="application/atom+xml" href="{e(feed)}" '
+           f'title="{e(title)} — Thai Legal Watch">') if feed else ""
     return f"""<!doctype html>
 <html lang="th">
 <head>
@@ -75,7 +81,7 @@ def _page(title: str, desc: str, canonical: str, body: str, site: str, build: di
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(title)} — Thai Legal Watch</title>
 <meta name="description" content="{e(desc)}">
-<link rel="canonical" href="{e(canonical)}">
+<link rel="canonical" href="{e(canonical)}">{alt}
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Thai Legal Watch">
 <meta property="og:locale" content="th_TH">
@@ -180,7 +186,8 @@ def write(out: str, source: str, site: str) -> list[str]:
         desc = (f"{name}: {f.get('total', 0):,} ฉบับในราชกิจจานุเบกษา "
                 f"จำแนกหมวดอัตโนมัติ พร้อมเล่ม ตอน หน้า สำหรับอ้างอิง และติดตามผ่าน RSS")
         body = _facet_body(name, kind, f, site, source, f"{site}/#{app_hash}", names, tax, feed)
-        emit(rel_url, _page(name, desc, canonical, body, site, build))
+        feed_url = f"{site}/data/{source}/feeds/{feed}.xml" if feed else None
+        emit(rel_url, _page(name, desc, canonical, body, site, build, feed_url))
 
     for t in load("index/topics.json", []) or []:
         slug = t["slug"]
@@ -215,7 +222,8 @@ def write(out: str, source: str, site: str) -> list[str]:
         f"<h2>หน่วยงาน ({len(ags)})</h2><ul>{links(ags)}</ul>"
     )
     emit("/directory", _page("สารบัญ", f"สารบัญหมวด จังหวัด และหน่วยงานทั้งหมดของราชกิจจานุเบกษา "
-                             f"{meta.get('docs', 0):,} ฉบับ", f"{site}/directory", body, site, build))
+                             f"{meta.get('docs', 0):,} ฉบับ", f"{site}/directory", body, site, build,
+                             f"{site}/data/{source}/feeds/latest.xml"))
 
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

@@ -3,6 +3,7 @@ import { ClientContext } from './data/context'
 import { DataClient } from './data/client'
 import { About } from './routes/About'
 import { Dashboard } from './routes/Dashboard'
+import { Feeds } from './routes/Feeds'
 import { Graph } from './routes/Graph'
 import { Doc } from './routes/Doc'
 import { Explore } from './routes/Explore'
@@ -24,6 +25,7 @@ const NAV: [string, () => string, Route['name'][]][] = [
   ['ท้องถิ่น', href.provinces, ['provinces', 'province']],
   ['สถิติ', href.dashboard, ['dashboard']],
   ['ความสัมพันธ์', href.graph, ['graph']],
+  ['ติดตาม', href.feeds, ['feeds']],
   ['เกี่ยวกับเรา', href.about, ['about']],
 ]
 
@@ -211,6 +213,8 @@ function Page({ route }: { route: Route }) {
       return <Dashboard q={route.q} />
     case 'graph':
       return <Graph />
+    case 'feeds':
+      return <Feeds />
     case 'about':
       return <About />
     case 'notfound':
@@ -245,6 +249,8 @@ export function titleFor(route: Route): string {
       return `สถิติ — ${base}`
     case 'graph':
       return `ความสัมพันธ์ของหมวด — ${base}`
+    case 'feeds':
+      return `ติดตาม — ${base}`
     case 'about':
       return `เกี่ยวกับเรา — ${base}`
     case 'notfound':

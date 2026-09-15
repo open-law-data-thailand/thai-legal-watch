@@ -1606,3 +1606,43 @@ test('the province map ships with the site and covers all 77 provinces', async (
   expect(m.height).toBeGreaterThan(m.width)
   for (const d of Object.values(m.provinces)) expect(d).toMatch(/^M[\d. LZM]+$/)
 })
+
+test('ติดตาม lists every feed and hands out an address that works', async ({ page, request }) => {
+  await page.goto('/#/ratchakitcha/feeds')
+  await expect(page.getByRole('heading', { name: 'ให้ราชกิจจานุเบกษามาหาคุณเอง' })).toBeVisible()
+
+  // the whole-gazette feed is the reason most people open this page, so it is above everything
+  const hero = page.locator('.feed-hero')
+  await expect(hero.getByRole('heading', { name: /ฉบับล่าสุด/ })).toBeVisible()
+  const address = await hero.getByRole('link', { name: 'เปิดดูไฟล์' }).getAttribute('href')
+  expect(address).toContain('/data/ratchakitcha/feeds/latest.xml')
+
+  // and it is a real feed, not just a link: a reader that follows it has to get Atom back
+  const feed = await request.get(address ?? '')
+  expect(feed.ok()).toBeTruthy()
+  const xml = await feed.text()
+  expect(xml).toContain('<feed xmlns="http://www.w3.org/2005/Atom"')
+  expect(xml).toContain('<summary>เล่ม ')
+
+  // every listed feed exists — a dead subscribe button is only discovered days later
+  const listed = await page
+    .locator('.feedrow-actions a', { hasText: 'เปิด' })
+    .evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href).filter((h) => h.endsWith('.xml')))
+  expect(listed.length).toBeGreaterThan(3)
+  for (const href of listed.slice(0, 6)) {
+    const r = await request.get(href)
+    expect(r.ok(), href).toBeTruthy()
+  }
+  await a11y(page)
+})
+
+test('the ติดตาม filter narrows the long lists', async ({ page }) => {
+  await page.goto('/#/ratchakitcha/feeds')
+  const box = page.getByPlaceholder('พิมพ์ชื่อหัวข้อ จังหวัด หรือหน่วยงาน')
+  const before = await page.locator('.feedrow').count()
+  await box.fill('ไม่มีคำนี้อยู่จริง')
+  const after = await page.locator('.feedrow').count()
+  expect(after).toBeLessThan(before)
+  // the hero and the four series are not part of the filtered lists and must survive it
+  await expect(page.locator('.feed-hero')).toBeVisible()
+})

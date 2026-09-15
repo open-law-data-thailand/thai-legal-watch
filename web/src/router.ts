@@ -14,6 +14,7 @@ export type Route =
   | { name: 'doc'; source: string; id: string; month?: string }
   | { name: 'dashboard'; source: string; q: URLSearchParams }
   | { name: 'graph'; source: string }
+  | { name: 'feeds'; source: string }
   | { name: 'about' }
   | { name: 'notfound'; path: string }
 
@@ -49,6 +50,8 @@ export function parseHash(hash: string): Route {
       return { name: 'dashboard', source, q }
     case 'graph':
       return { name: 'graph', source }
+    case 'feeds':
+      return { name: 'feeds', source }
     default:
       return nf()
   }
@@ -79,6 +82,7 @@ export function hrefFor(source: string) {
       return `${base}/dashboard${s ? `?${s}` : ''}`
     },
     graph: () => `${base}/graph`,
+    feeds: () => `${base}/feeds`,
   }
 }
 
