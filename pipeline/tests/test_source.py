@@ -142,6 +142,7 @@ def test_meta_settles_a_disagreement_with_taxonomy_about_volume_and_date(tmp_pat
     nil. `volume: 1` on a 2006 document is parse damage, not a second opinion — and this site
     prints a citation people copy into filings."""
     import json
+
     from tlw_pipeline.sources.openlawdata_soc import OpenLawDataSoc
     root = tmp_path
     (root / "meta" / "2006").mkdir(parents=True)
@@ -163,6 +164,7 @@ def test_meta_settles_a_disagreement_with_taxonomy_about_volume_and_date(tmp_pat
 
 def test_taxonomy_still_fills_in_where_meta_is_empty(tmp_path):
     import json
+
     from tlw_pipeline.sources.openlawdata_soc import OpenLawDataSoc
     root = tmp_path
     (root / "meta" / "2006").mkdir(parents=True)
