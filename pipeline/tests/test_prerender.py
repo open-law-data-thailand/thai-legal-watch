@@ -1,5 +1,4 @@
-
-
+"""The static pages, which are what a crawler and a reader without JavaScript see."""
 def test_a_static_page_names_its_own_feed(tmp_path):
     """A reader offers to subscribe from the page it is on, so the page has to declare the feed.
     Without the <link>, the only way to find it is the sentence in the body, which a reader that
