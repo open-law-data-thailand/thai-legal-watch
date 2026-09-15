@@ -1,6 +1,6 @@
 # Thai Legal Watch — progress and plan (handoff, 2026-09-13 21:00)
 
-For the agent picking this up. Everything below is in this repo (git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.pages.dev**, all checks green: pytest 52 · Vitest 200 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
+For the agent picking this up. Everything below is in this repo (git `main`, remote `open-law-data-thailand/thai-legal-watch`, **live at https://thai-legal-watch.openlawdatathailand.org**, all checks green: pytest 52 · Vitest 200 · Playwright 114 (desktop+mobile, axe WCAG 2A/AA **including colour-contrast** on every page) · ESLint strict-type-checked · Prettier).
 
 ## What it is
 A static site (Cloudflare Pages, no server cost) that reads the OpenLawData gazette dataset
@@ -61,7 +61,7 @@ Kill a stale preview on 4173 before e2e: `lsof -ti tcp:4173 | xargs kill`.
 ### infra/ and CI
 `infra/deploy.sh <dist-data>` (build → copy data → `wrangler pages deploy`), `_headers`
 (cache/CORS/atom), `wrangler.toml`; `.github/workflows/ci.yml` runs pipeline + web checks.
-**Deployed and self-updating** since 2026-09-13 — https://thai-legal-watch.pages.dev. The
+**Deployed and self-updating** since 2026-09-13 — https://thai-legal-watch.openlawdatathailand.org. The
 Cloudflare credentials live in the repository's Actions secrets, so a push to `main` and the
 16:00 UTC schedule both build from Hugging Face and deploy with nobody touching a machine; no
 laptop rsync is in that path. `infra/deploy.sh` (which reads `~/src/.env`) is the manual

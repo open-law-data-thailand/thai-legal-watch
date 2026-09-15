@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape
 
-SITE = "https://thai-legal-watch.pages.dev"
+SITE = "https://thai-legal-watch.openlawdatathailand.org"
 
 
 def atom(title: str, feed_id: str, items: list[dict], updated: str | None, site: str = SITE,

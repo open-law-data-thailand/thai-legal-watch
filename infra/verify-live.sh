@@ -5,7 +5,7 @@
 # would go unnoticed longest, so every deploy ends by comparing the two.
 set -euo pipefail
 DATA="${1:?usage: verify-live.sh <dist-data-dir> [site]}"
-SITE="${2:-${TLW_SITE:-https://thai-legal-watch.pages.dev}}"
+SITE="${2:-${TLW_SITE:-https://thai-legal-watch.openlawdatathailand.org}}"
 SOURCE="${TLW_SOURCE:-ratchakitcha}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

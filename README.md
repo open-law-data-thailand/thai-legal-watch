@@ -1,6 +1,6 @@
 # Thai Legal Watch
 
-**[thai-legal-watch.pages.dev](https://thai-legal-watch.pages.dev)**
+**[thai-legal-watch.openlawdatathailand.org](https://thai-legal-watch.openlawdatathailand.org)**
 
 Thailand publishes every law, rule, appointment, land designation and bankruptcy notice in the
 Royal Gazette — hundreds of documents a day, as scanned PDFs, with no way to ask it a question.

@@ -10,4 +10,4 @@ Allow: /
 # Index: /data/ratchakitcha/index/{topics,provinces,agencies}.json
 # Feeds: /data/ratchakitcha/feeds/{topic,province,agency}/<name>.xml
 
-Sitemap: https://thai-legal-watch.pages.dev/sitemap.xml
+Sitemap: https://thai-legal-watch.openlawdatathailand.org/sitemap.xml

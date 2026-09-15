@@ -1,6 +1,6 @@
 # Deploy — Cloudflare Pages
 
-**Live:** https://thai-legal-watch.pages.dev (first deployed 2026-09-13, direct upload from the
+**Live:** https://thai-legal-watch.openlawdatathailand.org (first deployed 2026-09-13, direct upload from the
 build box). Deployment history and rollback are under Pages → thai-legal-watch → Deployments.
 
 The site is static. A deploy is one directory: the built web app plus a pipeline build of the
@@ -116,9 +116,9 @@ infra/deploy.sh ~/olw-build/tlw-dist
 Then verify, against the URL wrangler prints:
 
 ```bash
-curl -s https://thai-legal-watch.pages.dev/data/ratchakitcha/agg/meta.json | head -c 200
-curl -sI https://thai-legal-watch.pages.dev/data/ratchakitcha/feeds/topic/pollution_waste.xml | grep -i content-type
-curl -sI https://thai-legal-watch.pages.dev/map/thailand-provinces.json | grep -i cache-control
+curl -s https://thai-legal-watch.openlawdatathailand.org/data/ratchakitcha/agg/meta.json | head -c 200
+curl -sI https://thai-legal-watch.openlawdatathailand.org/data/ratchakitcha/feeds/topic/pollution_waste.xml | grep -i content-type
+curl -sI https://thai-legal-watch.openlawdatathailand.org/map/thailand-provinces.json | grep -i cache-control
 ```
 
 and open a deep link in a browser: `…/#/ratchakitcha/provinces`, `…/#/ratchakitcha/dashboard`.
