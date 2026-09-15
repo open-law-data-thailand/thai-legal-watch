@@ -136,8 +136,15 @@ class OpenLawDataSoc:
                     yield Doc(
                         id=did, year=year, month=month,
                         title=clean_title(m.get("doctitle")) or "(ไม่มีชื่อเรื่อง)",
-                        date=r.get("publish_date") or m.get("publishDate") or None,
-                        volume=r.get("volume") or _int(m.get("bookNo")),
+                        # meta first, taxonomy as the fallback. The two layers disagree about
+                        # 46 volumes and 1,009 dates across 790,052 records, and the เล่ม↔year
+                        # invariant settles every one of them the same way: where only one layer
+                        # can be right, it is meta — 15 volumes and 10 dates to nil. The wrong
+                        # values in taxonomy are parse damage, not another opinion (`volume: 1`
+                        # for a 2006 document, `1203` for a 2010 one). This page prints a
+                        # citation people copy into filings, so the more reliable layer wins.
+                        date=m.get("publishDate") or r.get("publish_date") or None,
+                        volume=_int(m.get("bookNo")) or r.get("volume"),
                         # meta keeps ตอนพิเศษ (category "งพิเศษ"); the taxonomy's part drops it, and a citation needs it
                         part=_part(m) or r.get("part"), part_class=_letter(m.get("category")) or r.get("part_class"),
                         page=_int(m.get("pageNo")), doc_type=r.get("doc_type"),

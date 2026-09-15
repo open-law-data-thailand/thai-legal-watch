@@ -134,3 +134,48 @@ def test_a_document_the_publisher_says_has_no_text_says_so_in_the_slim_record():
     # true and unstated both stay out of the payload: only the minority costs bytes
     assert "ht" not in Doc(id="a", has_text=True, **base).slim()
     assert "ht" not in Doc(id="b", has_text=None, **base).slim()
+
+
+def test_meta_settles_a_disagreement_with_taxonomy_about_volume_and_date(tmp_path):
+    """The layers disagree about 46 volumes and 1,009 dates across the archive, and the
+    เล่ม↔year invariant picks meta every time it can pick either: 15 volumes and 10 dates to
+    nil. `volume: 1` on a 2006 document is parse damage, not a second opinion — and this site
+    prints a citation people copy into filings."""
+    import json
+    from tlw_pipeline.sources.openlawdata_soc import OpenLawDataSoc
+    root = tmp_path
+    (root / "meta" / "2006").mkdir(parents=True)
+    (root / "taxonomy" / "2006").mkdir(parents=True)
+    (root / "meta" / "2006" / "2006-09.jsonl").write_text(json.dumps({
+        "no": "1", "doctitle": "ประกาศ", "bookNo": "123", "section": "77", "category": "ง",
+        "publishDate": "2006-09-14", "pageNo": "1", "pdf_file": "2006-009743.pdf"}) + "\n",
+        encoding="utf-8")
+    (root / "taxonomy" / "2006" / "2006-09.jsonl").write_text(json.dumps({
+        "pdf_file": "2006-009743.pdf", "doc_id": "2006-009743", "year": "2006", "month": "2006-09",
+        "volume": 1, "part": "77 ง", "part_class": "ง", "publish_date": "2006-09-30",
+        "doc_type": "ประกาศ", "labels": []}) + "\n", encoding="utf-8")
+    (root / "taxonomy" / "taxonomy.json").write_text("{}", encoding="utf-8")
+
+    doc = next(iter(OpenLawDataSoc(str(root)).iter_docs("2006")))
+    assert doc.volume == 123, "taxonomy said 1, which no 2006 document can be"
+    assert doc.date == "2006-09-14"
+
+
+def test_taxonomy_still_fills_in_where_meta_is_empty(tmp_path):
+    import json
+    from tlw_pipeline.sources.openlawdata_soc import OpenLawDataSoc
+    root = tmp_path
+    (root / "meta" / "2006").mkdir(parents=True)
+    (root / "taxonomy" / "2006").mkdir(parents=True)
+    # 1,469 meta records carry no bookNo at all; the other layer is better than nothing
+    (root / "meta" / "2006" / "2006-09.jsonl").write_text(json.dumps({
+        "no": "1", "doctitle": "ประกาศ", "bookNo": "", "section": "", "category": "ง",
+        "publishDate": "", "pageNo": "1", "pdf_file": "2006-009744.pdf"}) + "\n", encoding="utf-8")
+    (root / "taxonomy" / "2006" / "2006-09.jsonl").write_text(json.dumps({
+        "pdf_file": "2006-009744.pdf", "doc_id": "2006-009744", "year": "2006", "month": "2006-09",
+        "volume": 123, "part": "77 ง", "part_class": "ง", "publish_date": "2006-09-30",
+        "doc_type": "ประกาศ", "labels": []}) + "\n", encoding="utf-8")
+    (root / "taxonomy" / "taxonomy.json").write_text("{}", encoding="utf-8")
+
+    doc = next(iter(OpenLawDataSoc(str(root)).iter_docs("2006")))
+    assert doc.volume == 123 and doc.date == "2006-09-30"
