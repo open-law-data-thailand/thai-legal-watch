@@ -193,14 +193,22 @@ class OpenLawDataSoc:
                     yield Doc(
                         id=did, year=year, month=month,
                         title=clean_title(m.get("doctitle")) or "(ไม่มีชื่อเรื่อง)",
-                        # meta first, taxonomy as the fallback. The two layers disagree about
-                        # 46 volumes and 1,009 dates across 790,052 records, and the เล่ม↔year
-                        # invariant settles every one of them the same way: where only one layer
-                        # can be right, it is meta — 15 volumes and 10 dates to nil. The wrong
-                        # values in taxonomy are parse damage, not another opinion (`volume: 1`
-                        # for a 2006 document, `1203` for a 2010 one). This page prints a
-                        # citation people copy into filings, so the more reliable layer wins.
-                        date=m.get("publishDate") or r.get("publish_date") or None,
+                        # The two layers are not symmetric, and this page prints a citation
+                        # people copy into filings, so each field goes to whichever layer was
+                        # shown to be right about that field.
+                        #
+                        # Date: the taxonomy's, which the publisher now reads off the printed
+                        # header. Of the 1,015 records where the layers disagree, 94 were checked
+                        # by reading the date off the document itself and the header backed the
+                        # taxonomy every time, meta never — including the ones that look like
+                        # damage and are not: a 2021 record whose page really does say ๑๙๘๒, a
+                        # 2026 one that says ๑๙๗๗. meta appears to hold the date a document was
+                        # loaded, which for a republished old document is not its date.
+                        # An earlier note here claimed the opposite; it rested on a เล่ม↔year
+                        # check, which only ever sees a disagreement that lands in the wrong
+                        # year and was blind to the ~960 that differ by days inside one.
+                        date=r.get("publish_date") or m.get("publishDate") or None,
+                        # Volume: meta's. Checked the same way, 13 to 0 the other direction.
                         volume=_int(m.get("bookNo")) or r.get("volume"),
                         # meta keeps ตอนพิเศษ (category "งพิเศษ"); the taxonomy's part drops it, and a citation needs it
                         part=_part(m) or r.get("part"), part_class=_letter(m.get("category")) or r.get("part_class"),

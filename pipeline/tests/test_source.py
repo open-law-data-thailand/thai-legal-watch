@@ -136,11 +136,13 @@ def test_a_document_the_publisher_says_has_no_text_says_so_in_the_slim_record():
     assert "ht" not in Doc(id="b", has_text=None, **base).slim()
 
 
-def test_meta_settles_a_disagreement_with_taxonomy_about_volume_and_date(tmp_path):
-    """The layers disagree about 46 volumes and 1,009 dates across the archive, and the
-    เล่ม↔year invariant picks meta every time it can pick either: 15 volumes and 10 dates to
-    nil. `volume: 1` on a 2006 document is parse damage, not a second opinion — and this site
-    prints a citation people copy into filings."""
+def test_each_field_goes_to_the_layer_that_was_shown_right_about_it(tmp_path):
+    """The layers are not symmetric and the citation is the thing people copy into filings.
+
+    volume: meta. `volume: 1` on a 2006 document is parse damage, not a second opinion.
+    date: the taxonomy, which the publisher reads off the printed header. Of the 1,015 records
+    where the two disagree, 94 were settled by reading the date off the document itself and the
+    header backed the taxonomy every time."""
     import json
 
     from tlw_pipeline.sources.openlawdata_soc import OpenLawDataSoc
@@ -159,7 +161,7 @@ def test_meta_settles_a_disagreement_with_taxonomy_about_volume_and_date(tmp_pat
 
     doc = next(iter(OpenLawDataSoc(str(root)).iter_docs("2006")))
     assert doc.volume == 123, "taxonomy said 1, which no 2006 document can be"
-    assert doc.date == "2006-09-14"
+    assert doc.date == "2006-09-30", "the date the page prints, not the date meta recorded"
 
 
 def test_taxonomy_still_fills_in_where_meta_is_empty(tmp_path):
@@ -247,3 +249,25 @@ def test_an_undisputed_link_is_kept_whoever_it_belongs_to(tmp_path):
     links, counts = _links(root, ["2000", "2025"])
     assert links == {"2000-008757": a, "2025-01-02-00011213": b}
     assert counts == {"linked": 2, "withheld": 0, "disputed_urls": 0}
+
+
+def test_meta_fills_in_a_date_the_taxonomy_does_not_have(tmp_path):
+    """The printed header wins, but a document with no readable header has no printed date —
+    there meta is all there is, and it is better than showing none."""
+    import json
+
+    from tlw_pipeline.sources.openlawdata_soc import OpenLawDataSoc
+    root = tmp_path
+    (root / "meta" / "2006").mkdir(parents=True)
+    (root / "taxonomy" / "2006").mkdir(parents=True)
+    (root / "meta" / "2006" / "2006-09.jsonl").write_text(json.dumps({
+        "no": "1", "doctitle": "ประกาศ", "bookNo": "123", "section": "77", "category": "ง",
+        "publishDate": "2006-09-14", "pageNo": "1", "pdf_file": "2006-009745.pdf"}) + "\n",
+        encoding="utf-8")
+    (root / "taxonomy" / "2006" / "2006-09.jsonl").write_text(json.dumps({
+        "pdf_file": "2006-009745.pdf", "doc_id": "2006-009745", "year": "2006", "month": "2006-09",
+        "volume": 123, "part": "77 ง", "part_class": "ง", "publish_date": None,
+        "doc_type": "ประกาศ", "labels": []}) + "\n", encoding="utf-8")
+    (root / "taxonomy" / "taxonomy.json").write_text("{}", encoding="utf-8")
+
+    assert next(iter(OpenLawDataSoc(str(root)).iter_docs("2006"))).date == "2006-09-14"
