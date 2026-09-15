@@ -181,3 +181,69 @@ def test_taxonomy_still_fills_in_where_meta_is_empty(tmp_path):
 
     doc = next(iter(OpenLawDataSoc(str(root)).iter_docs("2006")))
     assert doc.volume == 123 and doc.date == "2006-09-30"
+
+
+def _tiny_root(tmp_path, rows):
+    """A dataset root holding exactly `rows` — {year: [(pdf_file, source_url), ...]}."""
+    import json
+    import os
+    os.makedirs(tmp_path / "taxonomy", exist_ok=True)
+    json.dump({"topics": {}, "actions": {}, "govlevels": {}},
+              open(tmp_path / "taxonomy" / "taxonomy.json", "w", encoding="utf-8"))
+    for year, recs in rows.items():
+        os.makedirs(tmp_path / "meta" / year, exist_ok=True)
+        os.makedirs(tmp_path / "taxonomy" / year, exist_ok=True)
+        month = f"{year}-01"
+        with open(tmp_path / "meta" / year / f"{month}.jsonl", "w", encoding="utf-8") as mf, \
+             open(tmp_path / "taxonomy" / year / f"{month}.jsonl", "w", encoding="utf-8") as tf:
+            for pdf, url in recs:
+                mf.write(json.dumps({"pdf_file": pdf, "doctitle": "ประกาศ", "bookNo": "141",
+                                     "section": "1", "category": "ง", "publishDate": f"{month}-01",
+                                     "pageNo": "1", "source_url": url}, ensure_ascii=False) + "\n")
+                tf.write(json.dumps({"pdf_file": pdf, "month": month, "year": year,
+                                     "labels": []}, ensure_ascii=False) + "\n")
+    return str(tmp_path)
+
+
+def _links(root, years):
+    src = OpenLawDataSoc(root)
+    out = {}
+    for y in years:
+        for d in src.iter_docs(y):
+            out[d.id] = d.source_url
+    return out, src.links
+
+
+def test_a_pdf_two_documents_claim_goes_to_the_one_whose_id_it_is(tmp_path):
+    """The file at documents/41500.pdf turned out to be the modern document every time it was
+    fetched, never the 2002 record that also claimed it, so the modern one keeps the link."""
+    u = "https://ratchakitcha.soc.go.th/documents/41500.pdf"
+    root = _tiny_root(tmp_path, {"2002": [("2002-007132.pdf", u)],
+                                 "2025": [("2025-03-03-00041500.pdf", u)]})
+    links, counts = _links(root, ["2002", "2025"])
+    assert links == {"2002-007132": None, "2025-03-03-00041500": u}
+    assert counts == {"linked": 1, "withheld": 1, "disputed_urls": 1}
+
+
+def test_nobody_keeps_a_pdf_several_documents_could_each_have_produced(tmp_path):
+    """documents/29400.pdf is claimed by five 2025 records that each derive it and one 2024
+    record that does not — and the file is the 2024 one. With no unique deriving claimant the
+    derivation says nothing, so the link is withheld from all of them."""
+    u = "https://ratchakitcha.soc.go.th/documents/29400.pdf"
+    root = _tiny_root(tmp_path, {"2024": [("2024-013253.pdf", u)],
+                                 "2025": [("2025-01-27-00029400.pdf", u), ("2025-01-30-00029400.pdf", u)]})
+    links, counts = _links(root, ["2024", "2025"])
+    assert set(links.values()) == {None}
+    assert counts == {"linked": 0, "withheld": 3, "disputed_urls": 1}
+
+
+def test_an_undisputed_link_is_kept_whoever_it_belongs_to(tmp_path):
+    """Only a contested URL is withheld. A 2002 record that nothing else claims keeps its link,
+    even though its id could never have produced the number."""
+    a = "https://ratchakitcha.soc.go.th/documents/1732794.pdf"
+    b = "https://ratchakitcha.soc.go.th/documents/11213.pdf"
+    root = _tiny_root(tmp_path, {"2000": [("2000-008757.pdf", a)],
+                                 "2025": [("2025-01-02-00011213.pdf", b)]})
+    links, counts = _links(root, ["2000", "2025"])
+    assert links == {"2000-008757": a, "2025-01-02-00011213": b}
+    assert counts == {"linked": 2, "withheld": 0, "disputed_urls": 0}

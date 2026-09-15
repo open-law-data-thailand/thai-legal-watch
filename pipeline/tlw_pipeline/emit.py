@@ -74,7 +74,7 @@ class Emitter:
             del self.latest[day]
 
     def finish(self, agg: Aggregator, sources: list[dict], site: str, build: dict | None = None,
-               text: dict | None = None) -> dict:
+               text: dict | None = None, links: dict | None = None) -> dict:
         self.site = site
         ids = agg.agency_ids()
         tax = agg.taxonomy
@@ -205,7 +205,10 @@ class Emitter:
                 # where the full text of a document can be read from, one record at a time. Not
                 # built into the site — 10 GB — so the site range-reads it directly from the
                 # publisher. Absent means the site simply does not offer full text.
-                **({"text": text} if text else {})}
+                **({"text": text} if text else {}),
+                # how many of the publisher's PDF links this build kept, and how many it withheld
+                # because more than one document claimed the same file
+                **({"links": links} if links else {})}
         self.sizes["agg/meta.json"] = dump(os.path.join(self.out, "agg/meta.json"), meta)
         # the cross-source index the site boots from; other sources append themselves here
         idx_path = os.path.join(self.root, "sources.json")

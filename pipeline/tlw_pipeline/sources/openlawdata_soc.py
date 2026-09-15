@@ -14,7 +14,7 @@ import os
 import re
 from collections.abc import Iterator
 
-from ..model import TH_DIGITS, Doc, Label
+from ..model import TH_DIGITS, Doc, Label, source_ref
 
 SOURCE_ID = "ratchakitcha"   # the URL segment: #/ratchakitcha/…, data/ratchakitcha/…  — never changes once published
 CREDIT = {
@@ -65,6 +65,9 @@ class OpenLawDataSoc:
         self.tax_dir = os.path.join(root, "taxonomy")
         self.textindex_dir = os.path.join(root, "textindex")
         self._indexed: list[str] = []
+        self._disputed: dict[int | str, str] = {}
+        self._withheld = 0
+        self._linked = 0
 
     @property
     def text(self) -> dict:
@@ -84,6 +87,46 @@ class OpenLawDataSoc:
     def taxonomy(self) -> dict:
         with open(os.path.join(self.tax_dir, "taxonomy.json"), encoding="utf-8") as f:
             return json.load(f)
+
+    @property
+    def links(self) -> dict:
+        """What this build did with the publisher's PDF links, so the number is on the record."""
+        return {"linked": self._linked, "withheld": self._withheld,
+                "disputed_urls": len(self._disputed)}
+
+    def _claims(self) -> dict[int | str, str]:
+        """For every PDF link that more than one record claims: which record may keep it.
+
+        Two documents cannot both be the file at one URL, and a reader who opens the wrong law is
+        worse off than one who sees no link at all. 9,147 links are claimed twice or more across
+        the archive — 20,131 records, 2.5% of it. Of 18 such files fetched and read, 17 were the
+        document whose *own* number is the number in the URL and none were the other claimant,
+        so that is the tie-break: where exactly one claimant derives the URL from its own id — the
+        derivation checked byte-identical across the modern years — that claimant keeps the link.
+        Where several derive it, or none do, nobody keeps it. That withholds about 1.5% of links.
+
+        One lean pass over meta/ (3 s on the full archive), and over every year the dataset has
+        rather than only the years being built: a URL two documents claim is disputed whether or
+        not this build happens to publish both of them."""
+        first: dict[int | str, str] = {}
+        claims: dict[int | str, list[str]] = {}
+        for year in self.years():
+            for month in self._months(year):
+                for did, m in self._meta(year, month).items():
+                    ref = source_ref(m.get("source_url"))
+                    if ref is None:
+                        continue
+                    if ref in claims:
+                        claims[ref].append(did)
+                    elif ref in first:
+                        claims[ref] = [first.pop(ref), did]
+                    else:
+                        first[ref] = did
+        owners: dict[int | str, str] = {}
+        for ref, dids in claims.items():
+            derive = [d for d in dids if _derives(d, ref)]
+            owners[ref] = derive[0] if len(derive) == 1 else ""
+        return owners
 
     def _months(self, year: str) -> list[str]:
         d = os.path.join(self.tax_dir, year)
@@ -122,8 +165,22 @@ class OpenLawDataSoc:
                     out[did] = (off, ln)
         return out
 
+    def _link(self, doc_id: str, url: str | None) -> str | None:
+        """The publisher's link for this record, unless another record claims the same file."""
+        u = (url or "").strip()
+        if not u:
+            return None
+        owner = self._disputed.get(source_ref(u))
+        if owner is not None and owner != doc_id:
+            self._withheld += 1
+            return None
+        self._linked += 1
+        return u
+
     def iter_docs(self, year: str) -> Iterator[Doc]:
         textat = self._textindex(year)
+        if not self._disputed:
+            self._disputed = self._claims()
         for month in self._months(year):
             meta = self._meta(year, month)
             with open(os.path.join(self.tax_dir, year, f"{month}.jsonl"), encoding="utf-8") as f:
@@ -160,12 +217,24 @@ class OpenLawDataSoc:
                         # for 2013 onward as of 2026-09. Modern ids carry the same number in the
                         # id itself, so the site can still build the link; the years in between
                         # have neither, and that gap is what this field will close.
-                        source_url=m.get("source_url") or None,
+                        source_url=self._link(did, m.get("source_url")),
                         text_at=textat.get(did),
                         # published since 2026-09-14; absent in an older snapshot, and `None`
                         # there means "not stated", which is not the same as "no"
                         has_text=r["has_text"] if isinstance(r.get("has_text"), bool) else None,
                     )
+
+
+def _derives(doc_id: str, ref: int | str) -> bool:
+    """Is this URL just the document's own number? `2026-08-26-00124930` → documents/124930.pdf.
+
+    Records from 2002 and earlier are numbered `<year>-<sequence within the year>`, which is not a
+    gazette document number, so they never derive one — which is the point: when such a record and
+    a modern one claim the same file, the modern one is the one the file turns out to be."""
+    if not isinstance(ref, int):
+        return False
+    tail = doc_id.rsplit("-", 1)[-1].lstrip("0")
+    return bool(tail) and tail == str(ref)
 
 
 def _letter(cat) -> str | None:

@@ -61,7 +61,7 @@ def build(root: str, out: str, years: list[str] | None = None, limit: int | None
         "dataset": {"repo": src.credit.get("url", ""), "sha": dataset_revision.strip()},
     }
     meta = em.finish(agg, [src.credit | {"built_from_years": todo}], site, build_info,
-                     getattr(src, "text", None))
+                     getattr(src, "text", None), getattr(src, "links", None))
     # A hash-routed app is one page to a crawler and one card to a link unfurler. The facets can
     # each be a real file — about three thousand of them — so they are.
     pages = prerender.write(out, src.id, site)

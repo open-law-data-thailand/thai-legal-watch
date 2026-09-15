@@ -13,7 +13,7 @@ Sizes are budgets: the site must stay fast on a phone, Cloudflare Pages caps a f
 | Path | Purpose | Budget |
 |---|---|---|
 | `sources.json` | (root) every source in this build: `{id,title,credit,url,docs,latest_date}` — the site boots from it | <5 KB |
-| `<source>/agg/meta.json` | build stamp, source credit, year list, totals, and `text` — where the full text of a document can be range-read from | <10 KB |
+| `<source>/agg/meta.json` | build stamp, source credit, year list, totals, `text` — where the full text of a document can be range-read from — and `links` — how many of the publisher's PDF links the build kept and how many it withheld | <10 KB |
 | `agg/taxonomy.json` | topic tree / actions / govlevels with counts | <100 KB |
 | `agg/home.json` | latest publication day: counts per axis, highlights, 30-day sparkline | <100 KB |
 | `agg/years.json` | docs per month per year | <50 KB |
@@ -75,6 +75,17 @@ first two bytes, so a client can tell what it got rather than having to be told.
 
 Measured on the real corpus (732,143 documents, 261 months): 504 KB over the wire, 7.3 MB of typed
 arrays in memory, 11 ms to decompress, and 0.8 ms for one filtered count with a group-by.
+
+## PDF links, and the ones a build withholds
+
+A document record carries `u` only when the publisher's PDF link for it is not in dispute. Across
+the archive 9,147 links are claimed by two or more records — 20,131 records, 2.5% — and two
+documents cannot both be the file at one URL. Of 18 such files fetched and read, 17 were the
+document whose own number is the number in the URL, and none were the other claimant; the 18th was
+one document the metadata lists twice. So a contested link goes to the single claimant that
+derives it from its own id, and to nobody when several derive it or none do. That withholds about
+1.5% of links rather than pointing a reader at the wrong law. `agg/meta.json.links` carries the
+count, so the number can be watched as the publisher's own metadata improves.
 
 ## The text layer (not built, read live)
 
