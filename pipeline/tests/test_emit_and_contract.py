@@ -175,3 +175,17 @@ def test_a_feed_summary_is_readable_thai_not_slugs(built):
     assert summaries, "no summaries in the feed"
     leaked = [s for s in summaries if re.search(r"[a-z][a-z_]{3,}", s)]
     assert leaked == [], f"untranslated slugs reached the feed: {leaked[:3]}"
+
+
+def test_recent_is_the_head_of_latest_document_for_document(built):
+    """The front page pages through recent.json and, when it runs out, swaps in latest.json and
+    carries on from the same offset. That only works if one is literally the head of the other —
+    any difference in order and the reader sees a row twice or never sees it at all."""
+    root = os.path.join(built[0], "ratchakitcha")
+    with open(os.path.join(root, "agg/recent.json"), encoding="utf-8") as f:
+        recent = json.load(f)["docs"]
+    with open(os.path.join(root, "agg/latest.json"), encoding="utf-8") as f:
+        latest = json.load(f)["docs"]
+    assert recent, "no recent documents"
+    assert [d["id"] for d in recent] == [d["id"] for d in latest[:len(recent)]]
+    assert recent == latest[:len(recent)], "same ids but different records"

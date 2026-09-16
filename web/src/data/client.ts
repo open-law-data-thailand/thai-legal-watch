@@ -11,6 +11,7 @@ import type {
   Meta,
   ProvinceIndexItem,
   ProvincePage,
+  Recent,
   SlimDoc,
   Taxonomy,
   TopicIndexItem,
@@ -223,6 +224,9 @@ export class DataClient {
   }
   feeds(): Promise<FeedIndex> {
     return this.get('index/feeds.json')
+  }
+  recent(): Promise<Recent> {
+    return this.get('agg/recent.json')
   }
   /** Where a feed lives for this source. Built here because it is a data URL, not a route, so
    *  it has to follow the same base as everything else the client fetches. */

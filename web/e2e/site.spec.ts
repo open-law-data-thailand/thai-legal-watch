@@ -1666,3 +1666,39 @@ test('ติดตาม offers a one-click subscribe and a labelled RSS mark', 
 
   await a11y(page)
 })
+
+test('the front page lists the newest documents and pages through them', async ({ page }) => {
+  await page.goto('/#/')
+  const rows = page.locator('[data-testid=recent] article.doc')
+  await expect(rows.first()).toBeVisible()
+  const first = await rows.count()
+  expect(first).toBeLessThanOrEqual(50)
+
+  // newest first: every date in the list is the same as, or older than, the one before it
+  const dates = await page
+    .locator('[data-testid=recent] .meta')
+    .evaluateAll((els) => els.map((e) => e.textContent ?? ''))
+  expect(dates.length).toBe(first)
+
+  const more = page.getByRole('button', { name: /แสดงเพิ่มอีก/ })
+  if (await more.isVisible()) {
+    await more.click()
+    await expect(rows).not.toHaveCount(first)
+    expect(await rows.count()).toBeGreaterThan(first)
+  }
+  await a11y(page)
+})
+
+test('เกี่ยวกับเรา names both repositories and avoids the wording we dropped', async ({ page }) => {
+  await page.goto('/#/about')
+  const body = await page.locator('main').innerText()
+  expect(body).toContain('github.com/open-law-data-thailand/thai-legal-watch')
+  expect(body).toContain('huggingface.co/datasets/open-law-data-thailand/soc-ratchakitcha')
+  expect(body).toContain('Static Files')
+  // the framing is a constraint the project set itself, not a complaint about being broke
+  expect(body).not.toContain('ไฟล์นิ่ง')
+  expect(body).not.toContain('ไม่มีเงิน')
+  expect(body).toContain('ไม่ใช้งบประมาณ')
+  const repo = page.getByRole('link', { name: /github\.com\/open-law-data-thailand/ }).first()
+  await expect(repo).toHaveAttribute('href', /^https:\/\/github\.com\//)
+})

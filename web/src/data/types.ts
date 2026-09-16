@@ -247,3 +247,9 @@ export interface FeedItem {
 export interface FeedIndex {
   feeds: FeedItem[]
 }
+
+/** The newest documents, as `agg/recent.json` holds them: the front page's first page of the
+ *  gazette, small enough to load on the page everybody lands on. */
+export interface Recent {
+  docs: SlimDoc[]
+}

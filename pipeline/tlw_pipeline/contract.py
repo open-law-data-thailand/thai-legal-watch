@@ -6,7 +6,7 @@ import os
 
 BUDGETS = {  # bytes
     "agg/meta.json": 10_000, "agg/taxonomy.json": 100_000, "agg/home.json": 100_000, "agg/years.json": 50_000,
-    "agg/trends.json": 200_000, "agg/latest.json": 14_000_000, "index/months/": 5_000,
+    "agg/trends.json": 200_000, "agg/latest.json": 14_000_000, "agg/recent.json": 400_000, "index/months/": 5_000,
     "agg/cube.bin": 3_000_000, "agg/cube.json": 1_000_000,
     "agg/bankruptcy.json": 200_000, "agg/graph.json": 400_000, "agg/graph/": 400_000,
     "agg/topic/": 150_000, "agg/agency/": 100_000, "agg/province/": 100_000,

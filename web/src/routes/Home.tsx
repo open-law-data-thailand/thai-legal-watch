@@ -18,6 +18,7 @@ import {
 import { CiteLookup } from '../ui/CiteLookup'
 import { Provenance } from '../ui/Provenance'
 import { QuickSearch } from '../ui/QuickSearch'
+import { RecentList } from '../ui/RecentList'
 import { STAGE } from './Doc'
 
 /** The biggest subjects, as doorways. Read from the taxonomy rather than written down, so a
@@ -33,12 +34,18 @@ export function doorways(tax: Taxonomy, limit = 10): { slug: string; thai: strin
 export function Home() {
   const href = useHref()
   const st = useLoad(async (c) => {
-    const [home, tax, meta] = await Promise.all([c.home(), c.taxonomy(), c.meta()])
-    return { home, tax, meta }
+    const [home, tax, meta, recent, agencies] = await Promise.all([
+      c.home(),
+      c.taxonomy(),
+      c.meta(),
+      c.recent(),
+      c.agencies(),
+    ])
+    return { home, tax, meta, recent, agencies: new Map(agencies.map((a) => [a.id, a.name])) }
   }, [])
   if (st.state === 'loading') return <Loading what="ราชกิจจาฯ วันนี้" />
   if (st.state === 'error') return <ErrorBox error={st.error} />
-  const { home, tax, meta } = st.data
+  const { home, tax, meta, recent, agencies } = st.data
   const rules = Object.entries(home.by_action)
     .filter(([k]) => ['rulemaking', 'amendment', 'repeal'].includes(k))
     .reduce((s, [, n]) => s + n, 0)
@@ -150,6 +157,25 @@ export function Home() {
             <span class="muted">ผังเมือง ป่าสงวน เขตเลือกตั้ง และประกาศของผู้ว่าฯ</span>
           </a>
         </div>
+      </section>
+
+      <section aria-labelledby="h-recent" style="margin-top:38px">
+        <div class="row" style="align-items:baseline;margin-bottom:6px">
+          <h2 id="h-recent" class="sec">
+            ราชกิจจานุเบกษาล่าสุด
+          </h2>
+          <a href={href.latest()}>ดูแบบแยกวันและค้นในช่วง 90 วัน →</a>
+        </div>
+        <p class="muted" style="margin:0 0 16px;max-width:74ch">
+          เรียงจากใหม่ไปเก่า ทั้งหมดทุกหมวด กดแสดงเพิ่มเพื่อไล่ย้อนลงไปทีละ 50 ฉบับ
+        </p>
+        <RecentList
+          seed={recent.docs}
+          tax={tax}
+          agencies={agencies}
+          windowDays={90}
+          exploreHref={href.latest()}
+        />
       </section>
 
       <div class="two" style="margin-top:36px">

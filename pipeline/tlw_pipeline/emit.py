@@ -36,6 +36,11 @@ MIN_AGENCY_FEED = 50
 # busiest — 200 covers an ordinary day and most of a heavy one. The per-topic feeds keep the
 # aggregator's 30, which is right for a subject that sees a few documents a month.
 FEED_ENTRIES = 200
+# The front page lists the newest documents and pages through them. It cannot read latest.json to
+# do it — that is 9 MB, and this is the page everybody lands on — so the newest slice ships as its
+# own small file. Ten pages of 50; past that the page has earned the bigger download and fetches
+# latest.json to keep going.
+RECENT_DOCS = 500
 # The gazette is four series, printed and numbered separately. Following all of them and
 # following ก are different needs: ก is where statutes appear, about 1.4 documents a day, while
 # ง is 98% of the volume. Anyone who wants "new law" and gets the firehose will stop reading.
@@ -192,6 +197,13 @@ class Emitter:
                 self._feed(f"part/{slug}", title, rows, site, "part",
                            self.part_totals.get(letter, 0), note, FEED_ENTRIES)
         days = sorted(self.latest, reverse=True)[:LATEST_DAYS]
+        recent: list[dict] = []
+        for day in days:
+            if len(recent) >= RECENT_DOCS:
+                break
+            recent += sorted(self.latest[day], key=lambda r: (r.get("pg") or 0, r["id"]))
+        self.sizes["agg/recent.json"] = dump(os.path.join(self.out, "agg/recent.json"),
+                                             {"docs": recent[:RECENT_DOCS]})
         self.sizes["agg/latest.json"] = dump(os.path.join(self.out, "agg/latest.json"), {
             "days": LATEST_DAYS,
             "from": days[-1] if days else None,
