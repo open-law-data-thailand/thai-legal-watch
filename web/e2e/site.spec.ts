@@ -1646,3 +1646,23 @@ test('the ติดตาม filter narrows the long lists', async ({ page }) =>
   // the hero and the four series are not part of the filtered lists and must survive it
   await expect(page.locator('.feed-hero')).toBeVisible()
 })
+
+test('ติดตาม offers a one-click subscribe and a labelled RSS mark', async ({ page }) => {
+  await page.goto('/#/ratchakitcha/feeds')
+  // the reader confirms on Feedly's own screen, so this link only has to carry the feed address
+  const feedly = page.locator('.btn-feedly').first()
+  const href = await feedly.getAttribute('href')
+  expect(href).toContain('feedly.com/i/subscription/feed/')
+  const carried = decodeURIComponent(href?.split('/feed/')[1] ?? '')
+  expect(carried).toContain('/data/ratchakitcha/feeds/latest.xml')
+  expect(carried).toMatch(/^https?:\/\//) // an absolute address, or Feedly cannot fetch it
+
+  // the mark is decoration; every control around it has to say what it does out loud
+  const icon = page.locator('.feedrow-actions .btn-icon').first()
+  await expect(icon).toHaveAccessibleName(/เปิดไฟล์ feed/)
+  await expect(page.locator('.rss-mark').first()).toBeAttached()
+  for (const svg of await page.locator('.rss-mark').all())
+    expect(await svg.getAttribute('aria-hidden')).toBe('true')
+
+  await a11y(page)
+})

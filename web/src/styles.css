@@ -2276,3 +2276,23 @@ code,
 .feed-hero {
   border-left: 3px solid var(--accent);
 }
+
+/* The RSS mark sits on the text baseline beside a label, and keeps its own colour: orange is the
+   only thing about a feed that people recognise before they read anything. */
+.rss-mark {
+  vertical-align: -2px;
+  color: #e8701a;
+}
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+}
+.btn-feedly {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+.btn-feedly:hover {
+  background: var(--accent-bg);
+}

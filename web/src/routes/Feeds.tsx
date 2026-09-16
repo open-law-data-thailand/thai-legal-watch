@@ -10,6 +10,7 @@ import type { FeedItem } from '../data/types'
 import { Crumbs } from '../ui/Crumbs'
 import { ErrorBox, Kicker, Loading } from '../ui/bits'
 import { CopyButton } from '../ui/CopyButton'
+import { FeedLink, FeedlyButton, ONE_CLICK, RssMark } from '../ui/rss'
 
 const GROUPS: { id: FeedItem['group']; label: string; blurb: string }[] = [
   { id: 'topic', label: 'ตามหัวข้อ', blurb: 'สิ่งแวดล้อม ภาษี ที่ดิน สาธารณสุข และอีก 70 กว่าหมวด' },
@@ -23,19 +24,25 @@ function absolute(url: string): string {
   return new URL(url, `${location.origin}${location.pathname}`).href
 }
 
+function Actions({ url, name }: { url: string; name: string }) {
+  return (
+    <div class="feedrow-actions">
+      <CopyButton text={url} label="คัดลอกลิงก์" done="คัดลอกแล้ว" />
+      <FeedlyButton feed={url} name={name} />
+      <FeedLink feed={url} name={name} />
+    </div>
+  )
+}
+
 function FeedRow({ feed, url, to }: { feed: FeedItem; url: string; to?: string }) {
   return (
     <li class="feedrow">
       <div class="feedrow-main">
         {to ? <a href={to}>{feed.title}</a> : <span>{feed.title}</span>}
         <span class="feedrow-n">{feed.n.toLocaleString('th-TH')} ฉบับ</span>
+        {feed.note && <span class="feedrow-note">{feed.note}</span>}
       </div>
-      <div class="feedrow-actions">
-        <CopyButton text={url} label="คัดลอกลิงก์" done="คัดลอกแล้ว" />
-        <a class="btn btn-quiet" href={url} target="_blank" rel="noreferrer">
-          เปิด
-        </a>
-      </div>
+      <Actions url={url} name={feed.title} />
     </li>
   )
 }
@@ -75,14 +82,17 @@ export function Feeds() {
         <section class="card feed-hero" style="margin:20px 0">
           <div>
             <Kicker>ตัวหลัก</Kicker>
-            <h2 style="margin:4px 0 6px">{main.title}</h2>
+            <h2 style="margin:4px 0 6px">
+              <RssMark size={20} /> {main.title}
+            </h2>
             <p style="margin:0 0 12px;max-width:62ch">
               ทุกฉบับที่ประกาศใหม่ ไม่แยกหมวด เก็บ {main.entries.toLocaleString('th-TH')} รายการล่าสุด
               ซึ่งครอบคลุมเกินหนึ่งวันของราชกิจจานุเบกษาในวันปกติ แต่ละรายการมีพิกัด เล่ม/ตอน/หน้า
               มาให้พร้อมอ้างอิง
             </p>
             <div class="feedrow-actions">
-              <CopyButton text={url(main.id)} label="คัดลอกลิงก์สำหรับติดตาม" done="คัดลอกแล้ว" />
+              <FeedlyButton feed={url(main.id)} name={main.title} />
+              <CopyButton text={url(main.id)} label="คัดลอกลิงก์" done="คัดลอกแล้ว" />
               <a class="btn btn-quiet" href={url(main.id)} target="_blank" rel="noreferrer">
                 เปิดดูไฟล์
               </a>
@@ -90,6 +100,17 @@ export function Feeds() {
                 หรือดูบนเว็บ
               </a>
             </div>
+            <p class="muted" style="margin:10px 0 0">
+              หรือเพิ่มเข้าตัวอื่น:{' '}
+              {ONE_CLICK.slice(1).map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ' · '}
+                  <a href={r.url(url(main.id))} target="_blank" rel="noreferrer">
+                    {r.label}
+                  </a>
+                </span>
+              ))}
+            </p>
           </div>
         </section>
       )}
@@ -103,19 +124,7 @@ export function Feeds() {
           </p>
           <ul class="feedlist">
             {parts.map((f) => (
-              <li key={f.id} class="feedrow">
-                <div class="feedrow-main">
-                  <span>{f.title}</span>
-                  <span class="feedrow-n">{f.n.toLocaleString('th-TH')} ฉบับ</span>
-                  {f.note && <span class="feedrow-note">{f.note}</span>}
-                </div>
-                <div class="feedrow-actions">
-                  <CopyButton text={url(f.id)} label="คัดลอกลิงก์" done="คัดลอกแล้ว" />
-                  <a class="btn btn-quiet" href={url(f.id)} target="_blank" rel="noreferrer">
-                    เปิด
-                  </a>
-                </div>
-              </li>
+              <FeedRow key={f.id} feed={f} url={url(f.id)} />
             ))}
           </ul>
         </section>
@@ -163,18 +172,50 @@ export function Feeds() {
       </section>
 
       <section class="card" style="margin:26px 0">
-        <h2 style="margin:0 0 8px">ยังไม่เคยใช้ RSS?</h2>
-        <p style="margin:0 0 8px;max-width:70ch">
-          RSS คือวิธีติดตามเว็บที่มีมาก่อนโซเชียลมีเดีย และยังใช้ได้ดีที่สุดกับเรื่องแบบนี้
-          เพราะไม่มีอัลกอริทึมมาคัดว่าคุณควรเห็นอะไร — ได้ครบทุกฉบับตามลำดับเวลา
+        <h2 style="margin:0 0 8px">
+          <RssMark size={18} /> ยังไม่เคยใช้ RSS?
+        </h2>
+        <p style="margin:0 0 14px;max-width:70ch">
+          RSS คือวิธีติดตามเว็บที่มีมาก่อนโซเชียลมีเดีย และยังเหมาะกับเรื่องแบบนี้ที่สุด
+          เพราะไม่มีอัลกอริทึมมาคัดว่าคุณควรเห็นอะไร ได้ครบทุกฉบับตามลำดับเวลา
+          และไม่ต้องบอกใครว่าคุณสนใจกฎหมายเรื่องไหน
         </p>
-        <ol style="margin:0;max-width:70ch;padding-left:1.2em">
-          <li>ติดตั้งโปรแกรมอ่าน RSS สักตัว (มีทั้งแบบเว็บ แอปมือถือ และส่วนขยายเบราว์เซอร์)</li>
-          <li>คัดลอกลิงก์จากหน้านี้ด้วยปุ่ม "คัดลอกลิงก์"</li>
-          <li>วางลงในช่องเพิ่มแหล่งข่าวของโปรแกรมนั้น</li>
+
+        <h3 style="margin:0 0 6px">วิธีที่เร็วที่สุด</h3>
+        <p style="margin:0 0 14px;max-width:70ch">
+          กดปุ่ม <b>+ Feedly</b> ที่รายการไหนก็ได้ในหน้านี้ Feedly จะเปิดหน้าถามยืนยันขึ้นมาให้กดรับ
+          ถ้ายังไม่มีบัญชีจะให้สมัครก่อน (ฟรี) จากนั้นฉบับใหม่จะไปโผล่ในนั้นเอง ปุ่มนี้แค่พาไปหน้าเว็บของ
+          Feedly พร้อมที่อยู่ไฟล์ — เราไม่ได้ส่งอะไรเกี่ยวกับคุณไปด้วย
+        </p>
+
+        <h3 style="margin:0 0 6px">ถ้าใช้โปรแกรมอื่น</h3>
+        <ol style="margin:0 0 14px;max-width:70ch;padding-left:1.2em">
+          <li>กด "คัดลอกลิงก์" ที่รายการที่อยากตาม</li>
+          <li>เปิดโปรแกรมอ่าน RSS แล้วหาเมนูเพิ่มแหล่งข่าว (Add feed / Subscribe / เพิ่มฟีด)</li>
+          <li>วางลิงก์ลงไป</li>
         </ol>
-        <p class="muted" style="margin:10px 0 0;max-width:70ch">
-          ไฟล์เป็นรูปแบบ Atom ซึ่งโปรแกรมอ่าน RSS ทุกตัวรองรับ อัปเดตวันละครั้งหลังเว็บสร้างข้อมูลใหม่
+        <p class="muted" style="margin:0 0 14px;max-width:70ch">
+          โปรแกรมที่คนใช้กันเยอะ: <b>Feedly</b> และ <b>Inoreader</b> (เว็บ + แอปมือถือ ฟรี) ·{' '}
+          <b>NetNewsWire</b> (Mac / iPhone ฟรี ไม่มีบัญชี) · <b>Thunderbird</b> (คอมพิวเตอร์ ฟรี) · ถ้าทีมใช้{' '}
+          <b>Slack</b> พิมพ์ <code>/feed subscribe</code> แล้วตามด้วยลิงก์ ได้เลยในห้องแชท
+        </p>
+
+        <h3 style="margin:0 0 6px">ควรตามอันไหนดี</h3>
+        <ul style="margin:0 0 14px;max-width:70ch;padding-left:1.2em">
+          <li>
+            <b>อยากรู้ว่ามีอะไรออกใหม่บ้างทุกวัน</b> — ตัวหลักด้านบน ได้ครบทุกฉบับ วันละร้อยกว่าฉบับ
+          </li>
+          <li>
+            <b>สนใจเฉพาะกฎหมายใหม่</b> — ฉบับกฤษฎีกา (ก) วันละประมาณหนึ่งฉบับ ไม่ถูกประกาศทั่วไปกลบ
+          </li>
+          <li>
+            <b>ดูแลเรื่องใดเรื่องหนึ่งหรือพื้นที่ใดพื้นที่หนึ่ง</b> — เลือกจากหัวข้อ จังหวัด หรือหน่วยงาน
+            จะเงียบกว่ามากและตรงกับงานมากกว่า
+          </li>
+        </ul>
+        <p class="muted" style="margin:0;max-width:70ch">
+          ไฟล์เป็นรูปแบบ Atom ซึ่งโปรแกรมอ่าน RSS รองรับทุกตัว อัปเดตคืนละครั้งหลังเว็บสร้างข้อมูลใหม่
+          แต่ละรายการมีทั้งชื่อเรื่องและพิกัด เล่ม/ตอน/หน้า ให้คัดลอกไปอ้างอิงได้ทันทีโดยไม่ต้องเปิดเว็บ
         </p>
       </section>
     </>
