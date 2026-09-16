@@ -51,24 +51,6 @@ rm -rf dist/data
 # Falls back to a real copy if they ever end up on different filesystems.
 cp -al "$DATA" dist/data 2>/dev/null || cp -R "$DATA" dist/data
 
-# TEMPORARY — range-request probe. Cloudflare Pages is measured to serve 206 for a small
-# application/octet-stream file, but every file we ship today is under a megabyte, and the
-# question for a packed index is whether a 20 MB one behaves the same or drags the whole object
-# through the edge to answer for four kilobytes. Deterministic contents so a returned slice can
-# be checked against what was asked for. Delete this block and the file once measured.
-if [[ "${TLW_RANGE_PROBE:-1}" == "1" ]]; then
-  mkdir -p dist/probe
-  python3 - <<'PROBE'
-import os, struct
-# 20 MiB of 8-byte little-endian offsets: the value at byte 8n is n, so any slice proves itself
-n = (20 * 1024 * 1024) // 8
-with open("dist/probe/range-20mb.bin", "wb") as f:
-    for chunk in range(0, n, 1 << 16):
-        f.write(b"".join(struct.pack("<Q", i) for i in range(chunk, min(chunk + (1 << 16), n))))
-print(f"probe: {os.path.getsize('dist/probe/range-20mb.bin'):,} bytes")
-PROBE
-fi
-
 # _headers is generated rather than copied: Cloudflare Pages ignores a wildcard in the middle of a
 # path (measured — the deploy that shipped /data/*/feeds/* served application/xml), so each source
 # needs its own literal rule, and the source ids are in the data itself.
